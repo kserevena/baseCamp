@@ -4,6 +4,19 @@ This is a family organiser Progressive Web App (PWA) built with Vue 3, wrapped i
 thin Android WebView APK for sideloading onto family devices. This file tells you
 everything you need to know to build, run, and extend the project.
 
+---
+
+## Build progress
+
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 0 — UI prototype | **In progress** | Scaffold complete; awaiting family feedback on real devices |
+| Phase 1 — Firebase data | Not started | |
+| Phase 2 — Authentication | Not started | |
+| Phase 3 — Packaging & deploy | Not started | |
+
+---
+
 > **Working title:** BaseCamp. The name and visual theme are provisional and will
 > be revisited once the app is built and in use by the family. Do not apply any
 > outdoor or camping visual theme to the UI — keep the design clean and neutral

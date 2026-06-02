@@ -588,3 +588,5 @@ appearing on both — is a key motivating milestone. Make it a deliberate event.
 - Family chat
 - Family event organiser and calendar
 - Individual birthday and Christmas wish lists shareable with grandparents
+- Chores list
+- Pocket money management

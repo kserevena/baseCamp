@@ -10,8 +10,8 @@ everything you need to know to build, run, and extend the project.
 
 | Phase | Status | Notes |
 |---|---|---|
-| Phase 0 — UI prototype | **In progress** | Scaffold complete; awaiting family feedback on real devices |
-| Phase 1 — Firebase data | Not started | |
+| Phase 0 — UI prototype | **Complete** | Scaffold complete; family skipped advanced UX features, moving to Firebase |
+| Phase 1 — Firebase data | **In progress** | |
 | Phase 2 — Authentication | Not started | |
 | Phase 3 — Packaging & deploy | Not started | |
 

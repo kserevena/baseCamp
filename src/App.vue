@@ -1,9 +1,34 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useFamilyStore } from '@/stores/family.js'
+import { useShoppingStore } from '@/stores/shopping.js'
+import { useMealsStore } from '@/stores/meals.js'
+import { seedIfEmpty } from '@/firebase/seed.js'
 
 const route = useRoute()
 const router = useRouter()
+
+const family = useFamilyStore()
+const shopping = useShoppingStore()
+const meals = useMealsStore()
+
+onMounted(async () => {
+  try {
+    await seedIfEmpty()
+  } catch (err) {
+    console.error('[BaseCamp] Seed failed:', err)
+  }
+  family.setup()
+  shopping.setup()
+  meals.setup()
+})
+
+onUnmounted(() => {
+  family.teardown()
+  shopping.teardown()
+  meals.teardown()
+})
 
 const navItems = [
   { label: 'Home',     icon: 'mdi-home',                path: '/' },

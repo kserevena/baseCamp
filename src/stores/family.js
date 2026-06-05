@@ -1,5 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { collection, onSnapshot } from 'firebase/firestore'
+import { db } from '@/firebase/config.js'
+
+const FAMILY_ID = 'family_1'
 
 export const useFamilyStore = defineStore('family', () => {
   const currentUser = ref({
@@ -9,12 +13,22 @@ export const useFamilyStore = defineStore('family', () => {
     colour: '#378ADD',
   })
 
-  const members = ref([
-    { uid: 'mock_dad',  name: 'Dad',  role: 'parent', colour: '#378ADD' },
-    { uid: 'mock_mum',  name: 'Mum',  role: 'parent', colour: '#1D9E75' },
-    { uid: 'mock_ella', name: 'Ella', role: 'child',  colour: '#D4537E' },
-    { uid: 'mock_sam',  name: 'Sam',  role: 'child',  colour: '#EF9F27' },
-  ])
+  const members = ref([])
 
-  return { currentUser, members }
+  let unsubscribe = null
+
+  function setup() {
+    unsubscribe = onSnapshot(
+      collection(db, 'families', FAMILY_ID, 'members'),
+      (snap) => {
+        members.value = snap.docs.map(d => ({ uid: d.id, ...d.data() }))
+      },
+    )
+  }
+
+  function teardown() {
+    if (unsubscribe) unsubscribe()
+  }
+
+  return { currentUser, members, setup, teardown }
 })

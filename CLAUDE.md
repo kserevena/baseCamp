@@ -11,7 +11,7 @@ everything you need to know to build, run, and extend the project.
 | Phase | Status | Notes |
 |---|---|---|
 | Phase 0 — UI prototype | **Complete** | Scaffold complete; family skipped advanced UX features, moving to Firebase |
-| Phase 1 — Firebase data | **In progress** | |
+| Phase 1 — Firebase data | **Complete** | Real-time Firestore sync confirmed across devices |
 | Phase 2 — Authentication | Not started | |
 | Phase 3 — Packaging & deploy | Not started | |
 
@@ -505,6 +505,15 @@ Key requirements for MainActivity.java:
 
 The APK is sideloaded — never published to the Play Store. Google Family Link's
 app-approval process does not apply to sideloaded APKs.
+
+---
+
+## README
+
+`README.md` is the developer-facing setup guide. Keep it accurate as the project evolves:
+- Update the **Current Status** table whenever a phase changes
+- Update the **Dev Environment Setup** section whenever the local setup steps change (new env vars, new prerequisites, new startup commands, new services)
+- Do not add implementation detail to README — that belongs in CLAUDE.md
 
 ---
 

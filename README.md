@@ -13,52 +13,87 @@ The app works fully offline thanks to Firestore's IndexedDB persistence and a se
 
 ## Current Status
 
-**Phase 0 — UI prototype** (in progress)
+| Phase | Status |
+|---|---|
+| Phase 0 — UI prototype | Complete |
+| Phase 1 — Firebase data | Complete |
+| Phase 2 — Authentication | Not started |
+| Phase 3 — Packaging & deploy | Not started |
 
-The app is a working prototype with mock data. The entire family can open the app on their real devices over local WiFi to provide feedback on look and feel before any backend work begins.
+See `CLAUDE.md` for full project spec, data structure, and coding conventions.
 
-See `CLAUDE.md` for detailed project instructions, tech stack, and build phases.
+---
 
-## Getting Started
+## Dev Environment Setup
 
 ### Prerequisites
-- Node.js 16+ and npm
-- A modern browser (Chrome, Safari, Firefox)
 
-### Start the app locally
+- Node.js 18+
+- npm
+- A Firebase project (see below)
+
+### 1. Clone and install dependencies
 
 ```bash
+git clone <repo-url>
+cd baseCamp
 npm install
+```
+
+### 2. Create your Firebase project
+
+1. Go to [firebase.google.com](https://firebase.google.com) and sign in
+2. Create a new project (e.g. `basecamp-app-dev`)
+3. Go to **Build → Firestore Database** and create a database in **test mode**
+4. Go to **Project Settings → Your apps**, add a Web app, and copy the config
+
+### 3. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in your Firebase project values:
+
+```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+`.env` is gitignored and never committed.
+
+### 4. Start the dev server
+
+```bash
 npm run dev
 ```
 
-The app will start at `http://localhost:5173`.
+On first run the app seeds Firestore with mock family data automatically. Open the URL printed by Vite (usually `http://localhost:5173`).
 
-#### Access from other devices on WiFi
-
-To test on phones, tablets, or other devices on the same network, use:
+### 5. Access from other devices on the same WiFi
 
 ```bash
 npm run dev -- --host
 ```
 
-This binds the dev server to your network. Vite will display the local network URL (e.g., `http://192.168.1.100:5173`).
+Vite will print a network URL (e.g. `http://192.168.1.100:5173`). Open that on any phone or tablet on the same network. Every file save hot-reloads all connected devices instantly.
 
-Alternatively, find your local IP manually:
+Find your local IP manually if needed:
+- **Windows:** `ipconfig` → IPv4 Address
 - **Mac:** `ipconfig getifaddr en0`
-- **Windows:** `ipconfig` (look for IPv4 Address)
 
-Every file save hot-reloads all connected devices instantly.
-
-### (Phase 1+) Start with Firebase emulator
-
-Once Phase 1 begins, also run:
+### Production build
 
 ```bash
-firebase emulators:start
+npm run build
+firebase deploy --only hosting
 ```
 
-in a separate terminal, then `npm run dev` in another.
+---
 
 ## Tech Stack
 
@@ -68,7 +103,3 @@ in a separate terminal, then `npm run dev` in another.
 - **State:** Pinia
 - **Backend:** Firebase (Firestore, Auth, Hosting)
 - **Offline:** Service Worker + Firestore IndexedDB persistence
-
-## Learn More
-
-See `CLAUDE.md` for the full project spec, data structure, Firebase setup, and coding conventions.

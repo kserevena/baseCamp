@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Returns true if the requesting user is logged in AND has a member document
+    // inside the given family. Used to gate all read/write access to family data.
+    function isFamilyMember(familyId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+
+    // Returns true if the user is a family member whose role field is "parent".
+    // Used to restrict destructive or administrative actions (delete, update family).
+    function isParent(familyId) {
+      return isFamilyMember(familyId) &&
+        get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'parent';
+    }
+
+    // Each user has a private document that records which family they belong to.
+    // Only the owner can read or write their own document — nobody else can touch it.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Invite codes map a code to a familyId.
+    // A signed-in user can GET a single code directly (needed to look up the family
+    // when joining) but cannot LIST the collection — listing is left to deny so the
+    // codes (and the familyIds they map to) cannot be enumerated.
+    // Only existing family members can write codes (created by the parent during family setup).
+    match /inviteCodes/{code} {
+      allow get: if request.auth != null;
+      allow write: if request.auth != null &&
+        exists(/databases/$(database)/documents/families/$(request.resource.data.familyId)/members/$(request.auth.uid));
+    }
+
+    // The family document holds the family name, creation date, and invite code.
+    match /families/{familyId} {
+      // Any family member can read the family document (e.g. to display the family name).
+      allow read: if isFamilyMember(familyId);
+      // A signed-in user can create a family only if they stamp themselves as the
+      // creator. createdBy is what lets that one user seat themselves as parent below;
+      // it cannot be forged for someone else.
+      allow create: if request.auth != null &&
+        request.resource.data.createdBy == request.auth.uid;
+      // Only parents can update the family document (e.g. to change the family name).
+      allow update: if isParent(familyId);
+
+      // Each member document stores the person's display name, role, and colour.
+      match /members/{uid} {
+        // Any family member can read the member list (needed to show avatars and names).
+        allow read: if isFamilyMember(familyId);
+
+        // Parents can add, edit, or remove any member in their family.
+        allow write: if isParent(familyId);
+
+        // A user may seat THEMSELVES into a family without being a member yet, but only:
+        //  - as 'parent' if they are the family's creator (the first-run setup), or
+        //  - as 'child' if they present a valid invite code that maps to THIS family.
+        // This blocks two attacks the old `uid == request.auth.uid` rule allowed:
+        // self-promotion to parent, and joining a stranger's family without its code.
+        allow create: if request.auth != null && request.auth.uid == uid && (
+          (request.resource.data.role == 'parent'
+            && get(/databases/$(database)/documents/families/$(familyId)).data.createdBy == request.auth.uid)
+          ||
+          (request.resource.data.role == 'child'
+            && exists(/databases/$(database)/documents/inviteCodes/$(request.resource.data.inviteCode))
+            && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.inviteCode)).data.familyId == familyId)
+        );
+
+        // A user may edit their own member doc (e.g. name/colour) but cannot change their role.
+        allow update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.role == resource.data.role;
+      }
+    }
+
+    // A shopping list document exists once per week and holds the familyId.
+    // The items subcollection holds the individual shopping items.
+    match /shoppingLists/{listId} {
+      // Any family member can read, add, or tick off items.
+      // Deleting the whole list is restricted to parents.
+      // Note: create uses request.resource (incoming data) because resource is null
+      // for documents that don't exist yet.
+      allow read, update: if isFamilyMember(resource.data.familyId);
+      allow create: if isFamilyMember(request.resource.data.familyId);
+      allow delete: if isParent(resource.data.familyId);
+
+      // Individual shopping items live in the items subcollection.
+      // The rule reads the parent shoppingList document to get the familyId,
+      // then checks membership against that.
+      match /items/{itemId} {
+        allow read, create, update: if isFamilyMember(
+          get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
+        // Only parents can permanently delete an item.
+        allow delete: if isParent(
+          get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
+      }
+    }
+
+    // Meal documents hold the meal name, votes array, and familyId.
+    // Any family member can read, add, or vote on meals.
+    // Only parents can delete a meal.
+    // Note: create uses request.resource for the same reason as shoppingLists above.
+    match /meals/{mealId} {
+      allow read, update: if isFamilyMember(resource.data.familyId);
+      allow create: if isFamilyMember(request.resource.data.familyId);
+      allow delete: if isParent(resource.data.familyId);
+    }
+  }
+}

@@ -5,6 +5,7 @@ import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
 import router from './router/index.js'
 import App from './App.vue'
+import { useAuthStore } from '@/stores/auth.js'
 
 const vuetify = createVuetify({
   theme: {
@@ -21,6 +22,7 @@ const vuetify = createVuetify({
 
 const app = createApp(App)
 app.use(createPinia())
+useAuthStore().startAuthListener()
 app.use(router)
 app.use(vuetify)
 app.mount('#app')

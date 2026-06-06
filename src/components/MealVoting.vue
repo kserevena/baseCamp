@@ -7,8 +7,8 @@ import FamilyAvatar from './FamilyAvatar.vue'
 const mealsStore = useMealsStore()
 const familyStore = useFamilyStore()
 
-const currentUid = computed(() => familyStore.currentUser.uid)
-const currentColour = computed(() => familyStore.currentUser.colour)
+const currentUid = computed(() => familyStore.currentUser?.uid ?? '')
+const currentColour = computed(() => familyStore.currentUser?.colour ?? '#9E9E9E')
 
 function hasVoted(meal) {
   return meal.votes.includes(currentUid.value)

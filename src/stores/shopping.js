@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore'
+import {
+  collection, doc, onSnapshot, addDoc, updateDoc, setDoc, serverTimestamp,
+} from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useFamilyStore } from './family.js'
 
@@ -24,10 +26,22 @@ const AISLE_ORDERS = {
 export const useShoppingStore = defineStore('shopping', () => {
   const items = ref([])
   let weekId = getWeekId()
+  let currentFamilyId = null
   let unsubscribe = null
 
-  function setup() {
+  async function setup(familyId) {
     weekId = getWeekId()
+    currentFamilyId = familyId
+
+    const monday = new Date()
+    const dayNum = monday.getDay() || 7
+    monday.setDate(monday.getDate() + 1 - dayNum)
+
+    await setDoc(doc(db, 'shoppingLists', weekId), {
+      familyId,
+      weekOf: monday.toISOString().slice(0, 10),
+    }, { merge: true })
+
     unsubscribe = onSnapshot(
       collection(db, 'shoppingLists', weekId, 'items'),
       (snap) => {
@@ -40,6 +54,8 @@ export const useShoppingStore = defineStore('shopping', () => {
 
   function teardown() {
     if (unsubscribe) unsubscribe()
+    unsubscribe = null
+    items.value = []
   }
 
   function toggleDone(id) {
@@ -57,7 +73,7 @@ export const useShoppingStore = defineStore('shopping', () => {
       aisle,
       aisleOrder: AISLE_ORDERS[aisle] ?? 3,
       done: false,
-      addedBy: familyStore.currentUser.uid,
+      addedBy: familyStore.currentUser?.uid ?? '',
       fromMeal: null,
       createdAt: serverTimestamp(),
     })

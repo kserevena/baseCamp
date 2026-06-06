@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, connectFirestoreEmulator } from 'firebase/firestore'
+import { getAuth, connectAuthEmulator } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,3 +16,10 @@ const app = initializeApp(firebaseConfig)
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache(),
 })
+
+export const auth = getAuth(app)
+
+if (import.meta.env.VITE_USE_EMULATOR === 'true') {
+  connectFirestoreEmulator(db, 'localhost', 8080)
+  connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true })
+}

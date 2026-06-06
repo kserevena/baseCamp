@@ -12,7 +12,7 @@ everything you need to know to build, run, and extend the project.
 |---|---|---|
 | Phase 0 — UI prototype | **Complete** | Scaffold complete; family skipped advanced UX features, moving to Firebase |
 | Phase 1 — Firebase data | **Complete** | Real-time Firestore sync confirmed across devices |
-| Phase 2 — Authentication | Not started | |
+| Phase 2 — Authentication | **Complete** | Code complete on `phase-2-authentication` branch; enable Google Sign-In in Firebase Console to finish |
 | Phase 3 — Packaging & deploy | Not started | |
 
 ---
@@ -48,7 +48,7 @@ browser OAuth flow without Play Store involvement.
 | UI components | Vuetify 3 | Mobile-friendly component library |
 | Routing | Vue Router 4 | Screen navigation |
 | State | Pinia | Shared app state |
-| Backend | Firebase (Firestore, Auth, Hosting, Functions) | Data, auth, hosting |
+| Backend | Firebase (Firestore, Auth, Hosting) | Data, auth, hosting |
 | Offline | Vite PWA plugin + Firestore IndexedDB persistence | Full offline support |
 | Android wrapper | Android WebView APK (Android Studio) | Sideloaded onto phones and tablets |
 
@@ -57,277 +57,113 @@ Options API. Always use `<script setup lang="ts">` if TypeScript is enabled.
 
 ---
 
-## Build phases — do these in order
-
-The project is built in four distinct phases. Do not skip ahead. Each phase ends
-with something the whole family can see and react to on real devices.
-
-### Phase 0 — UI prototype (NO backend, NO auth, NO Firebase)
-
-**Goal: get the app looking right on real devices as fast as possible.**
-
-The entire family should be able to open the app on their phones and tablets over
-local WiFi and give feedback on the look and feel before any backend work begins.
-
-How it works:
-- All data is hardcoded in Pinia stores as plain JavaScript arrays
-- The family store contains a mock "current user" so the app behaves as if someone
-  is logged in
-- Vue Router has no auth guard — every route is freely accessible
-- No Firebase, no `.env` file, no emulator — just `npm run dev`
-
-The mock family store (src/stores/family.js) during this phase:
-
-```javascript
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-
-export const useFamilyStore = defineStore('family', () => {
-  const currentUser = ref({
-    uid: 'mock_dad',
-    name: 'Dad',
-    role: 'parent',
-    colour: '#378ADD',
-  })
-
-  const members = ref([
-    { uid: 'mock_dad',  name: 'Dad',  role: 'parent', colour: '#378ADD' },
-    { uid: 'mock_mum',  name: 'Mum',  role: 'parent', colour: '#1D9E75' },
-    { uid: 'mock_ella', name: 'Ella', role: 'child',  colour: '#D4537E' },
-    { uid: 'mock_sam',  name: 'Sam',  role: 'child',  colour: '#EF9F27' },
-  ])
-
-  return { currentUser, members }
-})
-```
-
-The mock shopping store (src/stores/shopping.js) during this phase:
-
-```javascript
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-
-export const useShoppingStore = defineStore('shopping', () => {
-  const items = ref([
-    { id: '1', name: 'Milk',            qty: '2 pints', aisle: 'Dairy',      aisleOrder: 1, done: false, addedBy: 'mock_dad',  fromMeal: null },
-    { id: '2', name: 'Cheddar cheese',  qty: '400g',    aisle: 'Dairy',      aisleOrder: 1, done: false, addedBy: 'mock_mum',  fromMeal: 'bolognese' },
-    { id: '3', name: 'Chicken thighs',  qty: '1kg',     aisle: 'Meat',       aisleOrder: 2, done: false, addedBy: 'mock_mum',  fromMeal: 'roast' },
-    { id: '4', name: 'Bacon',           qty: '300g',    aisle: 'Meat',       aisleOrder: 2, done: false, addedBy: 'mock_dad',  fromMeal: null },
-    { id: '5', name: 'Pasta',           qty: '500g',    aisle: 'Dry goods',  aisleOrder: 3, done: false, addedBy: 'mock_ella', fromMeal: 'bolognese' },
-    { id: '6', name: 'Tinned tomatoes', qty: 'x2',      aisle: 'Dry goods',  aisleOrder: 3, done: false, addedBy: 'mock_mum',  fromMeal: 'bolognese' },
-    { id: '7', name: 'Bread',           qty: '1 loaf',  aisle: 'Bakery',     aisleOrder: 4, done: false, addedBy: 'mock_dad',  fromMeal: null },
-    { id: '8', name: 'Apples',          qty: '6 pack',  aisle: 'Fruit & veg',aisleOrder: 5, done: false, addedBy: 'mock_sam',  fromMeal: null },
-    { id: '9', name: 'Broccoli',        qty: '1 head',  aisle: 'Fruit & veg',aisleOrder: 5, done: false, addedBy: 'mock_mum',  fromMeal: null },
-  ])
-
-  function toggleDone(id) {
-    const item = items.value.find(i => i.id === id)
-    if (item) item.done = !item.done
-  }
-
-  function addItem(name, qty = '', aisle = 'Dry goods') {
-    items.value.push({
-      id: Date.now().toString(),
-      name, qty, aisle,
-      aisleOrder: 3,
-      done: false,
-      addedBy: 'mock_dad',
-      fromMeal: null,
-    })
-  }
-
-  return { items, toggleDone, addItem }
-})
-```
-
-The mock meals store (src/stores/meals.js) during this phase:
-
-```javascript
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-
-export const useMealsStore = defineStore('meals', () => {
-  const meals = ref([
-    { id: 'm1', name: 'Pasta bolognese', votes: ['mock_dad', 'mock_mum', 'mock_ella', 'mock_sam'] },
-    { id: 'm2', name: 'Roast chicken',   votes: ['mock_mum', 'mock_dad'] },
-    { id: 'm3', name: 'Bacon sandwiches',votes: ['mock_dad', 'mock_sam'] },
-    { id: 'm4', name: 'Veggie stir fry', votes: ['mock_ella'] },
-  ])
-
-  function toggleVote(mealId, uid) {
-    const meal = meals.value.find(m => m.id === mealId)
-    if (!meal) return
-    const idx = meal.votes.indexOf(uid)
-    if (idx >= 0) meal.votes.splice(idx, 1)
-    else meal.votes.push(uid)
-  }
-
-  return { meals, toggleVote }
-})
-```
-
-Vue Router during this phase — no auth guard, no login redirect:
-
-```javascript
-// src/router/index.js
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '@/views/HomeView.vue'
-import ShoppingView from '@/views/ShoppingView.vue'
-import MealsView from '@/views/MealsView.vue'
-
-export default createRouter({
-  history: createWebHistory(),
-  routes: [
-    { path: '/',         component: HomeView },
-    { path: '/shopping', component: ShoppingView },
-    { path: '/meals',    component: MealsView },
-    // LoginView is not included yet — added in Phase 2
-  ],
-})
-```
-
-**Phase 0 ends when:** the family has opened the app on their real devices over local
-WiFi, ticked items off the shopping list, voted on meals, and given feedback on how
-it looks and feels. Incorporate any UI feedback before moving to Phase 1.
-
----
-
-### Phase 1 — Firebase data (real sync, still no auth)
-
-**Goal: replace mock store data with live Firestore data. Still no login screen.**
-
-The family store still uses the hardcoded mock current user. But shopping list and
-meal data now comes from Firestore via `onSnapshot` listeners, so changes on one
-device appear instantly on all others.
-
-Set up Firebase:
-1. Create a Firebase project at firebase.google.com
-2. Enable Firestore (start in test mode — open rules, tightened in Phase 2)
-3. Add Firebase config to `.env` (never commit this file)
-4. Run `firebase emulators:start` locally during development
-
-Seed Firestore with the same mock data from Phase 0 so the UI looks identical.
-Replace the Pinia store arrays with `onSnapshot` listeners.
-
-Firestore test-mode rules (Phase 1 only — replaced in Phase 2):
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;  // TEMPORARY — Phase 1 only
-    }
-  }
-}
-```
-
-**Phase 1 ends when:** changes on one device appear on another in real time, with
-no login required.
-
----
-
-### Phase 2 — authentication
-
-**Goal: add Google Sign-In, family groups, and proper Firestore security rules.**
-
-Steps:
-1. Enable Google Sign-In in Firebase Authentication console
-2. Build `LoginView.vue` with a Google Sign-In button
-3. Add Vue Router auth guard — redirect to `/login` if no active session
-4. On sign-in success, check Firestore for a `families` document containing the uid
-5. If found: load family into Pinia store, redirect to home
-6. If not found: show "Create or join a family" screen
-   - Create: write new `families` document, generate 6-digit invite code
-   - Join: look up family by invite code, add uid to `members`
-7. Replace Firestore open rules with proper security rules (see Security rules section)
-8. Remove mock current user from family store — replace with real Firebase Auth user
-
-Auth state is persisted by Firebase automatically across sessions and app restarts.
-
-Use Chrome Custom Tabs for the Google OAuth flow on Android (not a plain WebView —
-Google blocks OAuth inside WebView). The Firebase Auth SDK handles this automatically
-when used in a browser context.
-
-**Phase 2 ends when:** every family member can sign in with their Google account,
-the family group is created, and Firestore rules prevent unauthorised access.
-
----
-
-### Phase 3 — packaging and deployment
-
-**Goal: deploy to Firebase Hosting and sideload the Android APK.**
-
-Steps:
-1. Run `npm run build` — Vite builds the production bundle with service worker
-2. Run `firebase deploy --only hosting` — live at `yourapp.web.app`
-3. Whitelist the Firebase Hosting URL in Google Family Link if web restrictions
-   are enabled on children's accounts
-4. Build the thin Android WebView APK in Android Studio (see Android wrapper section)
-5. Enable "Install from unknown sources" on each Android device
-6. Sideload the APK onto phones and tablets
-7. Test offline: turn on aeroplane mode, use the app, reconnect, verify sync
-
-**Phase 3 ends when:** every family device has the app installed, offline mode works,
-and the whole family can use it for the actual weekly shop.
-
----
-
 ## Project structure
 
 ```
-basecamp/
+baseCamp/
 ├── src/
-│   ├── components/          # Reusable building blocks
-│   │   ├── ShoppingItem.vue
-│   │   ├── ShoppingList.vue
-│   │   ├── MealVoting.vue
-│   │   └── FamilyAvatar.vue
-│   ├── views/               # Full screens / pages
-│   │   ├── HomeView.vue
-│   │   ├── ShoppingView.vue
-│   │   ├── MealsView.vue
-│   │   └── LoginView.vue    ← added in Phase 2
-│   ├── stores/              # Pinia stores
-│   │   ├── family.js        # Current user, family members, roles
-│   │   ├── shopping.js      # Shopping list items
-│   │   └── meals.js         # Meal suggestions and votes
+│   ├── main.js                      # Entry point — registers plugins, starts auth listener
+│   ├── App.vue                      # Root component — app bar, bottom nav, store lifecycle
+│   ├── test-setup.js                # Vitest global setup (Vuetify polyfills)
+│   ├── components/
+│   │   ├── FamilyAvatar.vue         # Coloured avatar circle with member initials
+│   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
+│   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
+│   │   └── MealVoting.vue           # Meal cards with vote button and voter avatars
+│   ├── views/
+│   │   ├── HomeView.vue             # Dashboard — shopping summary, top meal, family avatars
+│   │   ├── LoginView.vue            # Google Sign-In page
+│   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
+│   │   ├── ShoppingView.vue         # Shopping list — progress bar, list, add-item FAB
+│   │   ├── MealsView.vue            # Meal voting wrapper
+│   │   └── __tests__/
+│   │       ├── LoginView.test.js
+│   │       └── SetupView.test.js
+│   ├── stores/
+│   │   ├── auth.js                  # Firebase Auth — Google Sign-In, isMinor detection
+│   │   ├── family.js                # Family membership, create/join, member colours
+│   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort)
+│   │   ├── meals.js                 # Meal suggestions and votes
+│   │   └── __tests__/
+│   │       ├── auth.test.js
+│   │       ├── family.test.js
+│   │       └── family.integration.test.js
 │   ├── router/
-│   │   └── index.js         # Vue Router — auth guard added in Phase 2
-│   ├── firebase/            # Created in Phase 1
-│   │   ├── config.js        # Firebase init + offline persistence
-│   │   ├── auth.js          # Google Sign-In helpers
-│   │   └── firestore.js     # Firestore read/write helpers
-│   ├── App.vue              # Root component, bottom navigation bar
-│   └── main.js              # Entry point, plugin registration
+│   │   ├── index.js                 # Vue Router — routes and auth guard
+│   │   └── __tests__/
+│   │       └── guard.test.js
+│   └── firebase/
+│       ├── config.js                # Firebase init, emulator wiring, IndexedDB persistence
+│       └── seed.js                  # seedIfEmpty() — populates emulator with mock data
 ├── public/
-│   ├── manifest.json        # PWA manifest
+│   ├── manifest.json                # PWA manifest
 │   ├── icon-192.png
 │   └── icon-512.png
-├── android-wrapper/         # Added in Phase 3
-│   ├── MainActivity.java
-│   └── AndroidManifest.xml
+├── android-wrapper/                 # Added in Phase 3 (Android Studio project)
+├── firestore.rules                  # Firestore security rules — deploy with firebase deploy
+├── firestore.indexes.json
 ├── vite.config.js
-├── firebase.json            # Added in Phase 1
+├── vitest.config.js                 # Unit test config (jsdom)
+├── vitest.integration.config.js     # Integration test config (node, 15s timeout)
+├── firebase.json                    # Emulator ports, hosting config
 ├── .firebaserc
-├── .env                     # Firebase credentials — never commit
+├── .env                             # Firebase credentials — never commit
 └── package.json
 ```
 
 ---
 
+## Authentication flow
+
+Understanding this flow is essential for any work on auth, routing, or store setup.
+
+1. `src/main.js` calls `authStore.startAuthListener()` before mounting the app.
+2. `startAuthListener` sets up Firebase `onAuthStateChanged`. It resolves an `authReady` promise when the initial auth state is known — this prevents routing decisions before Firebase has loaded the persisted session.
+3. The router guard in `src/router/index.js` `await`s `authReady` on every navigation, then:
+   - If not authenticated → redirect to `/login`
+   - If authenticated → call `familyStore.resolveFamily(uid)` to look up `users/{uid}` in Firestore
+   - If no family found → redirect to `/setup`
+   - If family found → proceed to the requested route
+4. `LoginView.vue` calls `authStore.signInWithGoogle()`, which opens a Google popup requesting the `profile.agerange.read` scope, then calls the Google People API to check whether the user is a minor. The `isMinor` flag is persisted to `localStorage` and restored by `startAuthListener` on subsequent visits.
+5. `SetupView.vue` handles first-time setup:
+   - **Create a family** (parents only — hidden when `isMinor` is true): writes a new `families/{id}` document and an `inviteCodes/{code}` document, then redirects home.
+   - **Join a family** (all users): looks up the invite code in `inviteCodes`, adds the user to `families/{id}/members`, then redirects home.
+
+---
+
+## Store lifecycle
+
+The three data stores (`family`, `shopping`, `meals`) all follow the same pattern:
+
+- `setup(id)` — subscribes to Firestore via `onSnapshot`, populates reactive state
+- `teardown()` — unsubscribes the listener, clears state
+
+`App.vue` watches the `familyId` and calls `setup`/`teardown` when it changes. This keeps listeners clean and prevents stale data if a user somehow ends up in a different family context. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
+
+---
+
 ## Firebase data structure
 
-All family data lives in Firestore. This shape is fixed — do not deviate from it.
+This schema is the contract between the app and the database. All devices — including ones that are offline and haven't updated yet — may hold documents in any previously deployed shape. Treat every field as potentially absent when reading, and follow the **schema evolution rules** below before changing anything.
 
 ```
+users/{uid}
+  familyId: string            ← maps each user to their family; written on create/join
+
+inviteCodes/{code}            ← 8-character code (crypto-random, unambiguous alphabet)
+  familyId: string
+
 families/{familyId}
   name: string
   createdAt: timestamp
-  inviteCode: string          ← 6-digit code for joining
+  inviteCode: string
+  createdBy: uid              ← the creator; lets exactly this user seat themselves as parent
   members/{uid}
     name: string
     role: "parent" | "child"
     colour: string            ← hex, used for avatars throughout the app
+    inviteCode: string        ← only on child members who joined; the code they used,
+                                so the security rule can verify it maps to this family
 
 shoppingLists/{weekId}        ← weekId format: "YYYY-week-WW"
   familyId: string
@@ -352,85 +188,135 @@ meals/{mealId}
 
 ---
 
-## Firebase setup (Phase 1 onwards)
+## Firestore schema evolution
 
-### Initialisation (src/firebase/config.js)
+Firestore has no server-side schema enforcement. The app code and the `firestore.rules` file together are the contract. Because this is a PWA with IndexedDB persistence, devices can hold locally-cached documents in an old shape for an extended period — a family member's tablet might be offline for days. **Every schema change must be backward-compatible with all previously deployed document shapes**, or the migration must be complete before old-shaped documents can cause a failure.
 
-```javascript
-import { initializeApp } from 'firebase/app'
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
-import { getAuth } from 'firebase/auth'
+### Safe changes — no migration needed
 
-const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
-}
+These can be deployed in a single release:
 
-const app = initializeApp(firebaseConfig)
-export const db = getFirestore(app)
-export const auth = getAuth(app)
+| Change | What to do in code |
+|---|---|
+| Add a new optional field | Read with a fallback: `data.newField ?? defaultValue`. Old documents return `undefined`, which the fallback handles. |
+| Add a new collection | Old code ignores it. New code creates documents in it. |
+| Relax a security rule (grant more access) | Deploy the new rules, then deploy the code. |
+| Add a new index | Add to `firestore.indexes.json`, deploy with `firebase deploy --only firestore:indexes`. |
 
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Offline persistence failed: multiple tabs open')
-  } else if (err.code === 'unimplemented') {
-    console.warn('Offline persistence not supported in this browser')
-  }
-})
-```
+**Always read with a fallback.** Even when a field is "required" in the schema above, an old document might not have it. Every store that reads a Firestore document must use `data.field ?? defaultValue` rather than assuming the field exists. This is the single rule that makes the whole forward-compatibility story work.
 
-`.env` file (never commit):
-```
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-```
+### Breaking changes — use the expand–migrate–cut pattern
 
-### Firestore security rules (Phase 2 onwards)
+Never rename, remove, re-type, or restructure a field in a single deploy. Use three stages:
 
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function isFamilyMember(familyId) {
-      return request.auth != null &&
-        exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
-    }
-    function isParent(familyId) {
-      return isFamilyMember(familyId) &&
-        get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'parent';
-    }
-    match /families/{familyId} {
-      allow read: if isFamilyMember(familyId);
-      allow create: if request.auth != null;
-      allow update: if isParent(familyId);
-      match /members/{uid} {
-        allow read: if isFamilyMember(familyId);
-        allow write: if isParent(familyId);
-      }
-    }
-    match /shoppingLists/{listId} {
-      allow read, create, update: if isFamilyMember(resource.data.familyId);
-      allow delete: if isParent(resource.data.familyId);
-      match /items/{itemId} {
-        allow read, create, update: if isFamilyMember(get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
-        allow delete: if isParent(get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
-      }
-    }
-    match /meals/{mealId} {
-      allow read, create, update: if isFamilyMember(resource.data.familyId);
-      allow delete: if isParent(resource.data.familyId);
-    }
+**Stage 1 — Expand:** Deploy code that writes *both* the old and new field (or collection) simultaneously. Read the new field with a fallback to the old one. Update security rules to allow both paths. At this point all clients — whether on the old or new code — continue to work.
+
+**Stage 2 — Migrate:** Once the expanded code is live on all devices, backfill existing documents so they carry the new field. Run the migration script in the Firebase console or browser console (see below). Verify every document has been updated before proceeding.
+
+**Stage 3 — Cut:** Deploy code that only writes and reads the new field. Remove writes to the old field. Tighten security rules if needed. Delete the old field from documents if it is sensitive or costly to store.
+
+### Writing a migration script
+
+There is no Cloud Functions layer yet. Run migrations as a one-off script from the browser console while connected to production (use `VITE_USE_EMULATOR=false` and ensure you are signed in as a parent):
+
+```js
+// Example: backfill a new `displayOrder` field on all meal documents for a family
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore'
+import { db } from './src/firebase/config.js'
+
+const snap = await getDocs(collection(db, 'meals'))
+let i = 0
+for (const d of snap.docs) {
+  if (d.data().displayOrder == null) {
+    await updateDoc(doc(db, 'meals', d.id), { displayOrder: i++ })
   }
 }
+console.log('Migration complete')
 ```
+
+Always test the script against the emulator first (`VITE_USE_EMULATOR=true`). Use `if (field == null)` guards so re-running the script is safe. After the migration, run `npm run test:integration` to confirm the rules still pass against the migrated shape.
+
+### Security rules and schema changes
+
+If a rule reads a field on an existing document (e.g. `resource.data.createdBy`), old documents that predate that field will have the field as `null`, causing the rule to deny. Before tightening a rule that checks a new field, either:
+- Ensure the migration has already backfilled that field onto all existing documents, or
+- Write the rule to handle the `null` case explicitly: `resource.data.createdBy == null || resource.data.createdBy == request.auth.uid`.
+
+Test rule changes against both old-shaped and new-shaped documents in the integration tests.
+
+---
+
+## Firestore security rules
+
+The live rules are in `firestore.rules`. Deploy them after any change:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Access summary:
+
+| Collection | Who can read | Who can write |
+|---|---|---|
+| `users/{uid}` | Owner only | Owner only |
+| `inviteCodes/{code}` | Any signed-in user (single `get` only — no listing/enumeration) | Existing family member |
+| `families/{familyId}` | Family members | Anyone signed-in who stamps `createdBy` as themselves (create); parents (update) |
+| `families/{familyId}/members/{uid}` | Family members | Parents (any member); the family `createdBy` user seating themselves as parent; a user seating themselves as `child` with a valid invite code; self-updates that don't change `role` |
+| `shoppingLists/{listId}` | Family members | Family members (create/update); parents (delete) |
+| `shoppingLists/{listId}/items/{itemId}` | Family members | Family members (create/update); parents (delete) |
+| `meals/{mealId}` | Family members | Family members (create/update); parents (delete) |
+
+Two helper functions drive most rules:
+- `isFamilyMember(familyId)` — checks `families/{familyId}/members/{uid}` exists
+- `isParent(familyId)` — checks the member's `role` field equals `"parent"`
+
+**Member self-writes are tightly constrained — this is the core of the access model.** A user
+who is not yet a member can only seat *themselves* (`uid == request.auth.uid`), and only via
+one of two paths: as `parent` if they are the family's `createdBy` (first-run setup), or as
+`child` if they present an `inviteCode` that maps to this family. They cannot self-promote to
+parent and cannot change their own `role` on update. Without these constraints, any signed-in
+Google user could insert themselves into any family as a parent — invite codes are therefore
+also `get`-only (never listable) so the codes and their familyIds cannot be enumerated.
+
+---
+
+## Testing
+
+Run tests before every commit. Do not commit if tests are failing.
+
+```bash
+npm test                  # unit tests (no external dependencies)
+npm run test:integration  # integration tests (auto-starts/stops emulator)
+npm run test:watch        # unit tests in watch mode during development
+```
+
+| File | Type | Covers |
+|---|---|---|
+| `src/stores/__tests__/auth.test.js` | Unit | Auth listener, Google Sign-In popup, People API isMinor detection, localStorage persistence, sign-out |
+| `src/stores/__tests__/family.test.js` | Unit | `resolveFamily`, `currentUser` computed, `createFamily`, `joinFamily` |
+| `src/stores/__tests__/family.integration.test.js` | Integration | All Firestore security rules verified against the emulator |
+| `src/views/__tests__/LoginView.test.js` | Unit | Sign-in button, post-login navigation, loading state, error snackbar |
+| `src/views/__tests__/SetupView.test.js` | Unit | Create/join family forms, child account (hide create), error handling |
+| `src/router/__tests__/guard.test.js` | Unit | Unauthenticated redirect, family/no-family redirect, `resolveFamily` call timing |
+
+Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.
+
+---
+
+## Firebase emulator
+
+Emulator ports (defined in `firebase.json`):
+
+| Service | Port |
+|---|---|
+| Auth | 9099 |
+| Firestore | 8080 |
+| Hosting | 5000 |
+| Emulator UI | 4000 |
+
+To connect the app to the local emulator instead of the cloud project, set `VITE_USE_EMULATOR=true` in your environment (`.env` or `.env.local`). The connection is wired in `src/firebase/config.js` using `connectFirestoreEmulator` and `connectAuthEmulator`.
+
+`src/firebase/seed.js` exports a `seedIfEmpty()` function that checks whether the emulator already has data and, if not, writes mock family members, shopping items, and meals. It is called from the browser console or from test setup as needed.
 
 ---
 
@@ -438,97 +324,88 @@ service cloud.firestore {
 
 Two mechanisms work together to provide full offline support:
 
-1. **Service worker** caches all app shell files on first visit. Configured via the
-   Vite PWA plugin. `registerType: 'autoUpdate'` delivers updates silently.
+1. **Service worker** caches all app shell files on first visit. Configured via the Vite PWA plugin. `registerType: 'autoUpdate'` delivers updates silently.
 
-2. **Firestore IndexedDB persistence** caches all family data locally. Offline
-   writes are queued and synced automatically when connectivity returns.
+2. **Firestore IndexedDB persistence** (`persistentLocalCache()` in `src/firebase/config.js`) caches all family data locally. Offline writes are queued and synced automatically when connectivity returns.
 
-When writing Firestore operations, never block the UI waiting for a write to
-complete. Write optimistically (update Pinia state immediately) and let Firestore
-sync in the background. Do not show error states for normal offline writes.
+When writing Firestore operations, never block the UI waiting for a write to complete. Write optimistically (update Pinia state immediately) and let Firestore sync in the background. Do not show error states for normal offline writes.
 
-Conflict resolution is last-write-wins. For a shopping list this is acceptable —
-if two people tick the same item while offline, the last sync wins and the item
-ends up ticked, which is the correct outcome anyway.
+Conflict resolution is last-write-wins. For a shopping list this is acceptable — if two people tick the same item while offline, the last sync wins and the item ends up ticked, which is the correct outcome.
 
 ---
 
-## Vite config (with PWA plugin)
+## Vite config
 
-```javascript
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import vuetify from 'vite-plugin-vuetify'
-import { VitePWA } from 'vite-plugin-pwa'
-
-export default defineConfig({
-  plugins: [
-    vue(),
-    vuetify({ autoImport: true }),
-    VitePWA({
-      registerType: 'autoUpdate',
-      manifest: {
-        name: 'BaseCamp',
-        short_name: 'BaseCamp',
-        theme_color: '#1D9E75',
-        background_color: '#ffffff',
-        display: 'standalone',
-        icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-      },
-    }),
-  ],
-})
-```
+`vite.config.js` uses three plugins: `@vitejs/plugin-vue`, `vite-plugin-vuetify` (with `autoImport: true`), and `vite-plugin-pwa`. The PWA plugin uses `registerType: 'autoUpdate'` and caches all JS, CSS, HTML, images, and fonts via Workbox. The `@` alias resolves to `src/`.
 
 ---
 
 ## Android WebView wrapper (Phase 3)
 
-The `android-wrapper/` folder is a minimal Android Studio project. Its sole job is
-to open the Firebase Hosting URL in a full-screen WebView.
+The `android-wrapper/` folder is a minimal Android Studio project. Its sole job is to open the Firebase Hosting URL in a full-screen WebView.
 
 Key requirements for MainActivity.java:
 - Enable JavaScript
 - Enable DOM storage (required for Firebase Auth session persistence)
 - Use WebViewClient to keep all navigation inside the WebView
-- Use Chrome Custom Tabs for the Google Sign-In OAuth step (not the WebView itself —
-  Google blocks OAuth inside a plain WebView; the Firebase Auth SDK handles this
-  automatically when used in browser context)
+- Use Chrome Custom Tabs for the Google Sign-In OAuth step (not the WebView itself — Google blocks OAuth inside a plain WebView; the Firebase Auth SDK handles this automatically when used in browser context)
 - Handle the back button to navigate within the WebView rather than exit the app
 
-The APK is sideloaded — never published to the Play Store. Google Family Link's
-app-approval process does not apply to sideloaded APKs.
+The APK is sideloaded — never published to the Play Store. Google Family Link's app-approval process does not apply to sideloaded APKs.
 
 ---
 
-## README
+## Keeping documentation current
 
-`README.md` is the developer-facing setup guide. Keep it accurate as the project evolves:
-- Update the **Current Status** table whenever a phase changes
-- Update the **Dev Environment Setup** section whenever the local setup steps change (new env vars, new prerequisites, new startup commands, new services)
-- Do not add implementation detail to README — that belongs in CLAUDE.md
+Documentation is part of the code. Update it in the same commit as the change that makes it stale.
+
+**When a build phase completes** — update the status table in both `CLAUDE.md` and `README.md`.
+
+**When files are added, removed, or moved** — update the **Project structure** section in `CLAUDE.md`. Include new test files, stores, views, components, and config files.
+
+**When the Firestore data model changes** (new collection, new field, renamed field, removed field) — update the **Firebase data structure** section in `CLAUDE.md` and the **Data model** table in `README.md`. If the change is not purely additive, document the migration plan in the PR description and follow the expand–migrate–cut pattern in the **Firestore schema evolution** section.
+
+**When security rules change** — update the access summary table in the **Firestore security rules** section of `CLAUDE.md`. Always deploy rules after changing them: `firebase deploy --only firestore:rules`.
+
+**When new tests are added** — add a row to the testing table in the **Testing** section of `CLAUDE.md`.
+
+**When environment variables change** — update the `.env` block in `README.md` step 3 and the `VITE_USE_EMULATOR` explanation in step 6.
+
+**When npm scripts change** — update the **Development workflow** section in `CLAUDE.md` and the **Running tests** / **Production build** sections in `README.md`.
+
+**When the authentication or store lifecycle changes** — update the **Authentication flow** and **Store lifecycle** sections in `CLAUDE.md`.
+
+**What goes where:**
+- `README.md` — developer setup guide: prerequisites, env vars, how to run locally, how to test, how to deploy. No implementation detail.
+- `CLAUDE.md` — everything a coding agent or maintainer needs to work on the project: architecture, data model, conventions, security rules, test coverage. No step-by-step history of how past phases were built.
 
 ---
 
 ## Development workflow
 
 ```bash
-# Phase 0 — no Firebase needed
+# Install dependencies
 npm install
-npm run dev
-# → http://localhost:5173 on laptop
-# → http://YOUR_LOCAL_IP:5173 on any device on the same WiFi
 
-# Phase 1 onwards — start Firebase emulator alongside Vite
+# Start Firebase emulator (Auth + Firestore) — needed for sign-in and data
 firebase emulators:start
+
+# Start Vite dev server (in a separate terminal)
 npm run dev
+# → http://localhost:5173
+
+# Expose dev server on the local network (for testing on phones/tablets)
+npm run dev -- --host
+# → Vite will print a network URL, e.g. http://192.168.1.100:5173
+
+# Run unit tests
+npm test
+
+# Run integration tests (auto-starts and stops emulator)
+npm run test:integration
+
+# Deploy security rules after changing firestore.rules
+firebase deploy --only firestore:rules
 
 # Production build and deploy (Phase 3)
 npm run build
@@ -538,8 +415,26 @@ firebase deploy --only hosting
 Finding your local IP:
 - Windows: `ipconfig` → IPv4 Address
 - Mac: `ipconfig getifaddr en0`
+- Linux/WSL: `ip addr show` → inet address
 
 Every file save hot-reloads all connected devices instantly.
+
+---
+
+## Phase 3 — packaging and deployment
+
+**Goal: deploy to Firebase Hosting and sideload the Android APK.**
+
+Steps:
+1. Run `npm run build` — Vite builds the production bundle with service worker
+2. Run `firebase deploy --only hosting` — live at `yourapp.web.app`
+3. Whitelist the Firebase Hosting URL in Google Family Link if web restrictions are enabled on children's accounts
+4. Build the thin Android WebView APK in Android Studio (see Android wrapper section)
+5. Enable "Install from unknown sources" on each Android device
+6. Sideload the APK onto phones and tablets
+7. Test offline: turn on aeroplane mode, use the app, reconnect, verify sync
+
+**Phase 3 ends when:** every family device has the app installed, offline mode works, and the whole family can use it for the actual weekly shop.
 
 ---
 
@@ -548,14 +443,13 @@ Every file save hot-reloads all connected devices instantly.
 - **Vue 3 Composition API only** — always `<script setup>` syntax, never Options API
 - **Component names** — PascalCase files and usage (`ShoppingItem.vue`, `<ShoppingItem />`)
 - **Pinia stores** — Composition API style (`defineStore` with `ref` and `computed`)
-- **Firestore listeners** — use `onSnapshot` for real-time data; always unsubscribe
-  in `onUnmounted` to prevent memory leaks
-- **Family colour system** — every member has a `colour` hex; use it consistently
-  for avatars, badges, and vote indicators everywhere in the UI
-- **Aisle ordering** — default sort is `aisleOrder` ascending, then `priority`.
-  Parents can customise aisle order; persist changes to Firestore.
-- **Offline writes** — update Pinia state immediately, fire Firestore write in
-  background, do not await in a way that blocks the UI
+- **Firestore listeners** — use `onSnapshot` for real-time data; always unsubscribe in `onUnmounted` to prevent memory leaks
+- **Family colour system** — every member has a `colour` hex; use it consistently for avatars, badges, and vote indicators everywhere in the UI
+- **Aisle ordering** — default sort is `aisleOrder` ascending, then `priority`. Parents can customise aisle order; persist changes to Firestore.
+- **Offline writes** — update Pinia state immediately, fire Firestore write in background, do not await in a way that blocks the UI
+- **Firestore security rules** — whenever application logic changes who can read or write data (new collections, new roles, new access patterns), update `firestore.rules` in the same change. Rules and code must stay in sync. After updating rules, remind the user to deploy them with `firebase deploy --only firestore:rules`
+- **Defensive Firestore reads** — always read document fields with a fallback (`data.field ?? defaultValue`). Devices with offline-cached documents may have an older schema shape; never assume a field is present even if it is "required" in the data model.
+- **Tests** — any new functionality or modification to existing functionality must be accompanied by tests. Unit tests live alongside the code in `__tests__/` directories. Run `npm test` before every commit and do not commit if tests are failing.
 
 ---
 
@@ -566,28 +460,8 @@ Every file save hot-reloads all connected devices instantly.
 - Family colours — avatars and vote indicators always use the member's colour
 - "From meal" badge — items auto-added from meal voting show a purple badge
 - Progress indicator — show items ticked vs total at the top of the shopping view
-- Aisle grouping — group items by aisle with a clear section header when sorted
-  by store layout
+- Aisle grouping — group items by aisle with a clear section header when sorted by store layout
 - Keep it friendly and clear — children use this app too
-
----
-
-## Notes for working with a child co-developer
-
-ShoppingItem.vue is the ideal first coding task — self-contained, immediately
-visual, and produces a satisfying result on screen quickly.
-
-Good early tasks for the child:
-- Phase 0: styling ShoppingItem.vue — colour, layout, the tick animation
-- Phase 0: the FamilyAvatar.vue component — coloured circle with initials
-- Phase 0: the progress bar at the top of ShoppingView.vue
-
-Keep explanations concrete: "when we replace the mock data with Firebase, tapping
-that checkbox will update a database on the internet and everyone's phone will
-change at the same time."
-
-The real-time sync moment in Phase 1 — two devices side by side, one change
-appearing on both — is a key motivating milestone. Make it a deliberate event.
 
 ---
 

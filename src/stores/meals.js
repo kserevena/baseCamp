@@ -1,15 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { collection, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
+import {
+  collection, doc, onSnapshot, updateDoc, query, where, arrayUnion, arrayRemove,
+} from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 
 export const useMealsStore = defineStore('meals', () => {
   const meals = ref([])
   let unsubscribe = null
 
-  function setup() {
+  function setup(familyId) {
     unsubscribe = onSnapshot(
-      collection(db, 'meals'),
+      query(collection(db, 'meals'), where('familyId', '==', familyId)),
       (snap) => {
         meals.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       },
@@ -18,6 +20,8 @@ export const useMealsStore = defineStore('meals', () => {
 
   function teardown() {
     if (unsubscribe) unsubscribe()
+    unsubscribe = null
+    meals.value = []
   }
 
   function toggleVote(mealId, uid) {

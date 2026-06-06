@@ -20,7 +20,7 @@ const topMeal = computed(() =>
 <template>
   <div class="pa-4 d-flex flex-column gap-4">
     <div class="text-h5 font-weight-bold mt-2">
-      Hello, {{ family.currentUser.name }}
+      Hello, {{ family.currentUser?.name }}
     </div>
 
     <!-- Shopping summary -->

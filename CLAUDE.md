@@ -413,6 +413,15 @@ npm run build
 firebase deploy --only hosting
 ```
 
+**Before every deploy**, run this backward-compatibility checklist. If the answer to any question is "yes", follow the **Firestore schema evolution** section before proceeding — do not deploy until the check passes.
+
+1. Does this change remove, rename, or re-type any field in an existing Firestore document?
+2. Does this change add a field that existing code reads without a `?? defaultValue` fallback?
+3. Does this change add a security rule condition that reads a field not present on all existing documents?
+4. Does this change restructure a subcollection (move, rename, or merge)?
+
+If all four answers are "no", the change is safe to deploy as-is. Document the check outcome in the PR description.
+
 Finding your local IP:
 - Windows: `ipconfig` → IPv4 Address
 - Mac: `ipconfig getifaddr en0`

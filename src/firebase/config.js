@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app'
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check'
 import { initializeFirestore, persistentLocalCache, connectFirestoreEmulator } from 'firebase/firestore'
 import { getAuth, connectAuthEmulator } from 'firebase/auth'
 
@@ -12,6 +13,16 @@ const firebaseConfig = {
 }
 
 const app = initializeApp(firebaseConfig)
+
+// App Check — only when a reCAPTCHA site key is configured and we're not on the
+// emulator. Skipping when the key is absent keeps tests and the local emulator
+// flow working unchanged; enable it per environment by setting the site key.
+if (import.meta.env.VITE_USE_EMULATOR !== 'true' && import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  })
+}
 
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache(),

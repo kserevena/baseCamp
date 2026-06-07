@@ -22,6 +22,10 @@ The project has two Firebase environments:
 
 Both environments run independent Firestore databases and Auth instances — data never crosses between them.
 
+> **Per-environment console setup.** Each Firebase project is configured separately. The setup steps below under **Dev Environment Setup** — enabling Google Sign-In (step 4) and the Google People API + age-range scope (step 5) — must be repeated for **every** project, including `basecamp-app-prod`. They are not inherited from dev.
+>
+> **The age-range scope is easy to miss.** Child detection (`isMinor` in `src/stores/auth.js`) **fails open**: if the `profile.agerange.read` scope is not registered and granted on a project, the People API returns no age data, every signer-in is treated as an adult, and there is **no error** — children would see the parent-only "Create family" option. After setting up a project, verify by signing in with a child account and confirming "Create family" is hidden.
+
 ### Setting up `.env.prod`
 
 To deploy to prod, create a `.env.prod` file (gitignored) at the repo root:
@@ -94,6 +98,8 @@ VITE_FIREBASE_APP_ID=...
 ```
 
 `.env` is gitignored and never committed.
+
+Optionally set `VITE_RECAPTCHA_SITE_KEY` to enable Firebase App Check (reCAPTCHA v3). It is skipped when unset or when `VITE_USE_EMULATOR=true`, so it is not needed for local development. Use a per-project key from Firebase Console → Build → App Check.
 
 ### 4. Enable Google Sign-In (Phase 2 onwards)
 

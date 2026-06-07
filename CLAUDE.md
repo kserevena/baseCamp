@@ -93,8 +93,10 @@ baseCamp/
 │   │   └── __tests__/
 │   │       └── guard.test.js
 │   └── firebase/
-│       ├── config.js                # Firebase init, emulator wiring, IndexedDB persistence
+│       ├── config.js                # Firebase init, App Check, emulator wiring, IndexedDB persistence
 │       └── seed.js                  # seedIfEmpty() — populates emulator with mock data
+├── scripts/
+│   └── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
 ├── public/
 │   ├── manifest.json                # PWA manifest
 │   ├── icon-192.png
@@ -126,6 +128,7 @@ Understanding this flow is essential for any work on auth, routing, or store set
    - If no family found → redirect to `/setup`
    - If family found → proceed to the requested route
 4. `LoginView.vue` calls `authStore.signInWithGoogle()`, which opens a Google popup requesting the `profile.agerange.read` scope, then calls the Google People API to check whether the user is a minor. The `isMinor` flag is persisted to `localStorage` and restored by `startAuthListener` on subsequent visits.
+   - **`isMinor` fails open by design.** If the People API call fails or returns no age data, `isMinor` defaults to `false` (treated as adult) with no error. This means the `profile.agerange.read` scope must be registered and granted on **each** Firebase project (a per-environment console step — see README); if it is missing on a project, children are silently treated as adults there. Note this is a UX guard only — the parent-only "Create family" restriction is enforced client-side, not in `firestore.rules`.
 5. `SetupView.vue` handles first-time setup:
    - **Create a family** (parents only — hidden when `isMinor` is true): writes a new `families/{id}` document and an `inviteCodes/{code}` document, then redirects home.
    - **Join a family** (all users): looks up the invite code in `inviteCodes`, adds the user to `families/{id}/members`, then redirects home.
@@ -324,6 +327,14 @@ Emulator ports (defined in `firebase.json`):
 To connect the app to the local emulator instead of the cloud project, set `VITE_USE_EMULATOR=true` in your environment (`.env` or `.env.local`). The connection is wired in `src/firebase/config.js` using `connectFirestoreEmulator` and `connectAuthEmulator`.
 
 `src/firebase/seed.js` exports a `seedIfEmpty()` function that checks whether the emulator already has data and, if not, writes mock family members, shopping items, and meals. It is called from the browser console or from test setup as needed.
+
+---
+
+## App Check
+
+`src/firebase/config.js` initialises Firebase App Check (reCAPTCHA v3) to ensure only the genuine app can call Firestore and Auth. It is **guarded**: App Check is skipped when `VITE_USE_EMULATOR=true` or when `VITE_RECAPTCHA_SITE_KEY` is unset, so the emulator flow and tests are unaffected.
+
+Each environment has its own reCAPTCHA site key (from Firebase Console → Build → App Check): the dev key lives in `.env`, the prod key in `.env.prod`. Roll out per environment in **monitoring mode** first, then switch to **enforcement** in the console once metrics confirm legitimate traffic is passing — enforcement is reversible.
 
 ---
 

@@ -43,6 +43,27 @@ function confirmDelete() {
   store.deleteList()
   deleteDialog.value = false
 }
+
+const editSheet = ref(false)
+const editItem = ref(null)
+const editName = ref('')
+const editQty = ref('')
+
+function openEdit(item) {
+  editItem.value = item
+  editName.value = item.name
+  editQty.value = item.qty ?? ''
+  editSheet.value = true
+}
+
+function submitEdit() {
+  if (!editName.value.trim()) return
+  store.updateItem(editItem.value.id, {
+    name: editName.value.trim(),
+    qty: editQty.value.trim(),
+  })
+  editSheet.value = false
+}
 </script>
 
 <template>
@@ -108,7 +129,7 @@ function confirmDelete() {
       </div>
 
       <!-- List -->
-      <ShoppingList />
+      <ShoppingList @edit="openEdit" />
 
       <!-- Add item FAB -->
       <v-btn
@@ -181,6 +202,33 @@ function confirmDelete() {
           <v-btn variant="text" @click="listSheet = false">Cancel</v-btn>
           <v-spacer />
           <v-btn color="primary" variant="flat" @click="submitList">Create</v-btn>
+        </div>
+      </v-card>
+    </v-bottom-sheet>
+
+    <!-- Edit item bottom sheet -->
+    <v-bottom-sheet v-model="editSheet" max-width="600">
+      <v-card rounded="t-xl" class="pa-4">
+        <div class="text-subtitle-1 font-weight-medium mb-3">Edit item</div>
+        <v-text-field
+          v-model="editName"
+          label="Item name"
+          variant="outlined"
+          autofocus
+          class="mb-2"
+          @keyup.enter="submitEdit"
+        />
+        <v-text-field
+          v-model="editQty"
+          label="Quantity (optional)"
+          variant="outlined"
+          class="mb-3"
+          @keyup.enter="submitEdit"
+        />
+        <div class="d-flex gap-2">
+          <v-btn variant="text" @click="editSheet = false">Cancel</v-btn>
+          <v-spacer />
+          <v-btn color="primary" variant="flat" @click="submitEdit">Save</v-btn>
         </div>
       </v-card>
     </v-bottom-sheet>

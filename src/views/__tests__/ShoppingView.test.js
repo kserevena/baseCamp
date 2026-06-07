@@ -17,7 +17,7 @@ vi.mock('@/stores/family.js', () => ({
 }))
 
 vi.mock('@/components/ShoppingList.vue', () => ({
-  default: { template: '<div class="shopping-list-stub" />' },
+  default: { emits: ['edit'], template: '<div class="shopping-list-stub" />' },
 }))
 
 vi.mock('@/firebase/config.js', () => ({ db: {} }))
@@ -52,6 +52,7 @@ describe('ShoppingView', () => {
       activateList: vi.fn((id) => { shoppingStore.activeListId = id }),
       addItem: vi.fn(),
       createList: vi.fn(),
+      updateItem: vi.fn(),
     })
     familyStore = reactive({
       currentUser: { uid: 'parent-uid', role: 'parent' },
@@ -251,6 +252,95 @@ describe('ShoppingView', () => {
       await confirmBtn.click()
 
       expect(shoppingStore.deleteList).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('edit item sheet', () => {
+    it('does not show the edit sheet initially', () => {
+      mountView()
+      expect(document.body.textContent).not.toContain('Edit item')
+    })
+
+    it('opens the edit sheet when ShoppingList emits edit', async () => {
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).toContain('Edit item')
+    })
+
+    it('pre-populates name and qty fields from the emitted item', async () => {
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
+      await wrapper.vm.$nextTick()
+
+      const inputs = [...document.body.querySelectorAll('input')]
+      expect(inputs.some(i => i.value === 'Milk')).toBe(true)
+      expect(inputs.some(i => i.value === '2 pints')).toBe(true)
+    })
+
+    it('calls store.updateItem with trimmed name and qty on Save', async () => {
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
+      await wrapper.vm.$nextTick()
+
+      const saveBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+
+      expect(shoppingStore.updateItem).toHaveBeenCalledWith('item-1', {
+        name: 'Milk',
+        qty: '2 pints',
+      })
+    })
+
+    it('closes the edit sheet after Save', async () => {
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
+      await wrapper.vm.$nextTick()
+
+      const saveBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+      await wrapper.vm.$nextTick()
+
+      // Sheet order in template: 0=add-item, 1=edit-item, 2=new-list
+      // Vuetify unmounts slot content when closed, so find by index and check modelValue
+      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
+      expect(sheets[1].props('modelValue')).toBe(false)
+    })
+
+    it('does not call updateItem when name is blank', async () => {
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      await list.vm.$emit('edit', { id: 'item-1', name: '  ', qty: '' })
+      await wrapper.vm.$nextTick()
+
+      const saveBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+
+      expect(shoppingStore.updateItem).not.toHaveBeenCalled()
+    })
+
+    it('closes the edit sheet on Cancel without calling updateItem', async () => {
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
+      await wrapper.vm.$nextTick()
+
+      const cancelBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Cancel')
+      await cancelBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(shoppingStore.updateItem).not.toHaveBeenCalled()
+      // Sheet order in template: 0=add-item, 1=edit-item, 2=new-list
+      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
+      expect(sheets[1].props('modelValue')).toBe(false)
     })
   })
 })

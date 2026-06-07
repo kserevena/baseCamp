@@ -109,6 +109,15 @@ export const useShoppingStore = defineStore('shopping', () => {
     updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { done: item.done })
   }
 
+  function updateItem(id, { name, qty }) {
+    if (!activeListId.value) return
+    const item = items.value.find(i => i.id === id)
+    if (!item) return
+    item.name = name
+    item.qty = qty
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { name, qty })
+  }
+
   async function reorderItems(updates) {
     if (!activeListId.value) return
     const batch = writeBatch(db)
@@ -133,5 +142,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     })
   }
 
-  return { lists, items, activeListId, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, addItem, reorderItems }
+  return { lists, items, activeListId, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, updateItem, addItem, reorderItems }
 })

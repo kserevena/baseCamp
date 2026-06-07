@@ -7,6 +7,7 @@ import ShoppingItem from './ShoppingItem.vue'
 
 const store = useShoppingStore()
 const familyStore = useFamilyStore()
+const emit = defineEmits(['edit'])
 
 const isParent = computed(() => familyStore.currentUser?.role === 'parent')
 
@@ -83,7 +84,9 @@ function onDragEnd() {
           :item="item"
           :show-drag-handle="true"
           :show-delete="true"
+          :show-edit="true"
           @delete="store.deleteItem(item.id)"
+          @edit="emit('edit', item)"
         />
       </VueDraggable>
 

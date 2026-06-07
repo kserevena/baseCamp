@@ -253,6 +253,68 @@ describe('shopping store', () => {
     })
   })
 
+  describe('updateItem', () => {
+    it('does nothing when activeListId is null', () => {
+      const store = useShoppingStore()
+      store.updateItem('item-1', { name: 'Eggs', qty: '6' })
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when the item id is not found in the local list', () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      store.updateItem('nonexistent-id', { name: 'Ghost', qty: '' })
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('calls updateDoc on the correct Firestore path', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1')] })
+
+      store.updateItem('item-1', { name: 'Skimmed milk', qty: '1 pint' })
+
+      expect(mockDoc).toHaveBeenCalledWith(
+        expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1'
+      )
+    })
+
+    it('calls updateDoc with only name and qty', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1')] })
+
+      store.updateItem('item-1', { name: 'Skimmed milk', qty: '1 pint' })
+
+      expect(mockUpdateDoc).toHaveBeenCalledOnce()
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        { name: 'Skimmed milk', qty: '1 pint' }
+      )
+    })
+
+    it('performs an optimistic local update before Firestore resolves', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { name: 'Milk', qty: '2 pints' })] })
+
+      store.updateItem('item-1', { name: 'Skimmed milk', qty: '1 pint' })
+
+      const item = store.items.find(i => i.id === 'item-1')
+      expect(item.name).toBe('Skimmed milk')
+      expect(item.qty).toBe('1 pint')
+    })
+  })
+
   describe('deleteList', () => {
     it('is a no-op when activeListId is null', async () => {
       const store = useShoppingStore()

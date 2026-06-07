@@ -6,9 +6,10 @@ const props = defineProps({
   item: { type: Object, required: true },
   showDragHandle: { type: Boolean, default: false },
   showDelete: { type: Boolean, default: false },
+  showEdit: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['delete'])
+const emit = defineEmits(['delete', 'edit'])
 const store = useShoppingStore()
 </script>
 
@@ -17,6 +18,8 @@ const store = useShoppingStore()
     :class="{ 'item-done': item.done }"
     min-height="56"
     class="px-2"
+    :style="showEdit ? 'cursor: pointer;' : ''"
+    @click="showEdit && emit('edit')"
   >
     <template #prepend>
       <v-checkbox-btn
@@ -24,6 +27,7 @@ const store = useShoppingStore()
         color="primary"
         class="mr-1"
         style="min-width: 44px;"
+        @click.stop
         @update:model-value="store.toggleDone(item.id)"
       />
     </template>
@@ -60,6 +64,7 @@ const store = useShoppingStore()
           class="drag-handle"
           color="medium-emphasis"
           style="min-width: 44px; cursor: grab;"
+          @click.stop
         >mdi-drag</v-icon>
       </div>
     </template>

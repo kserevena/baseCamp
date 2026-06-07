@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useFamilyStore } from '@/stores/family.js'
 import ShoppingList from '@/components/ShoppingList.vue'
+import AisleManager from '@/components/AisleManager.vue'
 
 const store = useShoppingStore()
 const family = useFamilyStore()
@@ -20,7 +21,7 @@ const newQty = ref('')
 
 function submit() {
   if (!newName.value.trim()) return
-  store.addItem(newName.value.trim(), newQty.value.trim())
+  store.addItem(newName.value.trim(), newQty.value.trim(), newAisle.value || null)
   newName.value = ''
   newQty.value = ''
   sheet.value = false
@@ -43,6 +44,13 @@ function confirmDelete() {
   store.deleteList()
   deleteDialog.value = false
 }
+
+const aisleSheet = ref(false)
+
+const newAisle = ref('')
+watch(sheet, (open) => {
+  if (open) newAisle.value = store.activeAisles[0]?.name ?? ''
+})
 
 const editSheet = ref(false)
 const editItem = ref(null)
@@ -97,6 +105,16 @@ function submitEdit() {
           @click="deleteDialog = true"
         >
           <v-icon>mdi-delete-outline</v-icon>
+        </v-btn>
+        <v-btn
+          v-if="isParent"
+          icon
+          variant="text"
+          size="small"
+          class="flex-0-0 ml-1"
+          @click="aisleSheet = true"
+        >
+          <v-icon>mdi-view-list-outline</v-icon>
         </v-btn>
         <v-btn
           v-if="isParent"
@@ -175,9 +193,24 @@ function submitEdit() {
           v-model="newQty"
           label="Quantity (optional)"
           variant="outlined"
-          class="mb-3"
+          class="mb-2"
           @keyup.enter="submit"
         />
+        <div class="mb-3">
+          <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
+          <div class="d-flex flex-wrap gap-1">
+            <v-chip
+              v-for="aisle in store.activeAisles"
+              :key="aisle.name"
+              :color="newAisle === aisle.name ? 'primary' : undefined"
+              :variant="newAisle === aisle.name ? 'flat' : 'tonal'"
+              size="small"
+              @click="newAisle = aisle.name"
+            >
+              {{ aisle.name }}
+            </v-chip>
+          </div>
+        </div>
         <div class="d-flex gap-2">
           <v-btn variant="text" @click="sheet = false">Cancel</v-btn>
           <v-spacer />
@@ -231,6 +264,11 @@ function submitEdit() {
           <v-btn color="primary" variant="flat" @click="submitEdit">Save</v-btn>
         </div>
       </v-card>
+    </v-bottom-sheet>
+
+    <!-- Manage aisles bottom sheet (parent only) -->
+    <v-bottom-sheet v-model="aisleSheet" max-width="600">
+      <AisleManager @close="aisleSheet = false" />
     </v-bottom-sheet>
 
     <!-- Delete list confirmation dialog -->

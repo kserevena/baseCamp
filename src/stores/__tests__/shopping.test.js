@@ -46,9 +46,22 @@ vi.mock('firebase/firestore', () => ({
 
 import { useShoppingStore } from '@/stores/shopping.js'
 
-const mockList = (id, name, millis = 1000) => ({
+const DEFAULT_AISLES = [
+  { name: 'Dairy', order: 1 },
+  { name: 'Meat', order: 2 },
+  { name: 'Dry goods', order: 3 },
+  { name: 'Bakery', order: 4 },
+  { name: 'Fruit & veg', order: 5 },
+]
+
+const mockList = (id, name, millis = 1000, aisles = undefined) => ({
   id,
-  data: () => ({ familyId: 'fam-1', name, createdAt: { toMillis: () => millis } }),
+  data: () => ({
+    familyId: 'fam-1',
+    name,
+    createdAt: { toMillis: () => millis },
+    ...(aisles !== undefined ? { aisles } : {}),
+  }),
 })
 
 const mockItem = (id, overrides = {}) => ({
@@ -177,6 +190,7 @@ describe('shopping store', () => {
         createdBy: 'parent-uid',
       })
       expect(payload.createdAt).toBeDefined()
+      expect(payload.aisles).toEqual(DEFAULT_AISLES)
     })
 
     it('trims whitespace from the list name', async () => {
@@ -219,14 +233,48 @@ describe('shopping store', () => {
       expect(mockAddDoc).not.toHaveBeenCalled()
     })
 
-    it('uses aisleOrder 3 as fallback for unknown aisles', () => {
+    it('uses aisleOrder 99 for an aisle not in activeAisles', () => {
       const store = useShoppingStore()
       store.activateList('list-1')
 
-      store.addItem('Widget', '1', 'Unknown aisle')
+      store.addItem('Widget', '1', 'Nonexistent aisle')
 
       const payload = mockAddDoc.mock.calls[0][1]
-      expect(payload.aisleOrder).toBe(3)
+      expect(payload.aisleOrder).toBe(99)
+    })
+
+    it('defaults to the first aisle in activeAisles when aisle param is null', () => {
+      let listsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockReturnValue(vi.fn())
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Weekly shop', 1000, DEFAULT_AISLES)] })
+
+      store.addItem('Eggs')
+
+      const payload = mockAddDoc.mock.calls[0][1]
+      expect(payload.aisle).toBe('Dairy')
+      expect(payload.aisleOrder).toBe(1)
+    })
+
+    it('uses aisleOrder from activeAisles when the aisle matches', () => {
+      let listsCallback
+      const customAisles = [{ name: 'Produce', order: 1 }, { name: 'Frozen', order: 2 }]
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockReturnValue(vi.fn())
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Weekly shop', 1000, customAisles)] })
+
+      store.addItem('Peas', '400g', 'Frozen')
+
+      const payload = mockAddDoc.mock.calls[0][1]
+      expect(payload.aisleOrder).toBe(2)
     })
   })
 
@@ -473,6 +521,156 @@ describe('shopping store', () => {
       expect(mockDoc).toHaveBeenCalledWith(
         expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-99',
       )
+    })
+  })
+
+  describe('activeAisles', () => {
+    it('returns DEFAULT_AISLES when there is no active list', () => {
+      const store = useShoppingStore()
+      expect(store.activeAisles).toEqual(DEFAULT_AISLES)
+    })
+
+    it('returns DEFAULT_AISLES when the active list has no aisles field', () => {
+      let listsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockReturnValue(vi.fn())
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Weekly shop')] })
+
+      expect(store.activeAisles).toEqual(DEFAULT_AISLES)
+    })
+
+    it('returns the stored aisles when the active list has an aisles field', () => {
+      const customAisles = [{ name: 'Produce', order: 1 }, { name: 'Frozen', order: 2 }]
+      let listsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockReturnValue(vi.fn())
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Weekly shop', 1000, customAisles)] })
+
+      expect(store.activeAisles).toEqual(customAisles)
+    })
+
+    it('updates reactively when the lists snapshot fires with new aisles', () => {
+      const updatedAisles = [{ name: 'Bakery', order: 1 }]
+      let listsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockReturnValue(vi.fn())
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Weekly shop')] })
+      expect(store.activeAisles).toEqual(DEFAULT_AISLES)
+
+      listsCallback({ docs: [mockList('list-1', 'Weekly shop', 1000, updatedAisles)] })
+      expect(store.activeAisles).toEqual(updatedAisles)
+    })
+  })
+
+  describe('saveAisles', () => {
+    it('is a no-op when activeListId is null', async () => {
+      const store = useShoppingStore()
+      await store.saveAisles([{ name: 'Dairy', order: 1 }])
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('calls updateDoc on shoppingLists/{listId} with the aisles array', async () => {
+      const newAisles = [{ name: 'Dairy', order: 1 }, { name: 'Meat', order: 2 }]
+      const store = useShoppingStore()
+      store.activateList('list-1')
+
+      await store.saveAisles(newAisles)
+
+      expect(mockUpdateDoc).toHaveBeenCalledOnce()
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1')
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { aisles: newAisles })
+    })
+  })
+
+  describe('deleteAisle', () => {
+    it('is a no-op when activeListId is null', async () => {
+      const store = useShoppingStore()
+      await store.deleteAisle('Dairy')
+      expect(mockWriteBatch).not.toHaveBeenCalled()
+    })
+
+    it('batch-updates affected items to Unknown/aisleOrder 99', async () => {
+      let itemsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [
+        mockItem('item-1', { aisle: 'Dairy', aisleOrder: 1 }),
+        mockItem('item-2', { aisle: 'Dairy', aisleOrder: 1 }),
+        mockItem('item-3', { aisle: 'Meat', aisleOrder: 2 }),
+      ] })
+
+      await store.deleteAisle('Dairy')
+
+      expect(mockWriteBatch).toHaveBeenCalledOnce()
+      expect(mockBatchUpdate).toHaveBeenCalledWith(
+        expect.anything(), { aisle: 'Unknown', aisleOrder: 99 }
+      )
+      // Called for both Dairy items but not the Meat item
+      expect(mockBatchUpdate.mock.calls.filter(c =>
+        c[1]?.aisle === 'Unknown'
+      )).toHaveLength(2)
+    })
+
+    it('does not update items that are in a different aisle', async () => {
+      let itemsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [
+        mockItem('item-1', { aisle: 'Meat', aisleOrder: 2 }),
+      ] })
+
+      await store.deleteAisle('Dairy')
+
+      const unknownUpdates = mockBatchUpdate.mock.calls.filter(c => c[1]?.aisle === 'Unknown')
+      expect(unknownUpdates).toHaveLength(0)
+    })
+
+    it('updates the list document with the filtered aisles array', async () => {
+      let listsCallback, itemsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Weekly shop', 1000, DEFAULT_AISLES)] })
+      itemsCallback({ docs: [] })
+
+      await store.deleteAisle('Dairy')
+
+      const listDocUpdate = mockBatchUpdate.mock.calls.find(c => c[1]?.aisles !== undefined)
+      expect(listDocUpdate).toBeDefined()
+      expect(listDocUpdate[1].aisles.find(a => a.name === 'Dairy')).toBeUndefined()
+      expect(listDocUpdate[1].aisles).toHaveLength(4)
+    })
+
+    it('commits the batch', async () => {
+      mockOnSnapshot.mockImplementationOnce((_r, cb) => { cb({ docs: [] }); return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+
+      await store.deleteAisle('Dairy')
+
+      expect(mockBatchCommit).toHaveBeenCalledOnce()
     })
   })
 

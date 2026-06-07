@@ -1,23 +1,28 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, query, where, writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useFamilyStore } from './family.js'
 
-const AISLE_ORDERS = {
-  'Dairy': 1,
-  'Meat': 2,
-  'Dry goods': 3,
-  'Bakery': 4,
-  'Fruit & veg': 5,
-}
+const DEFAULT_AISLES = [
+  { name: 'Dairy', order: 1 },
+  { name: 'Meat', order: 2 },
+  { name: 'Dry goods', order: 3 },
+  { name: 'Bakery', order: 4 },
+  { name: 'Fruit & veg', order: 5 },
+]
 
 export const useShoppingStore = defineStore('shopping', () => {
   const lists = ref([])
   const items = ref([])
   const activeListId = ref(null)
+
+  const activeAisles = computed(() => {
+    const list = lists.value.find(l => l.id === activeListId.value)
+    return list?.aisles ?? DEFAULT_AISLES
+  })
   let currentFamilyId = null
   let unsubscribeLists = null
   let unsubscribeItems = null
@@ -92,6 +97,7 @@ export const useShoppingStore = defineStore('shopping', () => {
       name: name.trim(),
       createdAt: serverTimestamp(),
       createdBy: familyStore.currentUser?.uid ?? '',
+      aisles: DEFAULT_AISLES,
     })
     activateList(ref.id)
   }
@@ -127,14 +133,16 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  function addItem(name, qty = '', aisle = 'Dry goods') {
+  function addItem(name, qty = '', aisle = null) {
     if (!activeListId.value) return
+    const resolvedAisle = aisle ?? activeAisles.value[0]?.name ?? 'Unknown'
+    const aisleObj = activeAisles.value.find(a => a.name === resolvedAisle)
     const familyStore = useFamilyStore()
     addDoc(collection(db, 'shoppingLists', activeListId.value, 'items'), {
       name,
       qty,
-      aisle,
-      aisleOrder: AISLE_ORDERS[aisle] ?? 3,
+      aisle: resolvedAisle,
+      aisleOrder: aisleObj?.order ?? 99,
       done: false,
       addedBy: familyStore.currentUser?.uid ?? '',
       fromMeal: null,
@@ -142,5 +150,25 @@ export const useShoppingStore = defineStore('shopping', () => {
     })
   }
 
-  return { lists, items, activeListId, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, updateItem, addItem, reorderItems }
+  async function saveAisles(aisles) {
+    if (!activeListId.value) return
+    await updateDoc(doc(db, 'shoppingLists', activeListId.value), { aisles })
+  }
+
+  async function deleteAisle(aisleName) {
+    if (!activeListId.value) return
+    const batch = writeBatch(db)
+    const affectedItems = items.value.filter(i => i.aisle === aisleName)
+    for (const item of affectedItems) {
+      batch.update(
+        doc(db, 'shoppingLists', activeListId.value, 'items', item.id),
+        { aisle: 'Unknown', aisleOrder: 99 },
+      )
+    }
+    const newAisles = activeAisles.value.filter(a => a.name !== aisleName)
+    batch.update(doc(db, 'shoppingLists', activeListId.value), { aisles: newAisles })
+    await batch.commit()
+  }
+
+  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, updateItem, addItem, reorderItems, saveAisles, deleteAisle }
 })

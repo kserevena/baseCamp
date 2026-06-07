@@ -11,33 +11,36 @@ const emit = defineEmits(['edit'])
 
 const isParent = computed(() => familyStore.currentUser?.role === 'parent')
 
-function buildGroups(items) {
-  const sorted = [...items].sort((a, b) =>
-    a.aisleOrder !== b.aisleOrder
-      ? (a.aisleOrder ?? 3) - (b.aisleOrder ?? 3)
-      : (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
+function buildGroups(items, aisles) {
+  const groups = aisles.map(a => ({ aisle: a.name, aisleOrder: a.order, items: [] }))
+
+  for (const item of items) {
+    let group = groups.find(g => g.aisle === item.aisle)
+    if (!group) {
+      group = { aisle: item.aisle, aisleOrder: item.aisleOrder ?? 99, items: [] }
+      groups.push(group)
+    }
+    group.items.push(item)
+  }
+
+  for (const group of groups) {
+    group.items.sort((a, b) =>
+      (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
         ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
         : a.name.localeCompare(b.name)
-  )
-  const groups = []
-  let current = null
-  for (const item of sorted) {
-    if (!current || current.aisle !== item.aisle) {
-      current = { aisle: item.aisle, aisleOrder: item.aisleOrder ?? 3, items: [] }
-      groups.push(current)
-    }
-    current.items.push(item)
+    )
   }
+
   return groups
 }
 
-const groups = ref(buildGroups(store.items))
+const groups = ref(buildGroups(store.items, store.activeAisles))
 let pendingReorder = false
 
 watch(
-  () => store.items,
-  (newItems) => {
-    if (!pendingReorder) groups.value = buildGroups(newItems)
+  [() => store.items, () => store.activeAisles],
+  ([newItems, newAisles]) => {
+    if (!pendingReorder) groups.value = buildGroups(newItems, newAisles)
   },
 )
 

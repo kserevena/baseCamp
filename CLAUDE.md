@@ -67,26 +67,32 @@ baseCamp/
 │   ├── test-setup.js                # Vitest global setup (Vuetify polyfills)
 │   ├── components/
 │   │   ├── FamilyAvatar.vue         # Coloured avatar circle with member initials
+│   │   ├── AisleManager.vue         # Parent-only drag-and-drop aisle CRUD; shown in a bottom sheet in ShoppingView
 │   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
 │   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
-│   │   └── MealVoting.vue           # Meal cards with vote button and voter avatars
+│   │   ├── MealVoting.vue           # Meal cards with vote button and voter avatars
+│   │   └── __tests__/
+│   │       ├── AisleManager.test.js
+│   │       └── ShoppingList.test.js
 │   ├── views/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top meal, family avatars
 │   │   ├── LoginView.vue            # Google Sign-In page
 │   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
-│   │   ├── ShoppingView.vue         # Shopping list — progress bar, list, add-item FAB
+│   │   ├── ShoppingView.vue         # Shopping list — progress bar, list, add-item FAB, manage aisles
 │   │   ├── MealsView.vue            # Meal voting wrapper
 │   │   └── __tests__/
 │   │       ├── LoginView.test.js
-│   │       └── SetupView.test.js
+│   │       ├── SetupView.test.js
+│   │       └── ShoppingView.test.js
 │   ├── stores/
 │   │   ├── auth.js                  # Firebase Auth — Google Sign-In, isMinor detection
 │   │   ├── family.js                # Family membership, create/join, member colours
-│   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort)
+│   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort, aisle management)
 │   │   ├── meals.js                 # Meal suggestions and votes
 │   │   └── __tests__/
 │   │       ├── auth.test.js
 │   │       ├── family.test.js
+│   │       ├── shopping.test.js
 │   │       └── family.integration.test.js
 │   ├── router/
 │   │   ├── index.js                 # Vue Router — routes and auth guard
@@ -144,7 +150,7 @@ The three data stores (`family`, `shopping`, `meals`) all follow the same patter
 
 `App.vue` watches the `familyId` and calls `setup`/`teardown` when it changes. This keeps listeners clean and prevents stale data if a user somehow ends up in a different family context. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
 
-**`shopping` store specifics:** `setup(familyId)` subscribes to the `shoppingLists` collection (filtered by `familyId`) to get list metadata — it does **not** auto-create any document. When the snapshot fires with results, the store auto-activates the most recently created list. `activateList(listId)` starts a second listener on that list's items subcollection. `createList(name)` is a parent-only action that creates a new list document and activates it. `reorderItems(updates)` is a parent-only action (enforced in the UI) that batch-writes `sortOrder` (and optionally `aisle`/`aisleOrder` for cross-section moves) to persist drag-and-drop order. `teardown()` cleans up both the lists and items listeners.
+**`shopping` store specifics:** `setup(familyId)` subscribes to the `shoppingLists` collection (filtered by `familyId`) to get list metadata — it does **not** auto-create any document. When the snapshot fires with results, the store auto-activates the most recently created list. `activateList(listId)` starts a second listener on that list's items subcollection. `createList(name)` is a parent-only action that creates a new list document (with a default `aisles` array) and activates it. `reorderItems(updates)` is a parent-only action (enforced in the UI) that batch-writes `sortOrder` (and optionally `aisle`/`aisleOrder` for cross-section moves) to persist drag-and-drop order. `saveAisles(aisles)` is a parent-only action that writes the current aisle list to the list document. `deleteAisle(name)` is a parent-only action that batch-moves items in the deleted aisle to `aisle: 'Unknown'` and removes the aisle from the list document. `activeAisles` is a computed that returns the active list's `aisles` array, falling back to `DEFAULT_AISLES` if the field is absent (old documents). `teardown()` cleans up both the lists and items listeners.
 
 ---
 
@@ -176,11 +182,14 @@ shoppingLists/{listId}        ← auto-generated ID
   name: string                ← user-provided name; set by a parent when creating the list
   createdAt: timestamp
   createdBy: uid
+  aisles: Array<{ name: string, order: number }> | absent
+                              ← per-list aisle config; absent on old docs → store falls back
+                                to DEFAULT_AISLES. Written on list creation and by saveAisles().
   items/{itemId}
     name: string
     qty: string
     aisle: string
-    aisleOrder: number        ← for sorting by store layout
+    aisleOrder: number        ← for sorting by store layout; 99 = Unknown (items from deleted aisles)
     done: boolean
     addedBy: uid
     fromMeal: string | null   ← meal document ID if auto-added
@@ -302,11 +311,13 @@ npm run test:watch        # unit tests in watch mode during development
 |---|---|---|
 | `src/stores/__tests__/auth.test.js` | Unit | Auth listener, Google Sign-In popup, People API isMinor detection, localStorage persistence, sign-out |
 | `src/stores/__tests__/family.test.js` | Unit | `resolveFamily`, `currentUser` computed, `createFamily`, `joinFamily` |
-| `src/stores/__tests__/shopping.test.js` | Unit | `setup`, `activateList`, `createList`, `addItem`, `toggleDone`, `teardown` |
+| `src/stores/__tests__/shopping.test.js` | Unit | `setup`, `activateList`, `createList`, `addItem`, `toggleDone`, `teardown`, `activeAisles`, `saveAisles`, `deleteAisle` |
 | `src/stores/__tests__/family.integration.test.js` | Integration | All Firestore security rules verified against the emulator |
 | `src/views/__tests__/LoginView.test.js` | Unit | Sign-in button, post-login navigation, loading state, error snackbar |
 | `src/views/__tests__/SetupView.test.js` | Unit | Create/join family forms, child account (hide create), error handling |
-| `src/views/__tests__/ShoppingView.test.js` | Unit | List selector chip colours/checkmark, list switching, parent-only controls, empty state |
+| `src/views/__tests__/ShoppingView.test.js` | Unit | List selector chip colours/checkmark, list switching, parent-only controls, empty state, manage-aisles button, aisle picker |
+| `src/components/__tests__/AisleManager.test.js` | Unit | Aisle CRUD UI: add, delete (with confirmation), reorder, save, cancel |
+| `src/components/__tests__/ShoppingList.test.js` | Unit | Empty aisle headers, aisle ordering, item placement, Unknown aisle, reactivity |
 | `src/router/__tests__/guard.test.js` | Unit | Unauthenticated redirect, family/no-family redirect, `resolveFamily` call timing |
 
 Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.
@@ -478,7 +489,7 @@ Steps:
 - **Pinia stores** — Composition API style (`defineStore` with `ref` and `computed`)
 - **Firestore listeners** — use `onSnapshot` for real-time data; always unsubscribe in `onUnmounted` to prevent memory leaks
 - **Family colour system** — every member has a `colour` hex; use it consistently for avatars, badges, and vote indicators everywhere in the UI
-- **Aisle ordering** — default sort is `aisleOrder` ascending, then `priority`. Parents can customise aisle order; persist changes to Firestore.
+- **Aisle ordering** — aisles are stored per-list as `{ name, order }` objects in the `aisles` field of the list document. If absent (old documents), the store falls back to `DEFAULT_AISLES`. Items sort by `aisleOrder` ascending, then `sortOrder`, then name. Parents can add, delete, and reorder aisles via `saveAisles()` and `deleteAisle()`. Deleting an aisle reassigns its items to `{ aisle: 'Unknown', aisleOrder: 99 }` in a single batch write.
 - **Offline writes** — update Pinia state immediately, fire Firestore write in background, do not await in a way that blocks the UI
 - **Firestore security rules** — whenever application logic changes who can read or write data (new collections, new roles, new access patterns), update `firestore.rules` in the same change. Rules and code must stay in sync. After updating rules, deploy to both environments: `npm run deploy:rules:dev && npm run deploy:rules:prod`
 - **Defensive Firestore reads** — always read document fields with a fallback (`data.field ?? defaultValue`). Devices with offline-cached documents may have an older schema shape; never assume a field is present even if it is "required" in the data model.

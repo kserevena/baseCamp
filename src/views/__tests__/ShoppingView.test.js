@@ -20,6 +20,10 @@ vi.mock('@/components/ShoppingList.vue', () => ({
   default: { emits: ['edit'], template: '<div class="shopping-list-stub" />' },
 }))
 
+vi.mock('@/components/AisleManager.vue', () => ({
+  default: { emits: ['close'], template: '<div class="aisle-manager-stub" />' },
+}))
+
 vi.mock('@/firebase/config.js', () => ({ db: {} }))
 
 import ShoppingView from '@/views/ShoppingView.vue'
@@ -49,10 +53,17 @@ describe('ShoppingView', () => {
       ],
       items: [],
       activeListId: 'list-1',
+      activeAisles: [
+        { name: 'Dairy', order: 1 },
+        { name: 'Meat', order: 2 },
+        { name: 'Dry goods', order: 3 },
+      ],
       activateList: vi.fn((id) => { shoppingStore.activeListId = id }),
       addItem: vi.fn(),
       createList: vi.fn(),
       updateItem: vi.fn(),
+      saveAisles: vi.fn(),
+      deleteAisle: vi.fn(),
     })
     familyStore = reactive({
       currentUser: { uid: 'parent-uid', role: 'parent' },
@@ -252,6 +263,66 @@ describe('ShoppingView', () => {
       await confirmBtn.click()
 
       expect(shoppingStore.deleteList).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('manage aisles button', () => {
+    it('shows the manage aisles button to parents', () => {
+      const wrapper = mountView()
+      const selector = wrapper.find('.list-selector')
+      const aisleBtn = selector.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-view-list-outline'))
+      expect(aisleBtn).toBeDefined()
+    })
+
+    it('hides the manage aisles button from children', () => {
+      familyStore.currentUser = { uid: 'child-uid', role: 'child' }
+      const wrapper = mountView()
+      const aisleBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-view-list-outline'))
+      expect(aisleBtn).toBeUndefined()
+    })
+
+    it('clicking the button opens the aisle manager sheet', async () => {
+      const wrapper = mountView()
+      const aisleBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-view-list-outline'))
+      await aisleBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
+      expect(sheets[3].props('modelValue')).toBe(true)
+    })
+  })
+
+  describe('add item aisle picker', () => {
+    it('renders aisle chips after opening the add-item sheet', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.body.textContent).toContain('Dairy')
+      expect(document.body.textContent).toContain('Meat')
+      expect(document.body.textContent).toContain('Dry goods')
+    })
+
+    it('calls store.addItem with the default aisle on submit', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const inputs = [...document.body.querySelectorAll('input')]
+      const nameInput = inputs.find(i => i.placeholder === '' || i.type !== 'hidden')
+      if (nameInput) await nameInput.focus()
+
+      // Directly set via component state and call submit
+      wrapper.vm.newName = 'Eggs'
+      const addBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy')
     })
   })
 

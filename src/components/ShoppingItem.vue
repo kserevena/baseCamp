@@ -5,8 +5,10 @@ import { useShoppingStore } from '@/stores/shopping.js'
 const props = defineProps({
   item: { type: Object, required: true },
   showDragHandle: { type: Boolean, default: false },
+  showDelete: { type: Boolean, default: false },
 })
 
+const emit = defineEmits(['delete'])
 const store = useShoppingStore()
 </script>
 
@@ -43,6 +45,16 @@ const store = useShoppingStore()
           meal
         </v-chip>
         <FamilyAvatar :uid="item.addedBy" :size="28" />
+        <v-btn
+          v-if="showDelete"
+          icon
+          size="small"
+          variant="plain"
+          color="error"
+          @click.stop="emit('delete')"
+        >
+          <v-icon>mdi-delete-outline</v-icon>
+        </v-btn>
         <v-icon
           v-if="showDragHandle"
           class="drag-handle"

@@ -302,6 +302,28 @@ describe('shopping store', () => {
     })
   })
 
+  describe('deleteItem', () => {
+    it('calls deleteDoc on the correct Firestore path', async () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+
+      await store.deleteItem('item-1')
+
+      expect(mockDeleteDoc).toHaveBeenCalledOnce()
+      expect(mockDoc).toHaveBeenCalledWith(
+        expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1'
+      )
+    })
+
+    it('does nothing when no list is active', async () => {
+      const store = useShoppingStore()
+
+      await store.deleteItem('item-1')
+
+      expect(mockDeleteDoc).not.toHaveBeenCalled()
+    })
+  })
+
   describe('snapshot callback — deleted active list', () => {
     it('activates the next list when the active list is removed from the snapshot', () => {
       let listsCallback

@@ -82,6 +82,8 @@ function onDragEnd() {
           :key="item.id"
           :item="item"
           :show-drag-handle="true"
+          :show-delete="true"
+          @delete="store.deleteItem(item.id)"
         />
       </VueDraggable>
 

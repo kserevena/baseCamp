@@ -96,6 +96,11 @@ export const useShoppingStore = defineStore('shopping', () => {
     activateList(ref.id)
   }
 
+  async function deleteItem(itemId) {
+    if (!activeListId.value) return
+    await deleteDoc(doc(db, 'shoppingLists', activeListId.value, 'items', itemId))
+  }
+
   function toggleDone(id) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
@@ -128,5 +133,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     })
   }
 
-  return { lists, items, activeListId, setup, teardown, activateList, createList, deleteList, toggleDone, addItem, reorderItems }
+  return { lists, items, activeListId, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, addItem, reorderItems }
 })

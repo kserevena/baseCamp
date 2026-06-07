@@ -1,8 +1,8 @@
 # BaseCamp — Claude Code Instructions
 
-This is a family organiser Progressive Web App (PWA) built with Vue 3, wrapped in a
-thin Android WebView APK for sideloading onto family devices. This file tells you
-everything you need to know to build, run, and extend the project.
+This is a family organiser Progressive Web App (PWA) built with Vue 3 and hosted on
+Firebase Hosting. Family devices install it via the browser's "Add to Home Screen" flow.
+This file tells you everything you need to know to build, run, and extend the project.
 
 ---
 
@@ -12,8 +12,8 @@ everything you need to know to build, run, and extend the project.
 |---|---|---|
 | Phase 0 — UI prototype | **Complete** | Scaffold complete; family skipped advanced UX features, moving to Firebase |
 | Phase 1 — Firebase data | **Complete** | Real-time Firestore sync confirmed across devices |
-| Phase 2 — Authentication | **Complete** | Code complete on `phase-2-authentication` branch; enable Google Sign-In in Firebase Console to finish |
-| Phase 3 — Packaging & deploy | Not started | |
+| Phase 2 — Authentication | **Complete** | Google Sign-In live; family create/join flows working on real devices |
+| Phase 3 — Packaging & deploy | **Complete** | PWA live at https://basecamp-app-dev.web.app; install via browser on all devices |
 
 ---
 
@@ -29,7 +29,7 @@ everything you need to know to build, run, and extend the project.
 
 BaseCamp is a private family app used by two parents (on Android phones) and children (on Amazon
 Fire tablets), plus a Chromebook. The app is delivered as a PWA hosted on Firebase
-Hosting. Android devices run a thin WebView APK wrapper that loads the hosted URL.
+Hosting. All devices install it via the browser's "Add to Home Screen" flow.
 All devices work fully offline thanks to Firestore's IndexedDB persistence and a
 Vite-generated service worker.
 
@@ -50,7 +50,7 @@ browser OAuth flow without Play Store involvement.
 | State | Pinia | Shared app state |
 | Backend | Firebase (Firestore, Auth, Hosting) | Data, auth, hosting |
 | Offline | Vite PWA plugin + Firestore IndexedDB persistence | Full offline support |
-| Android wrapper | Android WebView APK (Android Studio) | Sideloaded onto phones and tablets |
+| Install | PWA "Add to Home Screen" | Browser-based install on all devices |
 
 Always use the **Vue 3 Composition API** (`<script setup>` syntax). Never use the
 Options API. Always use `<script setup lang="ts">` if TypeScript is enabled.
@@ -99,7 +99,7 @@ baseCamp/
 │   ├── manifest.json                # PWA manifest
 │   ├── icon-192.png
 │   └── icon-512.png
-├── android-wrapper/                 # Added in Phase 3 (Android Studio project)
+├── android-wrapper/                 # Not used — PWA install via browser chosen over APK
 ├── firestore.rules                  # Firestore security rules — deploy with firebase deploy
 ├── firestore.indexes.json
 ├── vite.config.js
@@ -340,18 +340,19 @@ Conflict resolution is last-write-wins. For a shopping list this is acceptable �
 
 ---
 
-## Android WebView wrapper (Phase 3)
+## Device installation
 
-The `android-wrapper/` folder is a minimal Android Studio project. Its sole job is to open the Firebase Hosting URL in a full-screen WebView.
+All devices install BaseCamp as a PWA via the browser's "Add to Home Screen" flow:
 
-Key requirements for MainActivity.java:
-- Enable JavaScript
-- Enable DOM storage (required for Firebase Auth session persistence)
-- Use WebViewClient to keep all navigation inside the WebView
-- Use Chrome Custom Tabs for the Google Sign-In OAuth step (not the WebView itself — Google blocks OAuth inside a plain WebView; the Firebase Auth SDK handles this automatically when used in browser context)
-- Handle the back button to navigate within the WebView rather than exit the app
+| Device | Browser | How to install |
+|---|---|---|
+| Android phones | Chrome | Accept the install banner, or Menu → Add to Home Screen |
+| Fire tablets | Silk | Menu → Add to Home Screen (no automatic prompt) |
+| Chromebook | Chrome | Click the install icon in the address bar |
 
-The APK is sideloaded — never published to the Play Store. Google Family Link's app-approval process does not apply to sideloaded APKs.
+Once installed, the app launches in standalone mode (no browser chrome) and works fully offline.
+
+An Android WebView APK was considered for Fire tablets but skipped in favour of the simpler PWA install path. If Silk proves unreliable for sign-in or offline behaviour, revisit the APK approach.
 
 ---
 
@@ -423,16 +424,14 @@ Every file save hot-reloads all connected devices instantly.
 
 ## Phase 3 — packaging and deployment
 
-**Goal: deploy to Firebase Hosting and sideload the Android APK.**
+**Goal: deploy to Firebase Hosting and install the PWA on all family devices.**
 
 Steps:
-1. Run `npm run build` — Vite builds the production bundle with service worker
-2. Run `firebase deploy --only hosting` — live at `yourapp.web.app`
+1. Run `npm run deploy` — builds and deploys to Firebase Hosting
+2. Share the live URL with the family: https://basecamp-app-dev.web.app
 3. Whitelist the Firebase Hosting URL in Google Family Link if web restrictions are enabled on children's accounts
-4. Build the thin Android WebView APK in Android Studio (see Android wrapper section)
-5. Enable "Install from unknown sources" on each Android device
-6. Sideload the APK onto phones and tablets
-7. Test offline: turn on aeroplane mode, use the app, reconnect, verify sync
+4. Each device: open the URL in the browser and use "Add to Home Screen" (see Device installation section)
+5. Test offline: turn on aeroplane mode, use the app, reconnect, verify sync
 
 **Phase 3 ends when:** every family device has the app installed, offline mode works, and the whole family can use it for the actual weekly shop.
 

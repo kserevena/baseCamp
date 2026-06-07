@@ -17,8 +17,8 @@ The app works fully offline thanks to Firestore's IndexedDB persistence and a se
 |---|---|
 | Phase 0 — UI prototype | Complete |
 | Phase 1 — Firebase data | Complete |
-| Phase 2 — Authentication | Code complete — enable Google Sign-In in Firebase Console |
-| Phase 3 — Packaging & deploy | Not started |
+| Phase 2 — Authentication | Complete |
+| Phase 3 — Packaging & deploy | Complete — live at https://basecamp-app-dev.web.app |
 
 See `CLAUDE.md` for full project spec, data structure, and coding conventions.
 

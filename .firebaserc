@@ -1,5 +1,6 @@
 {
   "projects": {
+    "default": "basecamp-app-dev",
     "dev": "basecamp-app-dev"
   },
   "targets": {},

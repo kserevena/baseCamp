@@ -301,7 +301,9 @@ describe('Firestore security rules', () => {
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
         await setDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), {
           familyId: 'fam-1',
-          weekOf: '2026-06-02',
+          name: 'Weekly shop',
+          createdAt: serverTimestamp(),
+          createdBy: 'parent-uid',
         })
       })
     })
@@ -332,6 +334,24 @@ describe('Firestore security rules', () => {
         addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
           name: 'Milk', qty: '2 pints', aisle: 'Dairy',
           aisleOrder: 1, done: false, addedBy: 'outsider-uid', fromMeal: null,
+        })
+      )
+    })
+
+    it('allows a parent to create a shopping list', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(
+        addDoc(collection(ctx.firestore(), 'shoppingLists'), {
+          familyId: 'fam-1', name: 'New list', createdAt: serverTimestamp(), createdBy: 'parent-uid',
+        })
+      )
+    })
+
+    it('denies a child creating a shopping list', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(
+        addDoc(collection(ctx.firestore(), 'shoppingLists'), {
+          familyId: 'fam-1', name: 'Child list', createdAt: serverTimestamp(), createdBy: 'child-uid',
         })
       )
     })

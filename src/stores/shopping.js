@@ -1,19 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
-  collection, doc, onSnapshot, addDoc, updateDoc, setDoc, serverTimestamp,
+  collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, query, where, writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useFamilyStore } from './family.js'
-
-function getWeekId() {
-  const d = new Date()
-  const dayNum = d.getDay() || 7
-  d.setDate(d.getDate() + 4 - dayNum)
-  const yearStart = new Date(d.getFullYear(), 0, 1)
-  const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
-  return `${d.getFullYear()}-week-${String(weekNum).padStart(2, '0')}`
-}
 
 const AISLE_ORDERS = {
   'Dairy': 1,
@@ -24,50 +15,108 @@ const AISLE_ORDERS = {
 }
 
 export const useShoppingStore = defineStore('shopping', () => {
+  const lists = ref([])
   const items = ref([])
-  let weekId = getWeekId()
+  const activeListId = ref(null)
   let currentFamilyId = null
-  let unsubscribe = null
+  let unsubscribeLists = null
+  let unsubscribeItems = null
 
-  async function setup(familyId) {
-    weekId = getWeekId()
-    currentFamilyId = familyId
-
-    const monday = new Date()
-    const dayNum = monday.getDay() || 7
-    monday.setDate(monday.getDate() + 1 - dayNum)
-
-    await setDoc(doc(db, 'shoppingLists', weekId), {
-      familyId,
-      weekOf: monday.toISOString().slice(0, 10),
-    }, { merge: true })
-
-    unsubscribe = onSnapshot(
-      collection(db, 'shoppingLists', weekId, 'items'),
+  function activateList(listId) {
+    if (unsubscribeItems) unsubscribeItems()
+    activeListId.value = listId
+    unsubscribeItems = onSnapshot(
+      collection(db, 'shoppingLists', listId, 'items'),
       (snap) => {
         items.value = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => a.aisleOrder - b.aisleOrder)
+          .sort((a, b) =>
+            a.aisleOrder !== b.aisleOrder
+              ? (a.aisleOrder ?? 3) - (b.aisleOrder ?? 3)
+              : (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
+                ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+                : a.name.localeCompare(b.name)
+          )
+      },
+    )
+  }
+
+  function setup(familyId) {
+    currentFamilyId = familyId
+    unsubscribeLists = onSnapshot(
+      query(collection(db, 'shoppingLists'), where('familyId', '==', familyId)),
+      (snap) => {
+        lists.value = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
+        const idStillValid = activeListId.value !== null &&
+          lists.value.some(l => l.id === activeListId.value)
+        if (!idStillValid) {
+          if (lists.value.length > 0) {
+            activateList(lists.value[0].id)
+          } else {
+            unsubscribeItems?.()
+            unsubscribeItems = null
+            items.value = []
+            activeListId.value = null
+          }
+        }
       },
     )
   }
 
   function teardown() {
-    if (unsubscribe) unsubscribe()
-    unsubscribe = null
+    if (unsubscribeLists) unsubscribeLists()
+    if (unsubscribeItems) unsubscribeItems()
+    unsubscribeLists = null
+    unsubscribeItems = null
+    lists.value = []
     items.value = []
+    activeListId.value = null
+  }
+
+  async function deleteList() {
+    if (!activeListId.value) return
+    const listId = activeListId.value
+    // Items must be deleted before the parent — the items rule does a get() on the
+    // parent to read familyId; deleting the parent first would deny item deletes.
+    const itemsSnap = await getDocs(collection(db, 'shoppingLists', listId, 'items'))
+    await Promise.all(itemsSnap.docs.map(d => deleteDoc(doc(db, 'shoppingLists', listId, 'items', d.id))))
+    await deleteDoc(doc(db, 'shoppingLists', listId))
+  }
+
+  async function createList(name) {
+    const familyStore = useFamilyStore()
+    const ref = await addDoc(collection(db, 'shoppingLists'), {
+      familyId: currentFamilyId,
+      name: name.trim(),
+      createdAt: serverTimestamp(),
+      createdBy: familyStore.currentUser?.uid ?? '',
+    })
+    activateList(ref.id)
   }
 
   function toggleDone(id) {
+    if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
     if (!item) return
     item.done = !item.done
-    updateDoc(doc(db, 'shoppingLists', weekId, 'items', id), { done: item.done })
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { done: item.done })
+  }
+
+  async function reorderItems(updates) {
+    if (!activeListId.value) return
+    const batch = writeBatch(db)
+    for (const { id, ...fields } of updates) {
+      batch.update(doc(db, 'shoppingLists', activeListId.value, 'items', id), fields)
+    }
+    await batch.commit()
   }
 
   function addItem(name, qty = '', aisle = 'Dry goods') {
+    if (!activeListId.value) return
     const familyStore = useFamilyStore()
-    addDoc(collection(db, 'shoppingLists', weekId, 'items'), {
+    addDoc(collection(db, 'shoppingLists', activeListId.value, 'items'), {
       name,
       qty,
       aisle,
@@ -79,5 +128,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     })
   }
 
-  return { items, setup, teardown, toggleDone, addItem }
+  return { lists, items, activeListId, setup, teardown, activateList, createList, deleteList, toggleDone, addItem, reorderItems }
 })

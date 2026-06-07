@@ -140,6 +140,8 @@ The three data stores (`family`, `shopping`, `meals`) all follow the same patter
 
 `App.vue` watches the `familyId` and calls `setup`/`teardown` when it changes. This keeps listeners clean and prevents stale data if a user somehow ends up in a different family context. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
 
+**`shopping` store specifics:** `setup(familyId)` subscribes to the `shoppingLists` collection (filtered by `familyId`) to get list metadata — it does **not** auto-create any document. When the snapshot fires with results, the store auto-activates the most recently created list. `activateList(listId)` starts a second listener on that list's items subcollection. `createList(name)` is a parent-only action that creates a new list document and activates it. `reorderItems(updates)` is a parent-only action (enforced in the UI) that batch-writes `sortOrder` (and optionally `aisle`/`aisleOrder` for cross-section moves) to persist drag-and-drop order. `teardown()` cleans up both the lists and items listeners.
+
 ---
 
 ## Firebase data structure
@@ -165,18 +167,20 @@ families/{familyId}
     inviteCode: string        ← only on child members who joined; the code they used,
                                 so the security rule can verify it maps to this family
 
-shoppingLists/{weekId}        ← weekId format: "YYYY-week-WW"
+shoppingLists/{listId}        ← auto-generated ID
   familyId: string
-  weekOf: string              ← ISO date of Monday
+  name: string                ← user-provided name; set by a parent when creating the list
+  createdAt: timestamp
+  createdBy: uid
   items/{itemId}
     name: string
     qty: string
     aisle: string
     aisleOrder: number        ← for sorting by store layout
-    priority: number
     done: boolean
     addedBy: uid
     fromMeal: string | null   ← meal document ID if auto-added
+    sortOrder: number | null  ← custom drag-drop position within aisle; absent = sort by name
     createdAt: timestamp
 
 meals/{mealId}
@@ -262,7 +266,7 @@ Access summary:
 | `inviteCodes/{code}` | Any signed-in user (single `get` only — no listing/enumeration) | Existing family member |
 | `families/{familyId}` | Family members | Anyone signed-in who stamps `createdBy` as themselves (create); parents (update) |
 | `families/{familyId}/members/{uid}` | Family members | Parents (any member); the family `createdBy` user seating themselves as parent; a user seating themselves as `child` with a valid invite code; self-updates that don't change `role` |
-| `shoppingLists/{listId}` | Family members | Family members (create/update); parents (delete) |
+| `shoppingLists/{listId}` | Family members | Parents (create); family members (update); parents (delete) |
 | `shoppingLists/{listId}/items/{itemId}` | Family members | Family members (create/update); parents (delete) |
 | `meals/{mealId}` | Family members | Family members (create/update); parents (delete) |
 
@@ -294,9 +298,11 @@ npm run test:watch        # unit tests in watch mode during development
 |---|---|---|
 | `src/stores/__tests__/auth.test.js` | Unit | Auth listener, Google Sign-In popup, People API isMinor detection, localStorage persistence, sign-out |
 | `src/stores/__tests__/family.test.js` | Unit | `resolveFamily`, `currentUser` computed, `createFamily`, `joinFamily` |
+| `src/stores/__tests__/shopping.test.js` | Unit | `setup`, `activateList`, `createList`, `addItem`, `toggleDone`, `teardown` |
 | `src/stores/__tests__/family.integration.test.js` | Integration | All Firestore security rules verified against the emulator |
 | `src/views/__tests__/LoginView.test.js` | Unit | Sign-in button, post-login navigation, loading state, error snackbar |
 | `src/views/__tests__/SetupView.test.js` | Unit | Create/join family forms, child account (hide create), error handling |
+| `src/views/__tests__/ShoppingView.test.js` | Unit | List selector chip colours/checkmark, list switching, parent-only controls, empty state |
 | `src/router/__tests__/guard.test.js` | Unit | Unauthenticated redirect, family/no-family redirect, `resolveFamily` call timing |
 
 Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.

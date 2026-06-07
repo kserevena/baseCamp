@@ -4,6 +4,7 @@ import { useShoppingStore } from '@/stores/shopping.js'
 
 const props = defineProps({
   item: { type: Object, required: true },
+  showDragHandle: { type: Boolean, default: false },
 })
 
 const store = useShoppingStore()
@@ -42,6 +43,12 @@ const store = useShoppingStore()
           meal
         </v-chip>
         <FamilyAvatar :uid="item.addedBy" :size="28" />
+        <v-icon
+          v-if="showDragHandle"
+          class="drag-handle"
+          color="medium-emphasis"
+          style="min-width: 44px; cursor: grab;"
+        >mdi-drag</v-icon>
       </div>
     </template>
   </v-list-item>

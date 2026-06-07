@@ -3,15 +3,6 @@ import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'fireb
 
 const FAMILY_ID = 'family_1'
 
-function getWeekId() {
-  const d = new Date()
-  const dayNum = d.getDay() || 7
-  d.setDate(d.getDate() + 4 - dayNum)
-  const yearStart = new Date(d.getFullYear(), 0, 1)
-  const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
-  return `${d.getFullYear()}-week-${String(weekNum).padStart(2, '0')}`
-}
-
 export async function seedIfEmpty() {
   const membersSnap = await getDocs(collection(db, 'families', FAMILY_ID, 'members'))
   if (!membersSnap.empty) return
@@ -30,7 +21,12 @@ export async function seedIfEmpty() {
     })
   }
 
-  const weekId = getWeekId()
+  const listRef = await addDoc(collection(db, 'shoppingLists'), {
+    familyId: FAMILY_ID,
+    name: "This week's shop",
+    createdAt: serverTimestamp(),
+    createdBy: 'mock_dad',
+  })
   const items = [
     { name: 'Milk',            qty: '2 pints', aisle: 'Dairy',       aisleOrder: 1, done: false, addedBy: 'mock_dad',  fromMeal: null },
     { name: 'Cheddar cheese',  qty: '400g',    aisle: 'Dairy',       aisleOrder: 1, done: false, addedBy: 'mock_mum',  fromMeal: 'bolognese' },
@@ -43,7 +39,7 @@ export async function seedIfEmpty() {
     { name: 'Broccoli',        qty: '1 head',  aisle: 'Fruit & veg', aisleOrder: 5, done: false, addedBy: 'mock_mum',  fromMeal: null },
   ]
   for (const item of items) {
-    await addDoc(collection(db, 'shoppingLists', weekId, 'items'), {
+    await addDoc(collection(db, 'shoppingLists', listRef.id, 'items'), {
       ...item, createdAt: serverTimestamp(),
     })
   }

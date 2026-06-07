@@ -10,7 +10,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "firebase emulators:exec --only firestore,auth 'vitest run --config vitest.integration.config.js'",
-    "deploy": "npm run build && firebase deploy --only hosting"
+    "deploy:dev": "npm run build && firebase deploy --only hosting --project dev",
+    "deploy:prod": "vite build --mode prod && firebase deploy --only hosting --project prod",
+    "deploy:rules:dev": "firebase deploy --only firestore:rules,firestore:indexes --project dev",
+    "deploy:rules:prod": "firebase deploy --only firestore:rules,firestore:indexes --project prod",
+    "deploy": "echo 'Use deploy:dev or deploy:prod explicitly' && exit 1"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",

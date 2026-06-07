@@ -11,6 +11,29 @@ BaseCamp helps families coordinate:
 
 The app works fully offline thanks to Firestore's IndexedDB persistence and a service worker. All family data syncs automatically when devices reconnect to the internet.
 
+## Environments
+
+The project has two Firebase environments:
+
+| Environment | Firebase project | URL | Purpose |
+|---|---|---|---|
+| Dev | `basecamp-app-dev` | https://basecamp-app-dev.web.app | Development and testing |
+| Prod | `basecamp-app-prod` | https://basecamp-app-prod.web.app | Real family use |
+
+Both environments run independent Firestore databases and Auth instances — data never crosses between them.
+
+### Setting up `.env.prod`
+
+To deploy to prod, create a `.env.prod` file (gitignored) at the repo root:
+
+```bash
+cp .env.example .env.prod
+```
+
+Fill in the values from the `basecamp-app-prod` Firebase project. The keys are identical to `.env`; only the values differ. Vite picks up `.env.prod` automatically when you run `npm run deploy:prod`.
+
+---
+
 ## Current Status
 
 | Phase | Status |
@@ -18,7 +41,7 @@ The app works fully offline thanks to Firestore's IndexedDB persistence and a se
 | Phase 0 — UI prototype | Complete |
 | Phase 1 — Firebase data | Complete |
 | Phase 2 — Authentication | Complete |
-| Phase 3 — Packaging & deploy | Complete — live at https://basecamp-app-dev.web.app |
+| Phase 3 — Packaging & deploy | Complete — dev at https://basecamp-app-dev.web.app |
 
 See `CLAUDE.md` for full project spec, data structure, and coding conventions.
 
@@ -146,20 +169,28 @@ Integration tests load the real `firestore.rules` file into the emulator, so the
 
 ### Deploying Firestore security rules
 
-The rules in `firestore.rules` must be deployed whenever they change:
+The rules in `firestore.rules` must be deployed to both environments whenever they change:
 
 ```bash
-firebase deploy --only firestore:rules
+npm run deploy:rules:dev
+npm run deploy:rules:prod
 ```
 
-This is required after setting up the project for the first time (Phase 2), and any time access rules are updated.
+This is required after setting up the project for the first time, and any time access rules are updated.
 
-### Production build (Phase 3)
+### Deploying the app
+
+Always deploy to dev first and verify, then promote to prod.
 
 ```bash
-npm run build
-firebase deploy --only hosting
+# Deploy to dev (uses .env credentials)
+npm run deploy:dev
+
+# Deploy to prod (uses .env.prod credentials)
+npm run deploy:prod
 ```
+
+To deploy to prod you must first create a `.env.prod` file — see the **Environments** section below.
 
 ---
 

@@ -107,7 +107,8 @@ baseCamp/
 ├── vitest.integration.config.js     # Integration test config (node, 15s timeout)
 ├── firebase.json                    # Emulator ports, hosting config
 ├── .firebaserc
-├── .env                             # Firebase credentials — never commit
+├── .env                             # Dev Firebase credentials — never commit
+├── .env.prod                        # Prod Firebase credentials — never commit
 └── package.json
 ```
 
@@ -411,12 +412,17 @@ npm test
 # Run integration tests (auto-starts and stops emulator)
 npm run test:integration
 
-# Deploy security rules after changing firestore.rules
-firebase deploy --only firestore:rules
+# Deploy to dev environment (build uses .env)
+npm run deploy:dev
 
-# Production build and deploy (Phase 3)
-npm run build
-firebase deploy --only hosting
+# Deploy to prod environment (build uses .env.prod)
+npm run deploy:prod
+
+# Deploy security rules and indexes to dev
+npm run deploy:rules:dev
+
+# Deploy security rules and indexes to prod
+npm run deploy:rules:prod
 ```
 
 **Before every deploy**, run this backward-compatibility checklist. If the answer to any question is "yes", follow the **Firestore schema evolution** section before proceeding — do not deploy until the check passes.
@@ -427,6 +433,8 @@ firebase deploy --only hosting
 4. Does this change restructure a subcollection (move, rename, or merge)?
 
 If all four answers are "no", the change is safe to deploy as-is. Document the check outcome in the PR description.
+
+**Rules changes must be deployed to both environments.** Run `npm run deploy:rules:dev && npm run deploy:rules:prod` any time `firestore.rules` changes. Never deploy only to one environment — rules and code must stay in sync on both.
 
 Finding your local IP:
 - Windows: `ipconfig` → IPv4 Address
@@ -442,8 +450,8 @@ Every file save hot-reloads all connected devices instantly.
 **Goal: deploy to Firebase Hosting and install the PWA on all family devices.**
 
 Steps:
-1. Run `npm run deploy` — builds and deploys to Firebase Hosting
-2. Share the live URL with the family: https://basecamp-app-dev.web.app
+1. Run `npm run deploy:prod` — builds with prod credentials and deploys to the prod Firebase project
+2. Share the prod URL with the family: https://basecamp-app-prod.web.app
 3. Whitelist the Firebase Hosting URL in Google Family Link if web restrictions are enabled on children's accounts
 4. Each device: open the URL in the browser and use "Add to Home Screen" (see Device installation section)
 5. Test offline: turn on aeroplane mode, use the app, reconnect, verify sync
@@ -461,7 +469,7 @@ Steps:
 - **Family colour system** — every member has a `colour` hex; use it consistently for avatars, badges, and vote indicators everywhere in the UI
 - **Aisle ordering** — default sort is `aisleOrder` ascending, then `priority`. Parents can customise aisle order; persist changes to Firestore.
 - **Offline writes** — update Pinia state immediately, fire Firestore write in background, do not await in a way that blocks the UI
-- **Firestore security rules** — whenever application logic changes who can read or write data (new collections, new roles, new access patterns), update `firestore.rules` in the same change. Rules and code must stay in sync. After updating rules, remind the user to deploy them with `firebase deploy --only firestore:rules`
+- **Firestore security rules** — whenever application logic changes who can read or write data (new collections, new roles, new access patterns), update `firestore.rules` in the same change. Rules and code must stay in sync. After updating rules, deploy to both environments: `npm run deploy:rules:dev && npm run deploy:rules:prod`
 - **Defensive Firestore reads** — always read document fields with a fallback (`data.field ?? defaultValue`). Devices with offline-cached documents may have an older schema shape; never assume a field is present even if it is "required" in the data model.
 - **Tests** — any new functionality or modification to existing functionality must be accompanied by tests. Unit tests live alongside the code in `__tests__/` directories. Run `npm test` before every commit and do not commit if tests are failing.
 

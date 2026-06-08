@@ -392,4 +392,186 @@ describe('Firestore security rules', () => {
       await assertFails(getDoc(doc(ctx.firestore(), 'meals', 'meal-1')))
     })
   })
+
+  describe('pocketMoney subcollection', () => {
+    async function seedPocketMoneyDoc(familyId, childUid, data = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'families', familyId, 'pocketMoney', childUid), {
+          weeklyAmount: 5, paymentDay: 5, balance: 10, lastUpdated: serverTimestamp(), ...data,
+        })
+      })
+    }
+
+    async function seedTransaction(familyId, childUid, txnId) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), 'families', familyId, 'pocketMoney', childUid, 'transactions', txnId),
+          { type: 'payment', amount: 5, recordedBy: null, note: null },
+        )
+      })
+    }
+
+    beforeEach(async () => {
+      await seedFamily('fam-1', [
+        { uid: 'parent-uid',  name: 'Parent',  role: 'parent' },
+        { uid: 'child-uid',   name: 'Child',   role: 'child' },
+        { uid: 'child2-uid',  name: 'Child 2', role: 'child' },
+      ])
+      await seedPocketMoneyDoc('fam-1', 'child-uid')
+      await seedPocketMoneyDoc('fam-1', 'child2-uid')
+      await seedTransaction('fam-1', 'child-uid', 'txn-1')
+    })
+
+    describe('pocketMoney/{childUid} reads', () => {
+      it('allows a parent to read any child pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+
+      it('allows a child to read their own pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+
+      it('denies a child reading another child\'s pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child2-uid'))
+        )
+      })
+
+      it('denies a non-member reading any pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+
+      it('denies an unauthenticated user reading any pocket money doc', async () => {
+        const ctx = testEnv.unauthenticatedContext()
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+    })
+
+    describe('pocketMoney/{childUid} writes', () => {
+      it('allows a parent to create a pocket money doc for a child', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          setDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'new-child-uid'), {
+            weeklyAmount: 5, paymentDay: 4, balance: 20, lastUpdated: serverTimestamp(),
+          })
+        )
+      })
+
+      it('allows a parent to update a child\'s pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'), {
+            weeklyAmount: 10,
+          })
+        )
+      })
+
+      it('denies a child writing their own pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'), {
+            balance: 9999,
+          })
+        )
+      })
+
+      it('denies a child writing another child\'s pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child2-uid'), {
+            balance: 0,
+          })
+        )
+      })
+
+      it('denies a non-member writing any pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          setDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'), {
+            weeklyAmount: 5, paymentDay: 5, balance: 0, lastUpdated: serverTimestamp(),
+          })
+        )
+      })
+    })
+
+    describe('pocketMoney/{childUid}/transactions reads', () => {
+      it('allows a parent to read any child\'s transactions', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions', 'txn-1'))
+        )
+      })
+
+      it('allows a child to read their own transactions', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions', 'txn-1'))
+        )
+      })
+
+      it('denies a child reading another child\'s transactions', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child2-uid', 'transactions', 'txn-2'),
+            { type: 'payment', amount: 5, recordedBy: null, note: null },
+          )
+        })
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child2-uid', 'transactions', 'txn-2'))
+        )
+      })
+
+      it('denies a non-member reading transactions', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions', 'txn-1'))
+        )
+      })
+    })
+
+    describe('pocketMoney/{childUid}/transactions writes', () => {
+      it('allows a parent to write a transaction', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions'),
+            { type: 'payment', amount: 5, recordedBy: null, note: null },
+          )
+        )
+      })
+
+      it('denies a child writing a transaction', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions'),
+            { type: 'payment', amount: 5, recordedBy: null, note: null },
+          )
+        )
+      })
+
+      it('denies a non-member writing a transaction', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions'),
+            { type: 'payment', amount: 5, recordedBy: null, note: null },
+          )
+        )
+      })
+    })
+  })
 })

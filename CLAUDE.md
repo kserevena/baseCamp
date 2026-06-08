@@ -14,6 +14,7 @@ This file tells you everything you need to know to build, run, and extend the pr
 | Phase 1 — Firebase data | **Complete** | Real-time Firestore sync confirmed across devices |
 | Phase 2 — Authentication | **Complete** | Google Sign-In live; family create/join flows working on real devices |
 | Phase 3 — Packaging & deploy | **Complete** | PWA live at https://basecamp-app-dev.web.app; install via browser on all devices |
+| Phase 4 — Pocket money | **In progress** | Parent config, auto-payment calc, withdrawal recording, child read-only view |
 
 ---
 
@@ -80,10 +81,12 @@ baseCamp/
 │   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
 │   │   ├── ShoppingView.vue         # Shopping list — progress bar, list, add-item FAB, manage aisles
 │   │   ├── MealsView.vue            # Meal voting wrapper
+│   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
 │   │   └── __tests__/
 │   │       ├── LoginView.test.js
 │   │       ├── SetupView.test.js
-│   │       └── ShoppingView.test.js
+│   │       ├── ShoppingView.test.js
+│   │       └── PocketMoneyView.test.js
 │   ├── composables/
 │   │   ├── useServiceWorkerUpdate.js  # SW update polling: controllerchange reload, visibilitychange + hourly check
 │   │   └── __tests__/
@@ -93,10 +96,12 @@ baseCamp/
 │   │   ├── family.js                # Family membership, create/join, member colours
 │   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort, aisle management)
 │   │   ├── meals.js                 # Meal suggestions and votes
+│   │   ├── pocketMoney.js           # Pocket money snapshots, auto-payment calc, withdrawal recording
 │   │   └── __tests__/
 │   │       ├── auth.test.js
 │   │       ├── family.test.js
 │   │       ├── shopping.test.js
+│   │       ├── pocketMoney.test.js
 │   │       └── family.integration.test.js
 │   ├── router/
 │   │   ├── index.js                 # Vue Router — routes and auth guard
@@ -147,12 +152,14 @@ Understanding this flow is essential for any work on auth, routing, or store set
 
 ## Store lifecycle
 
-The three data stores (`family`, `shopping`, `meals`) all follow the same pattern:
+The data stores (`family`, `shopping`, `meals`, `pocketMoney`) all follow the same pattern:
 
-- `setup(id)` — subscribes to Firestore via `onSnapshot`, populates reactive state
+- `setup(...)` — subscribes to Firestore via `onSnapshot`, populates reactive state
 - `teardown()` — unsubscribes the listener, clears state
 
-`App.vue` watches the `familyId` and calls `setup`/`teardown` when it changes. This keeps listeners clean and prevents stale data if a user somehow ends up in a different family context. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
+`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping` and `meals` when it changes. This keeps listeners clean and prevents stale data if a user somehow ends up in a different family context. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
+
+**`pocketMoney` store exception:** `pocketMoney.setup(familyId, currentUser)` requires the user's `role` to decide whether to subscribe to the whole collection (parent) or a single document (child). `role` is only available after the `families/{familyId}/members` snapshot fires — which happens asynchronously after `familyId` becomes non-null. `App.vue` therefore watches `family.currentUser` (not `familyId`) to set up the pocketMoney store.
 
 **`shopping` store specifics:** `setup(familyId)` subscribes to the `shoppingLists` collection (filtered by `familyId`) to get list metadata — it does **not** auto-create any document. When the snapshot fires with results, the store auto-activates the most recently created list. `activateList(listId)` starts a second listener on that list's items subcollection. `createList(name)` is a parent-only action that creates a new list document (with a default `aisles` array) and activates it. `reorderItems(updates)` is a parent-only action (enforced in the UI) that batch-writes `sortOrder` (and optionally `aisle`/`aisleOrder` for cross-section moves) to persist drag-and-drop order. `saveAisles(aisles)` is a parent-only action that writes the current aisle list to the list document. `deleteAisle(name)` is a parent-only action that batch-moves items in the deleted aisle to `aisle: 'Unknown'` and removes the aisle from the list document. `activeAisles` is a computed that returns the active list's `aisles` array, falling back to `DEFAULT_AISLES` if the field is absent (old documents). `teardown()` cleans up both the lists and items listeners.
 
@@ -205,6 +212,19 @@ meals/{mealId}
   name: string
   votes: string[]             ← array of uids who voted
   ingredients: string[]       ← auto-added to list when enough votes
+
+families/{familyId}/pocketMoney/{uid}   ← config + running balance snapshot per child
+  weeklyAmount: number                  ← amount added each payment day
+  paymentDay: number                    ← 0 = Sunday … 6 = Saturday
+  balance: number                       ← last persisted total (does not include pending payments)
+  lastUpdated: timestamp                ← date balance was last written; used for auto-payment calc
+
+families/{familyId}/pocketMoney/{uid}/transactions/{txnId}
+  type: "payment" | "withdrawal"
+  amount: number                        ← always positive; type gives direction
+  date: timestamp                       ← payment: the actual weekday date; withdrawal: when recorded
+  recordedBy: uid | null                ← null for auto-payments; parent uid for withdrawals
+  note: string | null                   ← optional; used for withdrawals
 ```
 
 ---
@@ -286,6 +306,8 @@ Access summary:
 | `shoppingLists/{listId}` | Family members | Parents (create); family members (update); parents (delete) |
 | `shoppingLists/{listId}/items/{itemId}` | Family members | Family members (create/update); parents (delete) |
 | `meals/{mealId}` | Family members | Family members (create/update); parents (delete) |
+| `families/{familyId}/pocketMoney/{uid}` | Parents (any child); child (own only) | Parents only |
+| `families/{familyId}/pocketMoney/{uid}/transactions/{txnId}` | Parents (any child); child (own only) | Parents only |
 
 Two helper functions drive most rules:
 - `isFamilyMember(familyId)` — checks `families/{familyId}/members/{uid}` exists
@@ -316,7 +338,7 @@ npm run test:watch        # unit tests in watch mode during development
 | `src/stores/__tests__/auth.test.js` | Unit | Auth listener, Google Sign-In popup, People API isMinor detection, localStorage persistence, sign-out |
 | `src/stores/__tests__/family.test.js` | Unit | `resolveFamily`, `currentUser` computed, `createFamily`, `joinFamily` |
 | `src/stores/__tests__/shopping.test.js` | Unit | `setup`, `activateList`, `createList`, `addItem`, `toggleDone`, `teardown`, `activeAisles`, `saveAisles`, `deleteAisle` |
-| `src/stores/__tests__/family.integration.test.js` | Integration | All Firestore security rules verified against the emulator |
+| `src/stores/__tests__/family.integration.test.js` | Integration | All Firestore security rules verified against the emulator (families, shopping, meals, pocketMoney) |
 | `src/views/__tests__/LoginView.test.js` | Unit | Sign-in button, post-login navigation, loading state, error snackbar |
 | `src/views/__tests__/SetupView.test.js` | Unit | Create/join family forms, child account (hide create), error handling |
 | `src/views/__tests__/ShoppingView.test.js` | Unit | List selector chip colours/checkmark, list switching, parent-only controls, empty state, manage-aisles button, aisle picker |
@@ -324,6 +346,8 @@ npm run test:watch        # unit tests in watch mode during development
 | `src/components/__tests__/ShoppingList.test.js` | Unit | Empty aisle headers, aisle ordering, item placement, Unknown aisle, reactivity |
 | `src/router/__tests__/guard.test.js` | Unit | Unauthenticated redirect, family/no-family redirect, `resolveFamily` call timing |
 | `src/composables/__tests__/useServiceWorkerUpdate.test.js` | Unit | `controllerchange` → reload, reload guard, `visibilitychange` update check, hourly interval, no-op without SW support |
+| `src/stores/__tests__/pocketMoney.test.js` | Unit | `pendingPaymentDates`, `displayBalance`, `setup` (parent vs child), `teardown`, `flushPendingPayments`, `saveConfig`, `recordWithdrawal`, `loadTransactions` |
+| `src/views/__tests__/PocketMoneyView.test.js` | Unit | Parent view (child list, balance display, detail sheet, settings dialog, withdrawal dialog, history); child view (own balance, no admin controls, history) |
 
 Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.
 
@@ -452,7 +476,7 @@ npm run deploy:rules:dev
 npm run deploy:rules:prod
 ```
 
-**Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first.
+**Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. This includes `deploy:dev`, `deploy:prod`, `deploy:rules:dev`, `deploy:rules:prod`, and any `firebase deploy` invocation — deployments affect live devices and shared infrastructure.
 
 **Before every deploy**, run this backward-compatibility checklist. If the answer to any question is "yes", follow the **Firestore schema evolution** section before proceeding — do not deploy until the check passes.
 
@@ -523,4 +547,3 @@ Steps:
 - Family event organiser and calendar
 - Individual birthday and Christmas wish lists shareable with grandparents
 - Chores list
-- Pocket money management

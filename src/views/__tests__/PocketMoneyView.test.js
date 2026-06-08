@@ -254,6 +254,82 @@ describe('PocketMoneyView', () => {
       )
     })
 
+    it('refreshes transaction list after withdrawal when history is expanded', async () => {
+      pocketMoneyStore.displayBalance = computed(() => (uid) =>
+        uid === 'child-uid' ? 20 : null
+      )
+      pocketMoneyStore.snapshots = [
+        { uid: 'child-uid', weeklyAmount: 5, paymentDay: 5, balance: 20 },
+      ]
+      pocketMoneyStore.transactionsUid = 'child-uid'
+      const wrapper = mountView()
+
+      // Open detail sheet
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Expand history (sets historyExpanded = true)
+      const histBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const historyBtn = histBtns.find(b => b.text().includes('history'))
+      await historyBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Reset call count — we only care about the refresh triggered by the withdrawal
+      pocketMoneyStore.loadTransactions.mockClear()
+
+      // Open withdrawal dialog
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const withdrawBtn = btns.find(b => b.text().includes('withdrawal'))
+      await withdrawBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const amountField = fields.find(f => f.props('label')?.includes('Amount'))
+      if (amountField) await amountField.setValue('5')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const confirmBtn = dialogBtns.find(b => b.text() === 'Confirm')
+      await confirmBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(pocketMoneyStore.loadTransactions).toHaveBeenCalledWith('child-uid')
+    })
+
+    it('does not refresh transaction list after withdrawal when history is collapsed', async () => {
+      pocketMoneyStore.displayBalance = computed(() => (uid) =>
+        uid === 'child-uid' ? 20 : null
+      )
+      pocketMoneyStore.snapshots = [
+        { uid: 'child-uid', weeklyAmount: 5, paymentDay: 5, balance: 20 },
+      ]
+      const wrapper = mountView()
+
+      // Open detail sheet — do not expand history
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Open withdrawal dialog directly
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const withdrawBtn = btns.find(b => b.text().includes('withdrawal'))
+      await withdrawBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const amountField = fields.find(f => f.props('label')?.includes('Amount'))
+      if (amountField) await amountField.setValue('5')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const confirmBtn = dialogBtns.find(b => b.text() === 'Confirm')
+      await confirmBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(pocketMoneyStore.loadTransactions).not.toHaveBeenCalled()
+    })
+
     it('calls loadTransactions when View history is tapped', async () => {
       const wrapper = mountView()
 

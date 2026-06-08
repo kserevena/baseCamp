@@ -102,6 +102,9 @@ async function confirmWithdrawal() {
       amount,
       note: withdrawalNote.value.trim() || null,
     })
+    if (historyExpanded.value && store.transactionsUid === selectedChild.value.uid) {
+      await store.loadTransactions(selectedChild.value.uid)
+    }
     withdrawalDialog.value = false
   } catch {
     withdrawalError.value = 'Failed to record. Try again.'

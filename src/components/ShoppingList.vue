@@ -12,9 +12,10 @@ const emit = defineEmits(['edit'])
 const isParent = computed(() => familyStore.currentUser?.role === 'parent')
 
 function buildGroups(items, aisles) {
+  const activeItems = items.filter(i => !i.done)
   const groups = aisles.map(a => ({ aisle: a.name, aisleOrder: a.order, items: [] }))
 
-  for (const item of items) {
+  for (const item of activeItems) {
     let group = groups.find(g => g.aisle === item.aisle)
     if (!group) {
       group = { aisle: item.aisle, aisleOrder: item.aisleOrder ?? 99, items: [] }
@@ -33,6 +34,8 @@ function buildGroups(items, aisles) {
 
   return groups
 }
+
+const doneItems = computed(() => store.items.filter(i => i.done))
 
 const groups = ref(buildGroups(store.items, store.activeAisles))
 let pendingReorder = false
@@ -103,6 +106,24 @@ function onDragEnd() {
 
       <v-divider />
     </template>
+
+    <template v-if="doneItems.length > 0">
+      <v-list-subheader class="aisle-header text-uppercase font-weight-bold done-header">
+        Done ({{ doneItems.length }})
+      </v-list-subheader>
+      <div class="done-section">
+        <ShoppingItem
+          v-for="item in doneItems"
+          :key="item.id"
+          :item="item"
+          :show-delete="isParent"
+          :show-edit="isParent"
+          @delete="store.deleteItem(item.id)"
+          @edit="emit('edit', item)"
+        />
+      </div>
+      <v-divider />
+    </template>
   </v-list>
 </template>
 
@@ -114,5 +135,8 @@ function onDragEnd() {
   z-index: 1;
   letter-spacing: 0.06em;
   font-size: 0.7rem;
+}
+.done-section {
+  opacity: 0.5;
 }
 </style>

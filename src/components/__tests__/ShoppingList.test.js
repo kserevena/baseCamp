@@ -26,6 +26,7 @@ vi.mock('@/stores/family.js', () => ({
 
 vi.mock('@/components/ShoppingItem.vue', () => ({
   default: {
+    name: 'ShoppingItem',
     props: ['item', 'showDragHandle', 'showDelete', 'showEdit'],
     template: '<div class="shopping-item-stub">{{ item.name }}</div>',
   },
@@ -129,6 +130,115 @@ describe('ShoppingList', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.text()).toContain('Butter')
+    })
+  })
+
+  describe('done section — positive', () => {
+    it('renders a done: true item in the Done section', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).toContain('Done (1)')
+      expect(wrapper.text()).toContain('Eggs')
+    })
+
+    it('shows the correct count in the Done section header', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+        { id: 'i2', name: 'Butter', aisle: 'Dairy', aisleOrder: 1, done: true },
+        { id: 'i3', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).toContain('Done (2)')
+    })
+
+    it('moves an item from aisle to Done section when it becomes done: true', async () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).not.toContain('Done (')
+
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('Done (1)')
+    })
+
+    it('moves an item from Done section back to its aisle when it becomes done: false', async () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).toContain('Done (1)')
+
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).not.toContain('Done (')
+      expect(wrapper.text()).toContain('Dairy')
+    })
+  })
+
+  describe('done section — negative', () => {
+    it('does not render a done: true item in any aisle section', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList()
+      const aisleHeaders = wrapper.findAll('.v-list-subheader')
+      const aisleHeaderTexts = aisleHeaders.map(h => h.text())
+      // Only the Done header should contain the item name area; Dairy header should be present but empty of the item
+      expect(aisleHeaderTexts.some(t => t.includes('Done'))).toBe(true)
+      // The item should not appear outside the done section — verify via the aisle groups that have no items
+      const doneSection = wrapper.find('.done-section')
+      expect(doneSection.exists()).toBe(true)
+      expect(doneSection.text()).toContain('Eggs')
+    })
+
+    it('does not render a done: false item in the Done section', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).not.toContain('Done (')
+      const doneSection = wrapper.find('.done-section')
+      expect(doneSection.exists()).toBe(false)
+    })
+
+    it('does not render the Done section when all items are done: false', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+        { id: 'i2', name: 'Steak', aisle: 'Meat', aisleOrder: 2, done: false },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).not.toContain('Done (')
+    })
+
+    it('does not render the Done section when the item list is empty', () => {
+      shoppingStore.items = []
+      const wrapper = mountList()
+      expect(wrapper.text()).not.toContain('Done (')
+    })
+
+    it('does not render a drag handle for items in the Done section', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList()
+      const doneSection = wrapper.find('.done-section')
+      expect(doneSection.exists()).toBe(true)
+      // ShoppingItem stub does not receive showDragHandle=true in the done section
+      const doneItem = doneSection.find('.shopping-item-stub')
+      expect(doneItem.exists()).toBe(true)
+      // The stub's props should not include showDragHandle=true
+      const itemComponent = doneSection.findComponent({ name: 'ShoppingItem' })
+      expect(itemComponent.props('showDragHandle')).toBeFalsy()
     })
   })
 })

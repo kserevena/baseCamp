@@ -23,7 +23,7 @@
     "pinia": "^2.3.1",
     "vue": "^3.5.16",
     "vue-draggable-plus": "^0.6.1",
-    "vue-router": "^4.5.1",
+    "vue-router": "^5.1.0",
     "vuetify": "^3.8.4",
     "workbox-window": "^7.3.0"
   },

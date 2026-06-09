@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFamilyStore } from '@/stores/family.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -24,6 +24,24 @@ watch(() => family.familyId, (id, prevId) => {
   } else if (prevId) {
     shopping.teardown()
     meals.teardown()
+  }
+})
+
+onMounted(() => {
+  if ('serviceWorker' in navigator) {
+    let refreshing = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true
+        window.location.reload()
+      }
+    })
+    navigator.serviceWorker.ready.then(registration => {
+      setInterval(() => registration.update(), 60 * 60 * 1000)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) registration.update()
+      })
+    })
   }
 })
 

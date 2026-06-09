@@ -20,6 +20,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   addDoc,
   serverTimestamp,
@@ -570,6 +571,125 @@ describe('Firestore security rules', () => {
             collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions'),
             { type: 'payment', amount: 5, recordedBy: null, note: null },
           )
+        )
+      })
+    })
+
+    describe('pocketMoney child self-create and unauthenticated', () => {
+      it('denies a child creating their OWN pocket money doc', async () => {
+        // Self-create is a write; only parents may write. A child must not be able to
+        // seed their own balance even though they can read it.
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          setDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'), {
+            weeklyAmount: 5, paymentDay: 5, balance: 9999, lastUpdated: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an unauthenticated user writing a pocket money doc', async () => {
+        const ctx = testEnv.unauthenticatedContext()
+        await assertFails(
+          setDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'), {
+            weeklyAmount: 5, paymentDay: 5, balance: 0, lastUpdated: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an unauthenticated user writing a transaction', async () => {
+        const ctx = testEnv.unauthenticatedContext()
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions'),
+            { type: 'payment', amount: 5, recordedBy: null, note: null },
+          )
+        )
+      })
+    })
+
+    describe('pocketMoney deletes', () => {
+      it('allows a parent to delete a pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+
+      it('allows a parent to delete a transaction', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions', 'txn-1'))
+        )
+      })
+
+      it('denies a child deleting their own pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+
+      it('denies a child deleting their own transaction', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid', 'transactions', 'txn-1'))
+        )
+      })
+
+      it('denies a non-member deleting a pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+    })
+
+    describe('pocketMoney list / enumeration', () => {
+      it('allows a parent to list the pocketMoney collection', async () => {
+        // The parent store listener subscribes to the whole collection, so list must work.
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          getDocs(collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney'))
+        )
+      })
+
+      it('denies a child listing the pocketMoney collection', async () => {
+        // A child may only GET their own doc — listing would expose siblings' balances.
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          getDocs(collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney'))
+        )
+      })
+
+      it('denies a non-member listing the pocketMoney collection', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          getDocs(collection(ctx.firestore(), 'families', 'fam-1', 'pocketMoney'))
+        )
+      })
+    })
+
+    describe('pocketMoney cross-family isolation', () => {
+      // A parent of one family must not reach into another family's pocket money.
+      beforeEach(async () => {
+        await seedFamily('fam-2', [
+          { uid: 'parent2-uid', name: 'Parent 2', role: 'parent' },
+        ], { createdBy: 'parent2-uid' })
+      })
+
+      it('denies a parent of another family reading a child pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('parent2-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'))
+        )
+      })
+
+      it('denies a parent of another family writing a child pocket money doc', async () => {
+        const ctx = testEnv.authenticatedContext('parent2-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'), {
+            balance: 9999,
+          })
         )
       })
     })

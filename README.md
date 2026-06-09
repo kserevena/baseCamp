@@ -229,7 +229,11 @@ Data lives in five top-level Firestore collections:
 | `shoppingLists/{weekId}` | One document per week per family, with an `items/` subcollection |
 | `meals/{mealId}` | Meal name, vote array, and family reference |
 
+Pocket money config, balances, and transactions live under `families/{familyId}/pocketMoney/{childUid}` (and its `transactions/` subcollection).
+
 See `CLAUDE.md` for the full field-level schema and security rules.
+
+> **Pocket money runs in UTC.** Payment-day accrual is computed using UTC day boundaries so the amount can never double-count or skip a week when a device changes timezone. A payment therefore posts on UTC midnight rather than local midnight (cosmetic for a UK family; the amount is always correct). Supporting a family's own non-UTC timezone is tracked in [issue #15](https://github.com/kserevena/baseCamp/issues/15).
 
 ---
 

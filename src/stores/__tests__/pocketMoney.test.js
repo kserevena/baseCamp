@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 const {
@@ -33,6 +33,7 @@ vi.mock('firebase/firestore', () => ({
   orderBy:     mockOrderBy,
   writeBatch:  mockWriteBatch,
   setDoc:      mockSetDoc,
+  // Timestamp is faked just enough for the store: fromDate/now round-trip via toDate().
   Timestamp: {
     now:      () => ({ toDate: () => new Date() }),
     fromDate: (d) => ({ toDate: () => d }),
@@ -44,20 +45,35 @@ import { usePocketMoneyStore } from '@/stores/pocketMoney.js'
 const parentUser = { uid: 'parent-uid', role: 'parent' }
 const childUser  = { uid: 'child-uid',  role: 'child'  }
 
+// Default pinned clock for tests that don't care about the exact date. 2025-06-13 is a
+// Friday in UTC — see the dated cases below which pin their own system time as needed.
+const DEFAULT_NOW = '2025-06-13T00:00:00Z'
+
+// Build a Firestore-shaped snapshot. lastUpdated mimics a Firestore Timestamp (has toDate()).
 function makeSnap(uid, overrides = {}) {
   const base = {
     weeklyAmount: 5,
     paymentDay: 5, // Friday
     balance: 10,
-    lastUpdated: { toDate: () => new Date('2025-01-01') },
+    lastUpdated: { toDate: () => new Date('2025-01-01T00:00:00Z') },
   }
   return { uid, ...base, ...overrides }
 }
+
+// A Timestamp-like wrapper around a fixed instant.
+const ts = (iso) => ({ toDate: () => new Date(iso) })
+
+// Format a Date (UTC midnight) as YYYY-MM-DD for stable comparison.
+const ymd = (d) => d.toISOString().slice(0, 10)
 
 describe('pocketMoney store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    // Fake only Date so "today" is deterministic; leave timers/promises real so the
+    // awaited batch.commit() in the store still resolves via the real microtask queue.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(DEFAULT_NOW))
     mockOnSnapshot.mockReturnValue(vi.fn())
     mockGetDocs.mockResolvedValue({ docs: [] })
     mockBatchCommit.mockResolvedValue(undefined)
@@ -70,92 +86,97 @@ describe('pocketMoney store', () => {
     mockUseFamilyStore.mockReturnValue({ currentUser: { uid: 'parent-uid', role: 'parent' } })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   // ─── pendingPaymentDates ───────────────────────────────────────────────────
+  // All cases pin "today" via vi.setSystemTime and assert the EXACT set of payment
+  // dates. Day boundaries are UTC, so these are reproducible on any host timezone.
 
   describe('pendingPaymentDates', () => {
-    it('returns empty array when lastUpdated is today', () => {
+    // [name, today, lastUpdated, paymentDay, expected (array of YYYY-MM-DD)]
+    const cases = [
+      // Exclusive of lastUpdated: its own weekday is NOT counted.
+      ['excludes lastUpdated itself (same day, same weekday)',
+        '2025-06-13', '2025-06-13', 5, []],
+      // One occurrence in a short window.
+      ['one occurrence in the window',
+        '2025-06-13', '2025-06-09', 5, ['2025-06-13']],
+      // Exclusive boundary skips lastUpdated's Friday, picks the NEXT Friday.
+      ['skips lastUpdated weekday and picks the next occurrence',
+        '2025-06-20', '2025-06-13', 5, ['2025-06-20']],
+      // Two occurrences.
+      ['two occurrences in the window',
+        '2025-06-20', '2025-06-06', 5, ['2025-06-13', '2025-06-20']],
+      // Month boundary (Jan → Feb).
+      ['spans a month boundary',
+        '2025-02-04', '2025-01-28', 1, ['2025-02-03']],
+      // Year boundary (Dec 2024 → Jan 2025).
+      ['spans a year boundary',
+        '2025-01-05', '2024-12-28', 3, ['2025-01-01']],
+      // Leap day: 29 Feb 2024 is a Thursday and must be counted.
+      ['counts the leap day (29 Feb 2024)',
+        '2024-03-03', '2024-02-25', 4, ['2024-02-29']],
+      // DST regression — UK spring-forward day (30 Mar 2025) is a Sunday; with UTC
+      // math it is counted exactly once, never doubled or skipped.
+      ['handles UK DST spring-forward without double/skip',
+        '2025-04-02', '2025-03-26', 0, ['2025-03-30']],
+      // DST regression — UK autumn-back day (26 Oct 2025) is a Sunday.
+      ['handles UK DST autumn-back without double/skip',
+        '2025-10-29', '2025-10-22', 0, ['2025-10-26']],
+      // Defensive: a lastUpdated in the future yields no payments.
+      ['returns empty when lastUpdated is in the future',
+        '2025-06-13', '2025-12-25', 4, []],
+    ]
+
+    it.each(cases)('%s', (_name, today, lastUpdated, paymentDay, expected) => {
+      vi.setSystemTime(new Date(today))
       const store = usePocketMoneyStore()
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const result = store.pendingPaymentDates(today, today.getDay())
-      expect(result).toHaveLength(0)
+      const result = store.pendingPaymentDates(new Date(lastUpdated), paymentDay)
+      expect(result.map(ymd)).toEqual(expected)
     })
 
-    it('returns empty array when no matching day falls in range', () => {
+    // All seven weekdays over one fixed 7-day window (each weekday occurs exactly once).
+    const sevenDayWindow = [
+      [0, '2025-06-08'], // Sunday
+      [1, '2025-06-09'], // Monday
+      [2, '2025-06-10'], // Tuesday
+      [3, '2025-06-11'], // Wednesday
+      [4, '2025-06-12'], // Thursday
+      [5, '2025-06-13'], // Friday
+      [6, '2025-06-07'], // Saturday
+    ]
+
+    it.each(sevenDayWindow)(
+      'finds exactly one occurrence of paymentDay %i in a 7-day window',
+      (paymentDay, expectedDate) => {
+        vi.setSystemTime(new Date('2025-06-13'))
+        const store = usePocketMoneyStore()
+        // Window is exclusive of 2025-06-06 (Fri) through 2025-06-13 (Fri) inclusive.
+        const result = store.pendingPaymentDates(new Date('2025-06-06'), paymentDay)
+        expect(result.map(ymd)).toEqual([expectedDate])
+      },
+    )
+
+    it('counts exactly 53 Wednesdays across a full year gap', () => {
+      vi.setSystemTime(new Date('2025-01-01'))
       const store = usePocketMoneyStore()
-      // lastUpdated yesterday, payment day is today + 1 (no match before tomorrow)
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-      const tomorrowDay = (new Date().getDay() + 1) % 7
-      const result = store.pendingPaymentDates(yesterday, tomorrowDay)
-      // Could be 0 (tomorrow hasn't arrived) or possibly 1 if tomorrowDay wraps to today
-      // Safe assertion: result is an array
-      expect(Array.isArray(result)).toBe(true)
+      const result = store.pendingPaymentDates(new Date('2024-01-01'), 3)
+      expect(result).toHaveLength(53)
+      result.forEach(d => expect(d.getUTCDay()).toBe(3))
     })
 
-    it('returns one date when one payment day falls in the window', () => {
+    it('returns dates strictly after lastUpdated and on or before today', () => {
+      vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
-      // lastUpdated 8 days ago, payment day = today's day of week
-      const eightDaysAgo = new Date()
-      eightDaysAgo.setDate(eightDaysAgo.getDate() - 8)
-      const todayDay = new Date().getDay()
-      const result = store.pendingPaymentDates(eightDaysAgo, todayDay)
-      // Today matches, plus possibly 7 days ago
-      expect(result.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('returns two dates when two payment days fall in the window', () => {
-      const store = usePocketMoneyStore()
-      // lastUpdated 15 days ago, payment day = today's day (today + 7 days ago + 14 days ago but 14 < 15)
-      const fifteenDaysAgo = new Date()
-      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15)
-      const todayDay = new Date().getDay()
-      const result = store.pendingPaymentDates(fifteenDaysAgo, todayDay)
-      // Should include: (today - 14 days) and today  → 2 occurrences
-      expect(result.length).toBeGreaterThanOrEqual(2)
-    })
-
-    it('returns dates with the correct day of week', () => {
-      const store = usePocketMoneyStore()
-      const tenDaysAgo = new Date()
-      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10)
-      const targetDay = 3 // Wednesday
-      const result = store.pendingPaymentDates(tenDaysAgo, targetDay)
-      result.forEach(d => {
-        expect(d.getDay()).toBe(3)
-      })
-    })
-
-    it('handles paymentDay 0 (Sunday)', () => {
-      const store = usePocketMoneyStore()
-      const tenDaysAgo = new Date()
-      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10)
-      const result = store.pendingPaymentDates(tenDaysAgo, 0)
-      result.forEach(d => expect(d.getDay()).toBe(0))
-    })
-
-    it('handles paymentDay 6 (Saturday)', () => {
-      const store = usePocketMoneyStore()
-      const tenDaysAgo = new Date()
-      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10)
-      const result = store.pendingPaymentDates(tenDaysAgo, 6)
-      result.forEach(d => expect(d.getDay()).toBe(6))
-    })
-
-    it('result dates are strictly after lastUpdated', () => {
-      const store = usePocketMoneyStore()
-      const lastUpdated = new Date('2025-06-04') // Wednesday
-      const result = store.pendingPaymentDates(lastUpdated, 3) // next Wednesday
-      result.forEach(d => expect(d > lastUpdated).toBe(true))
-    })
-
-    it('result dates are on or before today', () => {
-      const store = usePocketMoneyStore()
-      const lastUpdated = new Date('2020-01-01')
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      const lastUpdated = new Date('2025-05-01')
+      const today = new Date('2025-06-13T00:00:00Z')
       const result = store.pendingPaymentDates(lastUpdated, 1)
-      result.forEach(d => expect(d <= today).toBe(true))
+      result.forEach(d => {
+        expect(d > lastUpdated).toBe(true)
+        expect(d <= today).toBe(true)
+      })
     })
   })
 
@@ -167,34 +188,66 @@ describe('pocketMoney store', () => {
       expect(store.displayBalance('unknown-uid')).toBeNull()
     })
 
-    it('returns stored balance when no pending payments', () => {
+    it('returns the stored balance exactly when no payments are pending', () => {
+      vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
-      // Set lastUpdated to today so no payments pending
-      const today = new Date()
+      // lastUpdated is today (Friday) and paymentDay is Friday → exclusive → none pending.
       store.snapshots = [makeSnap('child-uid', {
-        balance: 10,
-        lastUpdated: { toDate: () => today },
-        weeklyAmount: 5,
-        paymentDay: (today.getDay() + 1) % 7, // tomorrow's day → never matches today
+        balance: 10, weeklyAmount: 5, paymentDay: 5,
+        lastUpdated: ts('2025-06-13'),
       })]
-      // No pending payments possible since paymentDay is tomorrow
-      const result = store.displayBalance('child-uid')
-      expect(result).toBe(10)
+      expect(store.displayBalance('child-uid')).toBe(10)
     })
 
-    it('adds weeklyAmount for each pending payment', () => {
+    it('adds weeklyAmount for each pending payment (exact)', () => {
+      vi.setSystemTime(new Date('2025-06-20'))
       const store = usePocketMoneyStore()
-      // Create a snapshot where we know exactly how many payments are pending
-      // by using a fixed lastUpdated and fixing the day calculation
+      // Fridays after 2025-06-06: 13th and 20th → 2 pending × 5 = 10, plus balance 10.
       store.snapshots = [makeSnap('child-uid', {
-        balance: 0,
-        weeklyAmount: 5,
-        paymentDay: 3,
-        lastUpdated: { toDate: () => new Date('2000-01-01') }, // long ago → many payments
+        balance: 10, weeklyAmount: 5, paymentDay: 5,
+        lastUpdated: ts('2025-06-06'),
       })]
+      expect(store.displayBalance('child-uid')).toBe(20)
+    })
+
+    it('treats a missing balance as 0', () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      const snap = makeSnap('child-uid', { weeklyAmount: 5, paymentDay: 5, lastUpdated: ts('2025-06-06') })
+      delete snap.balance
+      store.snapshots = [snap]
+      // 1 pending Friday × 5, balance defaults to 0.
+      expect(store.displayBalance('child-uid')).toBe(5)
+    })
+
+    it('treats a missing weeklyAmount as 0', () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      const snap = makeSnap('child-uid', { balance: 10, paymentDay: 5, lastUpdated: ts('2025-06-06') })
+      delete snap.weeklyAmount
+      store.snapshots = [snap]
+      expect(store.displayBalance('child-uid')).toBe(10)
+    })
+
+    it('defaults a missing paymentDay to 0 (Sunday)', () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      const snap = makeSnap('child-uid', { balance: 10, weeklyAmount: 5, lastUpdated: ts('2025-06-06') })
+      delete snap.paymentDay
+      store.snapshots = [snap]
+      // Sunday after 2025-06-06 is the 8th → 1 pending × 5 + 10 = 15.
+      expect(store.displayBalance('child-uid')).toBe(15)
+    })
+
+    it('falls back to the epoch when lastUpdated is absent (many payments)', () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      const snap = makeSnap('child-uid', { balance: 0, weeklyAmount: 5, paymentDay: 5 })
+      delete snap.lastUpdated
+      store.snapshots = [snap]
       const result = store.displayBalance('child-uid')
-      // Should be significantly more than 0
       expect(result).toBeGreaterThan(0)
+      expect(result % 5).toBe(0) // a whole number of £5 payments
     })
   })
 
@@ -317,13 +370,13 @@ describe('pocketMoney store', () => {
     })
 
     it('is a no-op when no pending payments', async () => {
+      vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
 
-      const today = new Date()
       store.snapshots = [makeSnap('child-uid', {
-        lastUpdated: { toDate: () => today },
-        paymentDay: (today.getDay() + 1) % 7,
+        lastUpdated: ts('2025-06-13'), // today (Friday), exclusive
+        paymentDay: 5,
       })]
 
       await store.flushPendingPayments('child-uid')
@@ -331,63 +384,73 @@ describe('pocketMoney store', () => {
       expect(mockWriteBatch).not.toHaveBeenCalled()
     })
 
-    it('calls writeBatch, batch.update, batch.set, and commit when payments are pending', async () => {
+    it('writes the exact new balance and one transaction for a single pending payment', async () => {
+      vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
 
-      // lastUpdated long ago so payments will be pending
       store.snapshots = [makeSnap('child-uid', {
-        balance: 0,
-        weeklyAmount: 5,
-        paymentDay: new Date().getDay(), // today is a payment day
-        lastUpdated: { toDate: () => new Date('2025-01-01') },
+        balance: 10, weeklyAmount: 5, paymentDay: 5,
+        lastUpdated: ts('2025-06-06'), // 1 pending Friday → 13th
       })]
 
       await store.flushPendingPayments('child-uid')
 
-      expect(mockWriteBatch).toHaveBeenCalledOnce()
+      // Balance: 10 + 1 × 5 = 15, with lastUpdated stamped.
       expect(mockBatchUpdate).toHaveBeenCalledOnce()
-      expect(mockBatchSet).toHaveBeenCalled()
+      const update = mockBatchUpdate.mock.calls[0][1]
+      expect(update.balance).toBe(15)
+      expect(update.lastUpdated).toBeDefined()
+
+      // Exactly one payment transaction, dated the payment day, amount = weeklyAmount.
+      expect(mockBatchSet).toHaveBeenCalledOnce()
+      const txn = mockBatchSet.mock.calls[0][1]
+      expect(txn.type).toBe('payment')
+      expect(txn.amount).toBe(5)
+      expect(txn.recordedBy).toBeNull()
+      expect(txn.note).toBeNull()
+      expect(ymd(txn.date.toDate())).toBe('2025-06-13')
+
       expect(mockBatchCommit).toHaveBeenCalledOnce()
     })
 
-    it('writes the correct new balance', async () => {
+    it('creates one dated transaction per pending payment (multiple)', async () => {
+      vi.setSystemTime(new Date('2025-06-20'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
 
-      // Use today as paymentDay and lastUpdated 8 days ago → exactly 1 pending payment
-      const eightDaysAgo = new Date()
-      eightDaysAgo.setDate(eightDaysAgo.getDate() - 8)
-      const todayDay = new Date().getDay()
-
       store.snapshots = [makeSnap('child-uid', {
-        balance: 10,
-        weeklyAmount: 5,
-        paymentDay: todayDay,
-        lastUpdated: { toDate: () => eightDaysAgo },
+        balance: 0, weeklyAmount: 5, paymentDay: 5,
+        lastUpdated: ts('2025-06-06'), // Fridays 13th and 20th → 2 payments
       })]
 
       await store.flushPendingPayments('child-uid')
 
-      const updateCall = mockBatchUpdate.mock.calls[0]
-      // balance should be 10 + (n * 5) where n >= 1
-      expect(updateCall[1].balance).toBeGreaterThan(10)
+      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(10) // 0 + 2 × 5
+      expect(mockBatchSet).toHaveBeenCalledTimes(2)
+      const dates = mockBatchSet.mock.calls.map(c => ymd(c[1].date.toDate()))
+      expect(dates).toEqual(['2025-06-13', '2025-06-20'])
+      mockBatchSet.mock.calls.forEach(c => {
+        expect(c[1].type).toBe('payment')
+        expect(c[1].amount).toBe(5)
+      })
     })
 
-    it('sets recordedBy: null and type: payment on transaction records', async () => {
+    it('still flushes (balance unchanged) when weeklyAmount is 0', async () => {
+      vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
 
       store.snapshots = [makeSnap('child-uid', {
-        paymentDay: new Date().getDay(),
-        lastUpdated: { toDate: () => new Date('2025-01-01') },
+        balance: 7, weeklyAmount: 0, paymentDay: 5,
+        lastUpdated: ts('2025-06-06'), // 1 pending day
       })]
 
       await store.flushPendingPayments('child-uid')
 
-      const setCall = mockBatchSet.mock.calls[0]
-      expect(setCall[1].type).toBe('payment')
-      expect(setCall[1].recordedBy).toBeNull()
+      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(7) // 7 + 1 × 0
+      expect(mockBatchSet).toHaveBeenCalledOnce()
+      expect(mockBatchSet.mock.calls[0][1].amount).toBe(0)
     })
   })
 
@@ -415,6 +478,15 @@ describe('pocketMoney store', () => {
       expect(payload.lastUpdated).toBeDefined()
       expect(payload.weeklyAmount).toBe(5)
       expect(payload.paymentDay).toBe(4)
+    })
+
+    it('defaults the starting balance to 0 when startingAmount is omitted', async () => {
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+
+      await store.saveConfig('child-uid', { weeklyAmount: 5, paymentDay: 4 })
+
+      expect(mockSetDoc.mock.calls[0][1].balance).toBe(0)
     })
 
     it('does not include balance when updating an existing record', async () => {
@@ -466,22 +538,32 @@ describe('pocketMoney store', () => {
 
       await store.recordWithdrawal('child-uid', { amount: 7, note: null })
 
-      const updateCall = mockBatchUpdate.mock.calls[0]
-      expect(updateCall[1].balance).toBe(13)
+      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(13)
     })
 
-    it('writes a transaction with type withdrawal, correct amount, and recordedBy', async () => {
+    it('handles decimal amounts exactly', async () => {
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+      store.snapshots = [makeSnap('child-uid', { balance: 10 })]
+
+      await store.recordWithdrawal('child-uid', { amount: 2.5, note: null })
+
+      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(7.5)
+      expect(mockBatchSet.mock.calls[0][1].amount).toBe(2.5)
+    })
+
+    it('writes a transaction with type withdrawal, correct amount, note, and recordedBy', async () => {
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
       store.snapshots = [makeSnap('child-uid', { balance: 20 })]
 
       await store.recordWithdrawal('child-uid', { amount: 5, note: 'ice cream' })
 
-      const setCall = mockBatchSet.mock.calls[0]
-      expect(setCall[1].type).toBe('withdrawal')
-      expect(setCall[1].amount).toBe(5)
-      expect(setCall[1].note).toBe('ice cream')
-      expect(setCall[1].recordedBy).toBe('parent-uid')
+      const txn = mockBatchSet.mock.calls[0][1]
+      expect(txn.type).toBe('withdrawal')
+      expect(txn.amount).toBe(5)
+      expect(txn.note).toBe('ice cream')
+      expect(txn.recordedBy).toBe('parent-uid')
     })
 
     it('stores null for note when not provided', async () => {
@@ -491,8 +573,18 @@ describe('pocketMoney store', () => {
 
       await store.recordWithdrawal('child-uid', { amount: 5, note: '' })
 
-      const setCall = mockBatchSet.mock.calls[0]
-      expect(setCall[1].note).toBeNull()
+      expect(mockBatchSet.mock.calls[0][1].note).toBeNull()
+    })
+
+    it('falls back to null recordedBy when there is no current user', async () => {
+      mockUseFamilyStore.mockReturnValue({ currentUser: null })
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+      store.snapshots = [makeSnap('child-uid', { balance: 20 })]
+
+      await store.recordWithdrawal('child-uid', { amount: 5, note: null })
+
+      expect(mockBatchSet.mock.calls[0][1].recordedBy).toBeNull()
     })
 
     it('commits the batch', async () => {
@@ -515,7 +607,8 @@ describe('pocketMoney store', () => {
       expect(mockGetDocs).not.toHaveBeenCalled()
     })
 
-    it('calls getDocs with a 90-day cutoff query', async () => {
+    it('queries with an exact 90-day UTC cutoff, ordered by date desc', async () => {
+      vi.setSystemTime(new Date('2025-06-13T00:00:00Z'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
 
@@ -523,6 +616,8 @@ describe('pocketMoney store', () => {
 
       expect(mockGetDocs).toHaveBeenCalledOnce()
       expect(mockWhere).toHaveBeenCalledWith('date', '>=', expect.anything())
+      const cutoff = mockWhere.mock.calls[0][2].toDate()
+      expect(cutoff.toISOString()).toBe('2025-03-15T00:00:00.000Z')
       expect(mockOrderBy).toHaveBeenCalledWith('date', 'desc')
     })
 
@@ -564,7 +659,7 @@ describe('pocketMoney store', () => {
       expect(store.transactionsUid).toBe('child-uid')
     })
 
-    it('sets loading true then false', async () => {
+    it('sets loading true during the fetch and false afterwards', async () => {
       let loadingDuring = null
       mockGetDocs.mockImplementationOnce(async () => {
         loadingDuring = true

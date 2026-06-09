@@ -1,3 +1,8 @@
+// Pocket money calculations are UTC-based; force the clock to UTC so tests are
+// deterministic regardless of the host machine's timezone (belt-and-suspenders
+// alongside the `env: { TZ: 'UTC' }` in the vitest config).
+process.env.TZ = 'UTC'
+
 // Polyfills required for Vuetify components in jsdom
 class ResizeObserver {
   observe() {}

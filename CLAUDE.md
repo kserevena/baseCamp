@@ -84,6 +84,10 @@ baseCamp/
 │   │       ├── LoginView.test.js
 │   │       ├── SetupView.test.js
 │   │       └── ShoppingView.test.js
+│   ├── composables/
+│   │   ├── useServiceWorkerUpdate.js  # SW update polling: controllerchange reload, visibilitychange + hourly check
+│   │   └── __tests__/
+│   │       └── useServiceWorkerUpdate.test.js
 │   ├── stores/
 │   │   ├── auth.js                  # Firebase Auth — Google Sign-In, isMinor detection
 │   │   ├── family.js                # Family membership, create/join, member colours
@@ -319,6 +323,7 @@ npm run test:watch        # unit tests in watch mode during development
 | `src/components/__tests__/AisleManager.test.js` | Unit | Aisle CRUD UI: add, delete (with confirmation), reorder, save, cancel |
 | `src/components/__tests__/ShoppingList.test.js` | Unit | Empty aisle headers, aisle ordering, item placement, Unknown aisle, reactivity |
 | `src/router/__tests__/guard.test.js` | Unit | Unauthenticated redirect, family/no-family redirect, `resolveFamily` call timing |
+| `src/composables/__tests__/useServiceWorkerUpdate.test.js` | Unit | `controllerchange` → reload, reload guard, `visibilitychange` update check, hourly interval, no-op without SW support |
 
 Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.
 
@@ -353,7 +358,7 @@ Each environment has its own reCAPTCHA site key (from Firebase Console → Build
 
 Two mechanisms work together to provide full offline support:
 
-1. **Service worker** caches all app shell files on first visit. Configured via the Vite PWA plugin. `registerType: 'autoUpdate'` delivers updates silently.
+1. **Service worker** caches all app shell files on first visit. Configured via the Vite PWA plugin with `registerType: 'autoUpdate'` and `clientsClaim: true`. `App.vue` calls `useServiceWorkerUpdate()` on mount, which adds a `controllerchange` → `reload` listener, a `visibilitychange` check, and an hourly `setInterval` — ensuring devices pick up new deploys without a manual refresh.
 
 2. **Firestore IndexedDB persistence** (`persistentLocalCache()` in `src/firebase/config.js`) caches all family data locally. Offline writes are queued and synced automatically when connectivity returns.
 

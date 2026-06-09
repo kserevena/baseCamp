@@ -1,11 +1,12 @@
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFamilyStore } from '@/stores/family.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useMealsStore } from '@/stores/meals.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
+import { useServiceWorkerUpdate } from '@/composables/useServiceWorkerUpdate.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,6 +26,10 @@ watch(() => family.familyId, (id, prevId) => {
     shopping.teardown()
     meals.teardown()
   }
+})
+
+onMounted(() => {
+  useServiceWorkerUpdate()
 })
 
 onUnmounted(() => {

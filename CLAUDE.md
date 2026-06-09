@@ -452,6 +452,8 @@ npm run deploy:rules:dev
 npm run deploy:rules:prod
 ```
 
+**Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first.
+
 **Before every deploy**, run this backward-compatibility checklist. If the answer to any question is "yes", follow the **Firestore schema evolution** section before proceeding — do not deploy until the check passes.
 
 1. Does this change remove, rename, or re-type any field in an existing Firestore document?

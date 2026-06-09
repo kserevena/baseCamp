@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useMealsStore } from '@/stores/meals.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
+import { useServiceWorkerUpdate } from '@/composables/useServiceWorkerUpdate.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,21 +29,7 @@ watch(() => family.familyId, (id, prevId) => {
 })
 
 onMounted(() => {
-  if ('serviceWorker' in navigator) {
-    let refreshing = false
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) {
-        refreshing = true
-        window.location.reload()
-      }
-    })
-    navigator.serviceWorker.ready.then(registration => {
-      setInterval(() => registration.update(), 60 * 60 * 1000)
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) registration.update()
-      })
-    })
-  }
+  useServiceWorkerUpdate()
 })
 
 onUnmounted(() => {

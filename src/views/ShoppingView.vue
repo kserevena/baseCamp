@@ -270,11 +270,17 @@ function submitEdit() {
 .shopping-view {
   position: relative;
   min-height: calc(100vh - 64px);
+  /* Clear the fixed FAB (bottom: 80px + 56px tall) so the last list items
+     stay visible and tappable above it (#19). */
+  padding-bottom: calc(152px + env(safe-area-inset-bottom));
 }
 .fab {
   position: fixed;
   bottom: 80px;
   right: 20px;
+  /* Sit above sticky aisle section headers (z-index: 1) so the button is
+     never covered while scrolling (#35). */
+  z-index: 5;
 }
 .list-selector {
   display: flex;

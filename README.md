@@ -46,6 +46,7 @@ Fill in the values from the `basecamp-app-prod` Firebase project. The keys are i
 | Phase 1 — Firebase data | Complete |
 | Phase 2 — Authentication | Complete |
 | Phase 3 — Packaging & deploy | Complete — dev at https://basecamp-app-dev.web.app |
+| Phase 4 — Pocket money | Complete — parent config, auto-payment calc, withdrawal recording, child read-only view |
 
 See `CLAUDE.md` for full project spec, data structure, and coding conventions.
 
@@ -207,8 +208,8 @@ src/
 ├── main.js              # Entry point
 ├── App.vue              # Root — app bar, bottom nav, store lifecycle
 ├── components/          # Reusable UI pieces (FamilyAvatar, ShoppingItem, etc.)
-├── views/               # Full-screen pages (Home, Shopping, Meals, Login, Setup)
-├── stores/              # Pinia stores (auth, family, shopping, meals)
+├── views/               # Full-screen pages (Home, Shopping, Meals, PocketMoney, Login, Setup)
+├── stores/              # Pinia stores (auth, family, shopping, meals, pocketMoney)
 ├── router/              # Vue Router config and navigation guard
 └── firebase/            # Firebase init (config.js) and emulator seed data (seed.js)
 ```

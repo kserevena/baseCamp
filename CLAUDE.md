@@ -14,7 +14,7 @@ This file tells you everything you need to know to build, run, and extend the pr
 | Phase 1 — Firebase data | **Complete** | Real-time Firestore sync confirmed across devices |
 | Phase 2 — Authentication | **Complete** | Google Sign-In live; family create/join flows working on real devices |
 | Phase 3 — Packaging & deploy | **Complete** | PWA live at https://basecamp-app-dev.web.app; install via browser on all devices |
-| Phase 4 — Pocket money | **In progress** | Parent config, auto-payment calc, withdrawal recording, child read-only view |
+| Phase 4 — Pocket money | **Complete** | Parent config, auto-payment calc, withdrawal recording, child read-only view |
 
 ---
 

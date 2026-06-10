@@ -1,16 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import { useFamilyStore } from '@/stores/family.js'
-import { useShoppingStore } from '@/stores/shopping.js'
 import { useMealsStore } from '@/stores/meals.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 
 const family = useFamilyStore()
-const shopping = useShoppingStore()
 const meals = useMealsStore()
-
-const doneCount = computed(() => shopping.items.filter(i => i.done).length)
-const totalCount = computed(() => shopping.items.length)
 
 const topMeal = computed(() =>
   [...meals.meals].sort((a, b) => b.votes.length - a.votes.length)[0]
@@ -26,20 +21,10 @@ const topMeal = computed(() =>
     <!-- Shopping summary -->
     <v-card rounded="lg" elevation="1" :to="'/shopping'">
       <v-card-text>
-        <div class="d-flex align-center mb-2">
+        <div class="d-flex align-center">
           <v-icon color="primary" class="mr-2">mdi-cart</v-icon>
           <span class="text-subtitle-1 font-weight-medium">Shopping list</span>
         </div>
-        <v-progress-linear
-          :model-value="totalCount ? (doneCount / totalCount) * 100 : 0"
-          color="primary"
-          rounded
-          height="6"
-          class="mb-1"
-        />
-        <span class="text-caption text-medium-emphasis">
-          {{ doneCount }} of {{ totalCount }} items ticked
-        </span>
       </v-card-text>
     </v-card>
 

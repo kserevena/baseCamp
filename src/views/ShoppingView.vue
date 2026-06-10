@@ -10,10 +10,6 @@ const { isParent } = useUserRole()
 
 const hasLists = computed(() => store.lists.length > 0)
 
-const doneCount = computed(() => store.items.filter(i => i.done).length)
-const totalCount = computed(() => store.items.length)
-const progressPct = computed(() => totalCount.value ? (doneCount.value / totalCount.value) * 100 : 0)
-
 const sheet = ref(false)
 const newName = ref('')
 const newQty = ref('')
@@ -76,7 +72,7 @@ function submitEdit() {
 <template>
   <div class="shopping-view">
 
-    <!-- Lists exist: show progress, items, FAB -->
+    <!-- Lists exist: show items, FAB -->
     <template v-if="hasLists">
       <!-- List selector -->
       <div class="list-selector px-2 pt-2">
@@ -125,24 +121,6 @@ function submitEdit() {
         >
           <v-icon>mdi-plus</v-icon>
         </v-btn>
-      </div>
-
-      <!-- Progress bar -->
-      <div class="px-4 pb-1">
-        <div class="d-flex justify-space-between align-center mb-1">
-          <span class="text-caption text-medium-emphasis">
-            {{ doneCount }} of {{ totalCount }} items
-          </span>
-          <span class="text-caption font-weight-medium" style="color: #1D9E75">
-            {{ Math.round(progressPct) }}%
-          </span>
-        </div>
-        <v-progress-linear
-          :model-value="progressPct"
-          color="primary"
-          rounded
-          height="8"
-        />
       </div>
 
       <!-- List -->

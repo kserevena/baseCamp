@@ -149,5 +149,4 @@ async function save() {
 .aisle-row {
   background: rgba(var(--v-theme-primary), 0.12);
 }
-.gap-2 { gap: 8px; }
 </style>

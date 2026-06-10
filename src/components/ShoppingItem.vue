@@ -75,7 +75,4 @@ const store = useShoppingStore()
 .item-done {
   opacity: 0.55;
 }
-.gap-2 {
-  gap: 8px;
-}
 </style>

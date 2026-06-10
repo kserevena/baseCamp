@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { ROLE_PARENT, ROLE_CHILD } from '@/constants/roles.js'
 
 const COLOUR_PALETTE = ['#378ADD', '#1D9E75', '#D4537E', '#EF9F27', '#7C5CBF', '#E06C4E']
 
@@ -53,9 +54,9 @@ export const useFamilyStore = defineStore('family', () => {
     if (familyId.value !== null) return
     const userDoc = await getDoc(doc(db, 'users', uid))
     if (userDoc.exists()) {
-      const id = userDoc.data().familyId
+      const id = userDoc.data().familyId ?? null
       familyId.value = id
-      setup(id)
+      if (id) setup(id)
     }
   }
 
@@ -67,7 +68,7 @@ export const useFamilyStore = defineStore('family', () => {
     const colour = COLOUR_PALETTE[0]
 
     await setDoc(doc(db, 'families', id), { name, createdAt: serverTimestamp(), inviteCode, createdBy: uid })
-    await setDoc(doc(db, 'families', id, 'members', uid), { name: displayName, role: 'parent', colour })
+    await setDoc(doc(db, 'families', id, 'members', uid), { name: displayName, role: ROLE_PARENT, colour })
     await setDoc(doc(db, 'users', uid), { familyId: id })
     await setDoc(doc(db, 'inviteCodes', inviteCode), { familyId: id })
 
@@ -83,12 +84,13 @@ export const useFamilyStore = defineStore('family', () => {
     const codeDoc = await getDoc(doc(db, 'inviteCodes', code))
     if (!codeDoc.exists()) return false
 
-    const id = codeDoc.data().familyId
+    const id = codeDoc.data().familyId ?? null
+    if (!id) return false
     const colour = COLOUR_PALETTE[Math.floor(Math.random() * COLOUR_PALETTE.length)]
 
     // inviteCode is stored on the member doc so the security rule can verify the
     // joining user actually holds a valid code for this family.
-    await setDoc(doc(db, 'families', id, 'members', uid), { name: displayName, role: 'child', colour, inviteCode: code })
+    await setDoc(doc(db, 'families', id, 'members', uid), { name: displayName, role: ROLE_CHILD, colour, inviteCode: code })
     await setDoc(doc(db, 'users', uid), { familyId: id })
 
     familyId.value = id

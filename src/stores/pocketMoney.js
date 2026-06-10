@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useFamilyStore } from '@/stores/family.js'
+import { ROLE_PARENT } from '@/constants/roles.js'
 
 export const usePocketMoneyStore = defineStore('pocketMoney', () => {
   const familyStore = useFamilyStore()
@@ -64,7 +65,7 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
     if (unsubscribe) unsubscribe()
     currentFamilyId = familyId
 
-    if (currentUser.role === 'parent') {
+    if (currentUser.role === ROLE_PARENT) {
       unsubscribe = onSnapshot(
         collection(db, 'families', familyId, 'pocketMoney'),
         (snap) => {

@@ -79,7 +79,7 @@ baseCamp/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top meal, family avatars
 │   │   ├── LoginView.vue            # Google Sign-In page
 │   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
-│   │   ├── ShoppingView.vue         # Shopping list — progress bar, list, add-item FAB, manage aisles
+│   │   ├── ShoppingView.vue         # Shopping list — list, add-item FAB, manage aisles
 │   │   ├── MealsView.vue            # Meal voting wrapper
 │   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
 │   │   └── __tests__/
@@ -554,7 +554,6 @@ Steps:
 - Touch targets — all interactive elements at least 44px tall for comfortable tapping
 - Family colours — avatars and vote indicators always use the member's colour
 - "From meal" badge — items auto-added from meal voting show a purple badge
-- Progress indicator — show items ticked vs total at the top of the shopping view
 - Aisle grouping — group items by aisle with a clear section header when sorted by store layout
 - Keep it friendly and clear — children use this app too
 

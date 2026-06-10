@@ -122,7 +122,7 @@ function navigate(path) {
       v-if="!route.meta.hideNav"
       v-model="activeTab"
       color="primary"
-      elevation="8"
+      elevation="5"
       grow
     >
       <v-btn

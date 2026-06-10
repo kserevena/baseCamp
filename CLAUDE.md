@@ -334,11 +334,11 @@ also `get`-only (never listable) so the codes and their familyIds cannot be enum
 
 ## Testing
 
-Run tests before every commit. Do not commit if tests are failing.
+Run **both** test suites before every commit. Do not commit if any tests are failing. Always run unit tests first; only proceed to integration tests once they pass.
 
 ```bash
-npm test                  # unit tests (no external dependencies)
-npm run test:integration  # integration tests (auto-starts/stops emulator)
+npm test                  # unit tests (no external dependencies) — run first
+npm run test:integration  # integration tests (auto-starts/stops emulator) — run after unit tests pass
 npm run test:watch        # unit tests in watch mode during development
 ```
 
@@ -535,7 +535,7 @@ Steps:
 - **Offline writes** — update Pinia state immediately, fire Firestore write in background, do not await in a way that blocks the UI
 - **Firestore security rules** — whenever application logic changes who can read or write data (new collections, new roles, new access patterns), update `firestore.rules` in the same change. Rules and code must stay in sync. After updating rules, deploy to both environments: `npm run deploy:rules:dev && npm run deploy:rules:prod`
 - **Defensive Firestore reads** — always read document fields with a fallback (`data.field ?? defaultValue`). Devices with offline-cached documents may have an older schema shape; never assume a field is present even if it is "required" in the data model.
-- **Tests** — any new functionality or modification to existing functionality must be accompanied by tests. Unit tests live alongside the code in `__tests__/` directories. Run `npm test` before every commit and do not commit if tests are failing.
+- **Tests** — any new functionality or modification to existing functionality must be accompanied by tests. Unit tests live alongside the code in `__tests__/` directories. Before every commit, run `npm test` (unit tests) first, and if they pass run `npm run test:integration` (integration tests). Do not commit if any tests are failing.
 
 ---
 

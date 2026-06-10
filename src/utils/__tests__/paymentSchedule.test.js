@@ -98,4 +98,9 @@ describe('pendingPaymentDates', () => {
     expect(result.length).toBeGreaterThan(0)
     result.forEach(d => expect(d.getUTCDay()).toBe(2))
   })
+
+  it.each([null, undefined, 0, ''])('returns [] for falsy lastUpdated (%s)', (val) => {
+    vi.setSystemTime(new Date('2025-06-13'))
+    expect(pendingPaymentDates(val, 5)).toEqual([])
+  })
 })

@@ -175,7 +175,5 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
   return {
     snapshots, transactions, transactionsUid, loading, displayBalance,
     setup, teardown, flushPendingPayments, saveConfig, recordWithdrawal, loadTransactions,
-    // exported for unit tests
-    pendingPaymentDates,
   }
 })

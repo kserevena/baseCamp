@@ -11,9 +11,10 @@
 // the amount is always correct. Respecting a family's own (non-UTC) timezone is a future
 // UX refinement tracked in GitHub issue #15 (see README / CLAUDE.md "UTC-based").
 //
-// A missing or falsy lastUpdated is treated as "now" (zero pending payments) — the
-// caller must handle this by substituting new Date() before calling this function.
+// A missing or falsy lastUpdated is treated as "now" (zero pending payments).
 export function pendingPaymentDates(lastUpdated, paymentDay) {
+  if (!lastUpdated) return []
+
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
 

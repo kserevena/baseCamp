@@ -488,17 +488,20 @@ npm test
 npm run test:integration
 
 # Deploy to dev environment (build uses .env)
+# Runs npm install + unit tests + integration tests, then deploys
+# hosting + firestore:rules + firestore:indexes together.
 npm run deploy:dev
 
 # Deploy to prod environment (build uses .env.prod)
+# Same guardrails as deploy:dev, preceded by the .env.prod preflight check.
 npm run deploy:prod
 
-# Deploy security rules and indexes to dev
+# Rules-only escape hatch (app NOT rebuilt) — use only when no app code changed
 npm run deploy:rules:dev
-
-# Deploy security rules and indexes to prod
 npm run deploy:rules:prod
 ```
+
+**Deploy guardrails.** `deploy:dev` and `deploy:prod` each run `npm run deploy:checks` (`npm install && npm test && npm run test:integration`) before building, and deploy `hosting,firestore:rules,firestore:indexes` in a single command. This guarantees dependencies match the lockfile, all tests pass, and rules can never drift out of sync with the deployed app. Do not bypass these by calling `vite build` + `firebase deploy` directly.
 
 **Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. This includes `deploy:dev`, `deploy:prod`, `deploy:rules:dev`, `deploy:rules:prod`, and any `firebase deploy` invocation — deployments affect live devices and shared infrastructure.
 
@@ -513,7 +516,7 @@ npm run deploy:rules:prod
 
 If all four answers are "no", the change is safe to deploy as-is. Document the check outcome in the PR description.
 
-**Rules changes must be deployed to both environments.** Run `npm run deploy:rules:dev && npm run deploy:rules:prod` any time `firestore.rules` changes. Never deploy only to one environment — rules and code must stay in sync on both.
+**Rules changes must reach both environments.** `deploy:dev` and `deploy:prod` already deploy `firestore.rules` and `firestore.indexes.json` alongside the app, so a normal deploy to each environment keeps rules in sync with code. Only use the rules-only scripts (`deploy:rules:dev` / `deploy:rules:prod`) when rules changed but no app code did — and run both so the two environments don't diverge.
 
 Finding your local IP:
 - Windows: `ipconfig` → IPv4 Address

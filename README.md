@@ -174,30 +174,30 @@ Then in a second terminal, set `VITE_USE_EMULATOR=true` in your `.env` file and 
 
 Integration tests load the real `firestore.rules` file into the emulator, so they verify that the rules you deploy are actually enforced correctly.
 
-### Deploying Firestore security rules
+### Deploying the app
 
-The rules in `firestore.rules` must be deployed to both environments whenever they change:
+`deploy:dev` and `deploy:prod` are guarded: each one runs `npm install`, the unit tests, and the integration tests before building, and deploys the app **and** the Firestore rules + indexes together. This makes it impossible to ship with stale `node_modules`, with failing tests, or with the app and rules out of sync.
+
+Always deploy to dev first and verify, then promote to prod.
+
+```bash
+# Deploy to dev (uses .env credentials) — app + rules + indexes
+npm run deploy:dev
+
+# Deploy to prod (uses .env.prod credentials) — app + rules + indexes
+npm run deploy:prod
+```
+
+Because every deploy includes `firestore.rules` and `firestore.indexes.json`, rules can no longer drift out of sync with the deployed code. To deploy to prod you must first create a `.env.prod` file — see the **Environments** section below.
+
+#### Deploying rules only
+
+The unified deploy commands above are the normal path. If you only changed `firestore.rules` or `firestore.indexes.json` and want to push them without rebuilding the app, the rules-only scripts are still available:
 
 ```bash
 npm run deploy:rules:dev
 npm run deploy:rules:prod
 ```
-
-This is required after setting up the project for the first time, and any time access rules are updated.
-
-### Deploying the app
-
-Always deploy to dev first and verify, then promote to prod.
-
-```bash
-# Deploy to dev (uses .env credentials)
-npm run deploy:dev
-
-# Deploy to prod (uses .env.prod credentials)
-npm run deploy:prod
-```
-
-To deploy to prod you must first create a `.env.prod` file — see the **Environments** section below.
 
 ---
 

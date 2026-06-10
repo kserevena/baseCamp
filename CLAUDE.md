@@ -460,6 +460,12 @@ Documentation is part of the code. Update it in the same commit as the change th
 
 ## Development workflow
 
+**Working in a git worktree?** The `.env` file is gitignored (never committed), so a freshly created worktree will not have it — the dev server will fail without the Firebase credentials. After creating a worktree, copy `.env` over from the main checkout so the dev environment can run (note the `.env` file may not exist in the main checkout — if it's missing, the credentials must be obtained separately):
+
+```bash
+cp /Users/karlserevena/git-projects/baseCamp/.env .env
+```
+
 ```bash
 # Install dependencies
 npm install

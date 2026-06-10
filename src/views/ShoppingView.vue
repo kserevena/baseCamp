@@ -1,14 +1,13 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
-import { useFamilyStore } from '@/stores/family.js'
+import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
 
 const store = useShoppingStore()
-const family = useFamilyStore()
+const { isParent } = useUserRole()
 
-const isParent = computed(() => family.currentUser?.role === 'parent')
 const hasLists = computed(() => store.lists.length > 0)
 
 const doneCount = computed(() => store.items.filter(i => i.done).length)
@@ -299,7 +298,6 @@ function submitEdit() {
   bottom: 80px;
   right: 20px;
 }
-.gap-2 { gap: 8px; }
 .list-selector {
   display: flex;
   align-items: center;

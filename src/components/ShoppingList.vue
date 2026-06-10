@@ -2,14 +2,12 @@
 import { ref, computed, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useShoppingStore } from '@/stores/shopping.js'
-import { useFamilyStore } from '@/stores/family.js'
+import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingItem from './ShoppingItem.vue'
 
 const store = useShoppingStore()
-const familyStore = useFamilyStore()
+const { isParent } = useUserRole()
 const emit = defineEmits(['edit'])
-
-const isParent = computed(() => familyStore.currentUser?.role === 'parent')
 
 function buildGroups(items, aisles) {
   const activeItems = items.filter(i => !i.done)

@@ -227,7 +227,7 @@ Data lives in five top-level Firestore collections:
 | `users/{uid}` | Maps each authenticated user to their `familyId` |
 | `inviteCodes/{code}` | Maps an 8-character invite code to a `familyId` |
 | `families/{familyId}` | Family name, invite code, and `members/` subcollection |
-| `shoppingLists/{weekId}` | One document per week per family, with an `items/` subcollection |
+| `shoppingLists/{listId}` | One document per named list per family, with an `items/` subcollection |
 | `meals/{mealId}` | Meal name, vote array, and family reference |
 
 Pocket money config, balances, and transactions live under `families/{familyId}/pocketMoney/{childUid}` (and its `transactions/` subcollection).

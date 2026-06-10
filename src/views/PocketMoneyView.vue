@@ -2,18 +2,22 @@
 import { ref, computed } from 'vue'
 import { useFamilyStore } from '@/stores/family.js'
 import { usePocketMoneyStore } from '@/stores/pocketMoney.js'
+import { useUserRole } from '@/composables/useUserRole.js'
+import { formatGBP } from '@/utils/currency.js'
+import { formatDate } from '@/utils/date.js'
+import { ROLE_CHILD } from '@/constants/roles.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 
 const family = useFamilyStore()
 const store = usePocketMoneyStore()
 
-const isParent = computed(() => family.currentUser?.role === 'parent')
-const children = computed(() => family.members.filter(m => m.role === 'child'))
+const { isParent } = useUserRole()
+const children = computed(() => family.members.filter(m => m.role === ROLE_CHILD))
 
 // ── shared helpers ──────────────────────────────────────────────────────────
 
 function formatBalance(n) {
-  return n === null ? 'Not set up' : '£' + n.toFixed(2)
+  return n === null ? 'Not set up' : formatGBP(n)
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -125,12 +129,6 @@ async function toggleHistory(uid) {
   } else {
     historyExpanded.value = false
   }
-}
-
-function formatDate(ts) {
-  if (!ts) return ''
-  const d = ts.toDate ? ts.toDate() : new Date(ts)
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // ── child self-view ──────────────────────────────────────────────────────────
@@ -253,7 +251,7 @@ const childPendingAmount = computed(() => {
                   </template>
                   <template #title>
                     <span :class="txn.type === 'payment' ? 'text-success' : 'text-error'">
-                      {{ txn.type === 'payment' ? '+' : '-' }}£{{ txn.amount.toFixed(2) }}
+                      {{ (txn.type === 'payment' ? '+' : '-') + formatGBP(txn.amount) }}
                     </span>
                     <span v-if="txn.note" class="text-caption text-medium-emphasis ml-2">
                       {{ txn.note }}
@@ -409,7 +407,7 @@ const childPendingAmount = computed(() => {
             size="small"
             class="mb-3"
           >
-            +£{{ childPendingAmount.toFixed(2) }} pending
+            +{{ formatGBP(childPendingAmount) }} pending
           </v-chip>
 
           <div>
@@ -446,7 +444,7 @@ const childPendingAmount = computed(() => {
                 </template>
                 <template #title>
                   <span :class="txn.type === 'payment' ? 'text-success' : 'text-error'">
-                    {{ txn.type === 'payment' ? '+' : '-' }}£{{ txn.amount.toFixed(2) }}
+                    {{ (txn.type === 'payment' ? '+' : '-') + formatGBP(txn.amount) }}
                   </span>
                   <span v-if="txn.note" class="text-caption text-medium-emphasis ml-2">
                     {{ txn.note }}
@@ -461,7 +459,3 @@ const childPendingAmount = computed(() => {
   </div>
 </template>
 
-<style scoped>
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-</style>

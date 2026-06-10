@@ -76,10 +76,3 @@ const topMeal = computed(() =>
     </v-card>
   </div>
 </template>
-
-<style scoped>
-.gap-4 { gap: 16px; }
-.gap-3 { gap: 12px; }
-.gap-2 { gap: 8px; }
-.gap-1 { gap: 4px; }
-</style>

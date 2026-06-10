@@ -52,12 +52,3 @@ function hasVoted(meal) {
     </v-card>
   </div>
 </template>
-
-<style scoped>
-.gap-3 {
-  gap: 12px;
-}
-.gap-1 {
-  gap: 4px;
-}
-</style>

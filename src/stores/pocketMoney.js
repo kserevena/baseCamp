@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  collection, doc, setDoc, onSnapshot,
+  collection, doc, setDoc, onSnapshot, runTransaction, increment,
   writeBatch, query, where, orderBy, getDocs, Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
@@ -50,10 +50,12 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
 
   // Locally-computed balance including any payments not yet flushed to Firestore.
   // Returns null when the child has no pocket money document.
+  // A missing lastUpdated means the accrual state is unknown — treat it as "now"
+  // (no pending payments) rather than guessing at decades of back-pay from the epoch.
   const displayBalance = computed(() => (uid) => {
     const snap = snapshots.value.find(s => s.uid === uid)
     if (!snap) return null
-    const lastUpdated = snap.lastUpdated?.toDate?.() ?? new Date(0)
+    const lastUpdated = snap.lastUpdated?.toDate?.() ?? new Date()
     const dates = pendingPaymentDates(lastUpdated, snap.paymentDay ?? 0)
     return (snap.balance ?? 0) + dates.length * (snap.weeklyAmount ?? 0)
   })
@@ -88,38 +90,53 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
     transactionsUid.value = null
   }
 
+  // Hard ceiling on payments per flush. Transactions allow 500 writes; staying far
+  // below it means a corrupt/ancient lastUpdated can never produce a commit that is
+  // doomed to fail. 400 weeks ≈ 7.7 years — any gap that large is not real accrual.
+  const MAX_PENDING_PAYMENTS = 400
+
   // Parent-triggered: calculate pending payments and write them to Firestore.
   // Children never call this — they see a locally-computed displayBalance instead.
+  //
+  // Runs as a Firestore transaction (online-only) so two parents flushing at once
+  // cannot double-pay: the transaction re-reads the authoritative lastUpdated, and a
+  // concurrent flush retries against the fresh value and finds nothing pending.
+  // Payment transactions use deterministic IDs (payment-YYYY-MM-DD) so any residual
+  // double-write lands on the same document instead of duplicating it. Offline the
+  // transaction fails — that's fine, displayBalance already shows pending payments
+  // locally and the flush happens next time a parent opens the sheet online.
   async function flushPendingPayments(childUid) {
     if (!currentFamilyId) return
-    const snap = snapshots.value.find(s => s.uid === childUid)
-    if (!snap) return
+    if (!snapshots.value.find(s => s.uid === childUid)) return
 
-    const lastUpdated = snap.lastUpdated?.toDate?.() ?? new Date(0)
-    const dates = pendingPaymentDates(lastUpdated, snap.paymentDay ?? 0)
-    if (dates.length === 0) return
-
-    const batch = writeBatch(db)
     const snapRef = doc(db, 'families', currentFamilyId, 'pocketMoney', childUid)
     const txnCol = collection(db, 'families', currentFamilyId, 'pocketMoney', childUid, 'transactions')
 
-    const newBalance = (snap.balance ?? 0) + dates.length * (snap.weeklyAmount ?? 0)
-    batch.update(snapRef, {
-      balance: newBalance,
-      lastUpdated: Timestamp.fromDate(new Date()),
-    })
+    await runTransaction(db, async (txn) => {
+      const docSnap = await txn.get(snapRef)
+      if (!docSnap.exists()) return
+      const data = docSnap.data()
 
-    for (const date of dates) {
-      batch.set(doc(txnCol), {
-        type: 'payment',
-        amount: snap.weeklyAmount ?? 0,
-        date: Timestamp.fromDate(date),
-        recordedBy: null,
-        note: null,
+      const lastUpdated = data.lastUpdated?.toDate?.() ?? new Date()
+      const dates = pendingPaymentDates(lastUpdated, data.paymentDay ?? 0)
+      if (dates.length === 0 || dates.length > MAX_PENDING_PAYMENTS) return
+
+      const weeklyAmount = data.weeklyAmount ?? 0
+      txn.update(snapRef, {
+        balance: increment(dates.length * weeklyAmount),
+        lastUpdated: Timestamp.fromDate(new Date()),
       })
-    }
 
-    await batch.commit()
+      for (const date of dates) {
+        txn.set(doc(txnCol, 'payment-' + date.toISOString().slice(0, 10)), {
+          type: 'payment',
+          amount: weeklyAmount,
+          date: Timestamp.fromDate(date),
+          recordedBy: null,
+          note: null,
+        })
+      }
+    })
   }
 
   // Parent creates or updates a child's pocket money settings.
@@ -129,7 +146,8 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
     const isNew = !snapshots.value.find(s => s.uid === childUid)
     const data = { weeklyAmount, paymentDay }
     if (isNew) {
-      data.balance = startingAmount ?? 0
+      // Number.isFinite rather than ?? — NaN from an empty form field must not be stored.
+      data.balance = Number.isFinite(startingAmount) ? startingAmount : 0
       data.lastUpdated = Timestamp.now()
     }
     await setDoc(doc(db, 'families', currentFamilyId, 'pocketMoney', childUid), data, { merge: true })
@@ -145,9 +163,11 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
     const snapRef = doc(db, 'families', currentFamilyId, 'pocketMoney', childUid)
     const txnRef = doc(collection(db, 'families', currentFamilyId, 'pocketMoney', childUid, 'transactions'))
 
+    // increment() is commutative, so concurrent or offline-queued withdrawals can't
+    // overwrite each other. lastUpdated is NOT touched here — it means "payments
+    // accrued through this date", and stamping it would swallow unflushed payments.
     batch.update(snapRef, {
-      balance: (snap.balance ?? 0) - amount,
-      lastUpdated: Timestamp.fromDate(new Date()),
+      balance: increment(-amount),
     })
     batch.set(txnRef, {
       type: 'withdrawal',

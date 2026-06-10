@@ -194,8 +194,9 @@ describe('PocketMoneyView', () => {
       )
     })
 
-    it('shows error alert when saveConfig throws', async () => {
-      pocketMoneyStore.saveConfig = vi.fn().mockRejectedValue(new Error('PERMISSION_DENIED'))
+    it('closes the settings dialog immediately without waiting for the write', async () => {
+      // A write that never settles (e.g. offline) must not block the dialog.
+      pocketMoneyStore.saveConfig = vi.fn(() => new Promise(() => {}))
       pocketMoneyStore.snapshots = []
       const wrapper = mountView()
 
@@ -215,7 +216,114 @@ describe('PocketMoneyView', () => {
       await saveBtn.trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(document.body.textContent).toContain('Failed to save. Try again.')
+      expect(pocketMoneyStore.saveConfig).toHaveBeenCalledOnce()
+      // VBottomSheet renders an inner VDialog, so count from the end:
+      // [last-1] settings dialog, [last] withdrawal dialog (template order).
+      const dialogs = wrapper.findAllComponents({ name: 'VDialog' })
+      expect(dialogs[dialogs.length - 2].props('modelValue')).toBe(false)
+    })
+
+    it('swallows a failed saveConfig write (offline-first: no error alert)', async () => {
+      pocketMoneyStore.saveConfig = vi.fn().mockRejectedValue(new Error('PERMISSION_DENIED'))
+      pocketMoneyStore.snapshots = []
+      const wrapper = mountView()
+
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const settingsBtn = btns.find(b => b.text().includes('Settings'))
+      await settingsBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const saveBtn = dialogBtns.find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.body.textContent).not.toContain('Failed to save')
+    })
+
+    it('shows a validation error and does not save for a negative weekly amount', async () => {
+      pocketMoneyStore.snapshots = []
+      const wrapper = mountView()
+
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const settingsBtn = btns.find(b => b.text().includes('Settings'))
+      await settingsBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const weeklyField = fields.find(f => f.props('label')?.includes('Weekly'))
+      await weeklyField.setValue('-5')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const saveBtn = dialogBtns.find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.body.textContent).toContain('Enter a valid weekly amount')
+      expect(pocketMoneyStore.saveConfig).not.toHaveBeenCalled()
+    })
+
+    it('shows a validation error for an empty starting amount on first setup', async () => {
+      pocketMoneyStore.snapshots = []
+      const wrapper = mountView()
+
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const settingsBtn = btns.find(b => b.text().includes('Settings'))
+      await settingsBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Clearing the field gives parseFloat('') = NaN — must be rejected, never stored.
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const startingField = fields.find(f => f.props('label')?.includes('Starting'))
+      await startingField.setValue('')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const saveBtn = dialogBtns.find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.body.textContent).toContain('Enter a valid starting amount')
+      expect(pocketMoneyStore.saveConfig).not.toHaveBeenCalled()
+    })
+
+    it('rounds amounts to two decimal places before saving', async () => {
+      pocketMoneyStore.snapshots = []
+      const wrapper = mountView()
+
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const settingsBtn = btns.find(b => b.text().includes('Settings'))
+      await settingsBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const weeklyField = fields.find(f => f.props('label')?.includes('Weekly'))
+      await weeklyField.setValue('5.999')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const saveBtn = dialogBtns.find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(pocketMoneyStore.saveConfig).toHaveBeenCalledWith(
+        'child-uid',
+        expect.objectContaining({ weeklyAmount: 6 }),
+      )
     })
 
     it('calls recordWithdrawal when withdrawal is confirmed', async () => {
@@ -252,6 +360,104 @@ describe('PocketMoneyView', () => {
         'child-uid',
         expect.objectContaining({ amount: 5 }),
       )
+    })
+
+    it('shows a validation error and does not record a zero withdrawal', async () => {
+      pocketMoneyStore.displayBalance = computed(() => (uid) =>
+        uid === 'child-uid' ? 20 : null
+      )
+      pocketMoneyStore.snapshots = [
+        { uid: 'child-uid', weeklyAmount: 5, paymentDay: 5, balance: 20 },
+      ]
+      const wrapper = mountView()
+
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const withdrawBtn = btns.find(b => b.text().includes('withdrawal'))
+      await withdrawBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const amountField = fields.find(f => f.props('label')?.includes('Amount'))
+      await amountField.setValue('0')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const confirmBtn = dialogBtns.find(b => b.text() === 'Confirm')
+      await confirmBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.body.textContent).toContain('Enter a valid amount')
+      expect(pocketMoneyStore.recordWithdrawal).not.toHaveBeenCalled()
+    })
+
+    it('closes the withdrawal dialog immediately without waiting for the write', async () => {
+      // A write that never settles (e.g. offline) must not block the dialog.
+      pocketMoneyStore.recordWithdrawal = vi.fn(() => new Promise(() => {}))
+      pocketMoneyStore.displayBalance = computed(() => (uid) =>
+        uid === 'child-uid' ? 20 : null
+      )
+      pocketMoneyStore.snapshots = [
+        { uid: 'child-uid', weeklyAmount: 5, paymentDay: 5, balance: 20 },
+      ]
+      const wrapper = mountView()
+
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const withdrawBtn = btns.find(b => b.text().includes('withdrawal'))
+      await withdrawBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const amountField = fields.find(f => f.props('label')?.includes('Amount'))
+      await amountField.setValue('5')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const confirmBtn = dialogBtns.find(b => b.text() === 'Confirm')
+      await confirmBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(pocketMoneyStore.recordWithdrawal).toHaveBeenCalledOnce()
+      // VBottomSheet renders an inner VDialog, so count from the end:
+      // [last-1] settings dialog, [last] withdrawal dialog (template order).
+      const dialogs = wrapper.findAllComponents({ name: 'VDialog' })
+      expect(dialogs[dialogs.length - 1].props('modelValue')).toBe(false)
+    })
+
+    it('swallows a failed recordWithdrawal write (offline-first: no error alert)', async () => {
+      pocketMoneyStore.recordWithdrawal = vi.fn().mockRejectedValue(new Error('PERMISSION_DENIED'))
+      pocketMoneyStore.displayBalance = computed(() => (uid) =>
+        uid === 'child-uid' ? 20 : null
+      )
+      pocketMoneyStore.snapshots = [
+        { uid: 'child-uid', weeklyAmount: 5, paymentDay: 5, balance: 20 },
+      ]
+      const wrapper = mountView()
+
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const aliceItem = items.find(i => i.text().includes('Alice'))
+      await aliceItem.trigger('click')
+      await wrapper.vm.$nextTick()
+      const btns = wrapper.findAllComponents({ name: 'VBtn' })
+      const withdrawBtn = btns.find(b => b.text().includes('withdrawal'))
+      await withdrawBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const fields = wrapper.findAllComponents({ name: 'VTextField' })
+      const amountField = fields.find(f => f.props('label')?.includes('Amount'))
+      await amountField.setValue('5')
+
+      const dialogBtns = wrapper.findAllComponents({ name: 'VBtn' })
+      const confirmBtn = dialogBtns.find(b => b.text() === 'Confirm')
+      await confirmBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.body.textContent).not.toContain('Failed to record')
     })
 
     it('refreshes transaction list after withdrawal when history is expanded', async () => {

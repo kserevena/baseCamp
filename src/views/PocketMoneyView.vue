@@ -26,7 +26,9 @@ const selectedChild = ref(null)
 function openDetail(child) {
   selectedChild.value = child
   detailSheet.value = true
-  store.flushPendingPayments(child.uid)
+  // Online-only reconciliation; offline/contention failures are expected and non-fatal
+  // (displayBalance already shows pending payments locally).
+  store.flushPendingPayments(child.uid).catch(() => {})
 }
 
 // ── settings dialog ─────────────────────────────────────────────────────────
@@ -35,8 +37,12 @@ const settingsDialog = ref(false)
 const settingsStarting = ref(0)
 const settingsWeekly = ref(0)
 const settingsPayDay = ref(5)
-const settingsSaving = ref(false)
 const settingsError = ref('')
+
+// Round user-entered pounds to whole pence before storing.
+function round2dp(n) {
+  return Math.round(n * 100) / 100
+}
 
 function openSettings() {
   const snap = store.snapshots.find(s => s.uid === selectedChild.value?.uid)
@@ -47,27 +53,26 @@ function openSettings() {
   settingsDialog.value = true
 }
 
-async function saveSettings() {
+function saveSettings() {
   const weekly = parseFloat(settingsWeekly.value)
   const starting = parseFloat(settingsStarting.value)
-  if (isNaN(weekly) || weekly < 0) {
+  if (!Number.isFinite(weekly) || weekly < 0) {
     settingsError.value = 'Enter a valid weekly amount'
     return
   }
-  settingsSaving.value = true
-  settingsError.value = ''
-  try {
-    await store.saveConfig(selectedChild.value.uid, {
-      startingAmount: starting,
-      weeklyAmount: weekly,
-      paymentDay: settingsPayDay.value,
-    })
-    settingsDialog.value = false
-  } catch {
-    settingsError.value = 'Failed to save. Try again.'
-  } finally {
-    settingsSaving.value = false
+  if (isNewConfig.value && (!Number.isFinite(starting) || starting < 0)) {
+    settingsError.value = 'Enter a valid starting amount'
+    return
   }
+  settingsError.value = ''
+  // Optimistic write: close immediately and let Firestore sync in the background,
+  // so saving works offline. The snapshot listener updates the UI from the local cache.
+  store.saveConfig(selectedChild.value.uid, {
+    startingAmount: round2dp(starting),
+    weeklyAmount: round2dp(weekly),
+    paymentDay: settingsPayDay.value,
+  }).catch(() => {})
+  settingsDialog.value = false
 }
 
 const isNewConfig = computed(() =>
@@ -79,7 +84,6 @@ const isNewConfig = computed(() =>
 const withdrawalDialog = ref(false)
 const withdrawalAmount = ref('')
 const withdrawalNote = ref('')
-const withdrawalSaving = ref(false)
 const withdrawalError = ref('')
 
 function openWithdrawal() {
@@ -89,28 +93,25 @@ function openWithdrawal() {
   withdrawalDialog.value = true
 }
 
-async function confirmWithdrawal() {
+function confirmWithdrawal() {
   const amount = parseFloat(withdrawalAmount.value)
-  if (isNaN(amount) || amount <= 0) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     withdrawalError.value = 'Enter a valid amount'
     return
   }
-  withdrawalSaving.value = true
   withdrawalError.value = ''
-  try {
-    await store.recordWithdrawal(selectedChild.value.uid, {
-      amount,
-      note: withdrawalNote.value.trim() || null,
-    })
-    if (historyExpanded.value && store.transactionsUid === selectedChild.value.uid) {
-      await store.loadTransactions(selectedChild.value.uid)
-    }
-    withdrawalDialog.value = false
-  } catch {
-    withdrawalError.value = 'Failed to record. Try again.'
-  } finally {
-    withdrawalSaving.value = false
+  // Optimistic write: close immediately, sync in the background (offline-safe).
+  const childUid = selectedChild.value.uid
+  const write = store.recordWithdrawal(childUid, {
+    amount: round2dp(amount),
+    note: withdrawalNote.value.trim() || null,
+  })
+  if (historyExpanded.value && store.transactionsUid === childUid) {
+    write.then(() => store.loadTransactions(childUid)).catch(() => {})
+  } else {
+    write.catch(() => {})
   }
+  withdrawalDialog.value = false
 }
 
 // ── transaction history ──────────────────────────────────────────────────────
@@ -150,7 +151,7 @@ const childPendingAmount = computed(() => {
   if (!uid) return 0
   const snap = store.snapshots.find(s => s.uid === uid)
   if (!snap) return 0
-  const lastUpdated = snap.lastUpdated?.toDate?.() ?? new Date(0)
+  const lastUpdated = snap.lastUpdated?.toDate?.() ?? new Date()
   const dates = store.pendingPaymentDates(lastUpdated, snap.paymentDay ?? 0)
   return dates.length * (snap.weeklyAmount ?? 0)
 })
@@ -329,13 +330,12 @@ const childPendingAmount = computed(() => {
 
           <v-card-actions class="pb-4 px-4">
             <v-spacer />
-            <v-btn variant="text" :disabled="settingsSaving" @click="settingsDialog = false">
+            <v-btn variant="text" @click="settingsDialog = false">
               Cancel
             </v-btn>
             <v-btn
               color="primary"
               variant="tonal"
-              :loading="settingsSaving"
               @click="saveSettings"
             >
               Save
@@ -379,13 +379,12 @@ const childPendingAmount = computed(() => {
 
           <v-card-actions class="pb-4 px-4">
             <v-spacer />
-            <v-btn variant="text" :disabled="withdrawalSaving" @click="withdrawalDialog = false">
+            <v-btn variant="text" @click="withdrawalDialog = false">
               Cancel
             </v-btn>
             <v-btn
               color="error"
               variant="tonal"
-              :loading="withdrawalSaving"
               @click="confirmWithdrawal"
             >
               Confirm

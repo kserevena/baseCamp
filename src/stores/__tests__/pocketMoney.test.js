@@ -5,6 +5,7 @@ const {
   mockOnSnapshot, mockGetDocs, mockDoc, mockCollection, mockQuery,
   mockWhere, mockOrderBy, mockBatchUpdate, mockBatchSet, mockBatchCommit,
   mockWriteBatch, mockSetDoc, mockUseFamilyStore,
+  mockRunTransaction, mockIncrement, mockTxnGet, mockTxnUpdate, mockTxnSet,
 } = vi.hoisted(() => ({
   mockOnSnapshot:     vi.fn(() => vi.fn()),
   mockGetDocs:        vi.fn().mockResolvedValue({ docs: [] }),
@@ -19,20 +20,29 @@ const {
   mockWriteBatch:     vi.fn(),
   mockSetDoc:         vi.fn().mockResolvedValue(undefined),
   mockUseFamilyStore: vi.fn(() => ({ currentUser: { uid: 'parent-uid', role: 'parent' } })),
+  // runTransaction is mocked to invoke the update function with a fake txn object;
+  // mockTxnGet controls the "server" document the transaction reads.
+  mockRunTransaction: vi.fn(),
+  mockIncrement:      vi.fn((n) => ({ _increment: n })),
+  mockTxnGet:         vi.fn(),
+  mockTxnUpdate:      vi.fn(),
+  mockTxnSet:         vi.fn(),
 }))
 
 vi.mock('@/stores/family.js', () => ({ useFamilyStore: mockUseFamilyStore }))
 vi.mock('@/firebase/config.js', () => ({ db: {} }))
 vi.mock('firebase/firestore', () => ({
-  onSnapshot:  mockOnSnapshot,
-  getDocs:     mockGetDocs,
-  doc:         mockDoc,
-  collection:  mockCollection,
-  query:       mockQuery,
-  where:       mockWhere,
-  orderBy:     mockOrderBy,
-  writeBatch:  mockWriteBatch,
-  setDoc:      mockSetDoc,
+  onSnapshot:     mockOnSnapshot,
+  getDocs:        mockGetDocs,
+  doc:            mockDoc,
+  collection:     mockCollection,
+  query:          mockQuery,
+  where:          mockWhere,
+  orderBy:        mockOrderBy,
+  writeBatch:     mockWriteBatch,
+  setDoc:         mockSetDoc,
+  runTransaction: mockRunTransaction,
+  increment:      mockIncrement,
   // Timestamp is faked just enough for the store: fromDate/now round-trip via toDate().
   Timestamp: {
     now:      () => ({ toDate: () => new Date() }),
@@ -63,6 +73,10 @@ function makeSnap(uid, overrides = {}) {
 // A Timestamp-like wrapper around a fixed instant.
 const ts = (iso) => ({ toDate: () => new Date(iso) })
 
+// A Firestore-shaped doc snapshot for the transaction's txn.get() read.
+const serverDoc = (data) => ({ exists: () => true, data: () => data })
+const missingDoc = () => ({ exists: () => false })
+
 // Format a Date (UTC midnight) as YYYY-MM-DD for stable comparison.
 const ymd = (d) => d.toISOString().slice(0, 10)
 
@@ -83,6 +97,10 @@ describe('pocketMoney store', () => {
       set: mockBatchSet,
       commit: mockBatchCommit,
     })
+    mockRunTransaction.mockImplementation((_db, fn) =>
+      fn({ get: mockTxnGet, update: mockTxnUpdate, set: mockTxnSet })
+    )
+    mockTxnGet.mockResolvedValue(missingDoc())
     mockUseFamilyStore.mockReturnValue({ currentUser: { uid: 'parent-uid', role: 'parent' } })
   })
 
@@ -239,15 +257,14 @@ describe('pocketMoney store', () => {
       expect(store.displayBalance('child-uid')).toBe(15)
     })
 
-    it('falls back to the epoch when lastUpdated is absent (many payments)', () => {
+    it('returns the stored balance unchanged when lastUpdated is absent (no back-pay)', () => {
       vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
-      const snap = makeSnap('child-uid', { balance: 0, weeklyAmount: 5, paymentDay: 5 })
+      const snap = makeSnap('child-uid', { balance: 10, weeklyAmount: 5, paymentDay: 5 })
       delete snap.lastUpdated
       store.snapshots = [snap]
-      const result = store.displayBalance('child-uid')
-      expect(result).toBeGreaterThan(0)
-      expect(result % 5).toBe(0) // a whole number of £5 payments
+      // Unknown accrual state is treated as "now" — never decades of epoch back-pay.
+      expect(store.displayBalance('child-uid')).toBe(10)
     })
   })
 
@@ -357,100 +374,160 @@ describe('pocketMoney store', () => {
     it('is a no-op when currentFamilyId is not set', async () => {
       const store = usePocketMoneyStore()
       await store.flushPendingPayments('child-uid')
-      expect(mockWriteBatch).not.toHaveBeenCalled()
+      expect(mockRunTransaction).not.toHaveBeenCalled()
     })
 
-    it('is a no-op when no snapshot exists for childUid', async () => {
+    it('is a no-op when no cached snapshot exists for childUid', async () => {
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
 
       await store.flushPendingPayments('unknown-uid')
 
-      expect(mockWriteBatch).not.toHaveBeenCalled()
+      expect(mockRunTransaction).not.toHaveBeenCalled()
     })
 
-    it('is a no-op when no pending payments', async () => {
+    it('writes nothing when the server document does not exist', async () => {
       vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
-
-      store.snapshots = [makeSnap('child-uid', {
-        lastUpdated: ts('2025-06-13'), // today (Friday), exclusive
-        paymentDay: 5,
-      })]
+      store.snapshots = [makeSnap('child-uid')]
+      mockTxnGet.mockResolvedValue(missingDoc())
 
       await store.flushPendingPayments('child-uid')
 
-      expect(mockWriteBatch).not.toHaveBeenCalled()
+      expect(mockTxnUpdate).not.toHaveBeenCalled()
+      expect(mockTxnSet).not.toHaveBeenCalled()
     })
 
-    it('writes the exact new balance and one transaction for a single pending payment', async () => {
+    it('writes nothing when the server doc has no pending payments', async () => {
       vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
+      store.snapshots = [makeSnap('child-uid')]
+      mockTxnGet.mockResolvedValue(serverDoc({
+        balance: 10, weeklyAmount: 5, paymentDay: 5,
+        lastUpdated: ts('2025-06-13'), // today (Friday), exclusive
+      }))
 
-      store.snapshots = [makeSnap('child-uid', {
+      await store.flushPendingPayments('child-uid')
+
+      expect(mockTxnUpdate).not.toHaveBeenCalled()
+      expect(mockTxnSet).not.toHaveBeenCalled()
+    })
+
+    it('recomputes from the SERVER doc, not the cached snapshot (concurrent-flush safety)', async () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+      // Cached snapshot is stale and says a payment is pending…
+      store.snapshots = [makeSnap('child-uid', { lastUpdated: ts('2025-06-06') })]
+      // …but another parent already flushed: server lastUpdated is today.
+      mockTxnGet.mockResolvedValue(serverDoc({
+        balance: 15, weeklyAmount: 5, paymentDay: 5,
+        lastUpdated: ts('2025-06-13'),
+      }))
+
+      await store.flushPendingPayments('child-uid')
+
+      expect(mockTxnUpdate).not.toHaveBeenCalled()
+      expect(mockTxnSet).not.toHaveBeenCalled()
+    })
+
+    it('writes nothing when the server doc has no lastUpdated (unknown accrual state)', async () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+      store.snapshots = [makeSnap('child-uid')]
+      mockTxnGet.mockResolvedValue(serverDoc({ balance: 10, weeklyAmount: 5, paymentDay: 5 }))
+
+      await store.flushPendingPayments('child-uid')
+
+      expect(mockTxnUpdate).not.toHaveBeenCalled()
+      expect(mockTxnSet).not.toHaveBeenCalled()
+    })
+
+    it('writes nothing when pending payments exceed the 400-payment safety cap', async () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+      store.snapshots = [makeSnap('child-uid')]
+      // ~10 years of Fridays ≈ 520 pending — far over the cap, far under the old epoch case.
+      mockTxnGet.mockResolvedValue(serverDoc({
+        balance: 10, weeklyAmount: 5, paymentDay: 5,
+        lastUpdated: ts('2015-06-13'),
+      }))
+
+      await store.flushPendingPayments('child-uid')
+
+      expect(mockTxnUpdate).not.toHaveBeenCalled()
+      expect(mockTxnSet).not.toHaveBeenCalled()
+    })
+
+    it('increments the balance and stamps lastUpdated for a single pending payment', async () => {
+      vi.setSystemTime(new Date('2025-06-13'))
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+      store.snapshots = [makeSnap('child-uid')]
+      mockTxnGet.mockResolvedValue(serverDoc({
         balance: 10, weeklyAmount: 5, paymentDay: 5,
         lastUpdated: ts('2025-06-06'), // 1 pending Friday → 13th
-      })]
+      }))
 
       await store.flushPendingPayments('child-uid')
 
-      // Balance: 10 + 1 × 5 = 15, with lastUpdated stamped.
-      expect(mockBatchUpdate).toHaveBeenCalledOnce()
-      const update = mockBatchUpdate.mock.calls[0][1]
-      expect(update.balance).toBe(15)
+      // Balance is an increment delta (1 × 5), never an absolute value.
+      expect(mockTxnUpdate).toHaveBeenCalledOnce()
+      const update = mockTxnUpdate.mock.calls[0][1]
+      expect(mockIncrement).toHaveBeenCalledWith(5)
+      expect(update.balance).toEqual({ _increment: 5 })
       expect(update.lastUpdated).toBeDefined()
 
       // Exactly one payment transaction, dated the payment day, amount = weeklyAmount.
-      expect(mockBatchSet).toHaveBeenCalledOnce()
-      const txn = mockBatchSet.mock.calls[0][1]
+      expect(mockTxnSet).toHaveBeenCalledOnce()
+      const txn = mockTxnSet.mock.calls[0][1]
       expect(txn.type).toBe('payment')
       expect(txn.amount).toBe(5)
       expect(txn.recordedBy).toBeNull()
       expect(txn.note).toBeNull()
       expect(ymd(txn.date.toDate())).toBe('2025-06-13')
-
-      expect(mockBatchCommit).toHaveBeenCalledOnce()
     })
 
-    it('creates one dated transaction per pending payment (multiple)', async () => {
+    it('uses a deterministic payment-YYYY-MM-DD doc ID per payment (idempotency)', async () => {
       vi.setSystemTime(new Date('2025-06-20'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
-
-      store.snapshots = [makeSnap('child-uid', {
+      store.snapshots = [makeSnap('child-uid')]
+      mockTxnGet.mockResolvedValue(serverDoc({
         balance: 0, weeklyAmount: 5, paymentDay: 5,
         lastUpdated: ts('2025-06-06'), // Fridays 13th and 20th → 2 payments
-      })]
+      }))
 
       await store.flushPendingPayments('child-uid')
 
-      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(10) // 0 + 2 × 5
-      expect(mockBatchSet).toHaveBeenCalledTimes(2)
-      const dates = mockBatchSet.mock.calls.map(c => ymd(c[1].date.toDate()))
+      expect(mockIncrement).toHaveBeenCalledWith(10) // 2 × 5
+      expect(mockTxnSet).toHaveBeenCalledTimes(2)
+      const dates = mockTxnSet.mock.calls.map(c => ymd(c[1].date.toDate()))
       expect(dates).toEqual(['2025-06-13', '2025-06-20'])
-      mockBatchSet.mock.calls.forEach(c => {
-        expect(c[1].type).toBe('payment')
-        expect(c[1].amount).toBe(5)
-      })
+      // doc() called with the transactions collection and the deterministic ID.
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'payment-2025-06-13')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'payment-2025-06-20')
     })
 
-    it('still flushes (balance unchanged) when weeklyAmount is 0', async () => {
+    it('still flushes (zero delta) when weeklyAmount is 0', async () => {
       vi.setSystemTime(new Date('2025-06-13'))
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
-
-      store.snapshots = [makeSnap('child-uid', {
+      store.snapshots = [makeSnap('child-uid')]
+      mockTxnGet.mockResolvedValue(serverDoc({
         balance: 7, weeklyAmount: 0, paymentDay: 5,
         lastUpdated: ts('2025-06-06'), // 1 pending day
-      })]
+      }))
 
       await store.flushPendingPayments('child-uid')
 
-      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(7) // 7 + 1 × 0
-      expect(mockBatchSet).toHaveBeenCalledOnce()
-      expect(mockBatchSet.mock.calls[0][1].amount).toBe(0)
+      expect(mockIncrement).toHaveBeenCalledWith(0)
+      expect(mockTxnSet).toHaveBeenCalledOnce()
+      expect(mockTxnSet.mock.calls[0][1].amount).toBe(0)
     })
   })
 
@@ -485,6 +562,16 @@ describe('pocketMoney store', () => {
       store.setup('fam-1', parentUser)
 
       await store.saveConfig('child-uid', { weeklyAmount: 5, paymentDay: 4 })
+
+      expect(mockSetDoc.mock.calls[0][1].balance).toBe(0)
+    })
+
+    it('defaults the starting balance to 0 when startingAmount is NaN', async () => {
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+
+      // parseFloat('') in the view yields NaN; the store must never persist it.
+      await store.saveConfig('child-uid', { startingAmount: NaN, weeklyAmount: 5, paymentDay: 4 })
 
       expect(mockSetDoc.mock.calls[0][1].balance).toBe(0)
     })
@@ -531,14 +618,25 @@ describe('pocketMoney store', () => {
       expect(mockWriteBatch).not.toHaveBeenCalled()
     })
 
-    it('deducts the amount from the stored balance', async () => {
+    it('deducts the amount via a commutative increment, not an absolute balance', async () => {
       const store = usePocketMoneyStore()
       store.setup('fam-1', parentUser)
       store.snapshots = [makeSnap('child-uid', { balance: 20 })]
 
       await store.recordWithdrawal('child-uid', { amount: 7, note: null })
 
-      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(13)
+      expect(mockIncrement).toHaveBeenCalledWith(-7)
+      expect(mockBatchUpdate.mock.calls[0][1].balance).toEqual({ _increment: -7 })
+    })
+
+    it('does not stamp lastUpdated (would swallow unflushed payments)', async () => {
+      const store = usePocketMoneyStore()
+      store.setup('fam-1', parentUser)
+      store.snapshots = [makeSnap('child-uid', { balance: 20 })]
+
+      await store.recordWithdrawal('child-uid', { amount: 7, note: null })
+
+      expect(mockBatchUpdate.mock.calls[0][1]).not.toHaveProperty('lastUpdated')
     })
 
     it('handles decimal amounts exactly', async () => {
@@ -548,7 +646,7 @@ describe('pocketMoney store', () => {
 
       await store.recordWithdrawal('child-uid', { amount: 2.5, note: null })
 
-      expect(mockBatchUpdate.mock.calls[0][1].balance).toBe(7.5)
+      expect(mockIncrement).toHaveBeenCalledWith(-2.5)
       expect(mockBatchSet.mock.calls[0][1].amount).toBe(2.5)
     })
 

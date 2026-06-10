@@ -71,6 +71,23 @@ service cloud.firestore {
         allow update: if request.auth != null && request.auth.uid == uid
           && request.resource.data.role == resource.data.role;
       }
+
+      // Pocket money config and running balance snapshot per child.
+      // Parents read and write any child's document.
+      // Children can read their own document (to display their balance) but never write —
+      // balance updates are only committed when a parent views the screen.
+      match /pocketMoney/{childUid} {
+        allow read:  if isParent(familyId) ||
+                        (isFamilyMember(familyId) && request.auth.uid == childUid);
+        allow write: if isParent(familyId);
+
+        // Transaction history subcollection — same access pattern as the parent document.
+        match /transactions/{txnId} {
+          allow read:  if isParent(familyId) ||
+                          (isFamilyMember(familyId) && request.auth.uid == childUid);
+          allow write: if isParent(familyId);
+        }
+      }
     }
 
     // A shopping list document holds a family's named shopping list.

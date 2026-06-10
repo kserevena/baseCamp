@@ -11,5 +11,7 @@ export default defineConfig({
     include: ['**/*.integration.test.js'],
     testTimeout: 15000,
     hookTimeout: 15000,
+    // Keep the clock in UTC to match the app's UTC-based pocket money date math.
+    env: { TZ: 'UTC' },
   },
 })

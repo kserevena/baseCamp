@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import ShoppingView from '@/views/ShoppingView.vue'
 import MealsView from '@/views/MealsView.vue'
+import PocketMoneyView from '@/views/PocketMoneyView.vue'
 import LoginView from '@/views/LoginView.vue'
 import SetupView from '@/views/SetupView.vue'
 import { useAuthStore } from '@/stores/auth.js'
@@ -10,11 +11,12 @@ import { useFamilyStore } from '@/stores/family.js'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/',         component: HomeView },
-    { path: '/shopping', component: ShoppingView },
-    { path: '/meals',    component: MealsView },
-    { path: '/login',    component: LoginView,  meta: { public: true, hideNav: true } },
-    { path: '/setup',    component: SetupView,  meta: { public: true, hideNav: true } },
+    { path: '/',             component: HomeView },
+    { path: '/shopping',     component: ShoppingView },
+    { path: '/meals',        component: MealsView },
+    { path: '/pocket-money', component: PocketMoneyView },
+    { path: '/login',        component: LoginView,  meta: { public: true, hideNav: true } },
+    { path: '/setup',        component: SetupView,  meta: { public: true, hideNav: true } },
   ],
 })
 

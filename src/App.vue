@@ -5,6 +5,7 @@ import { useFamilyStore } from '@/stores/family.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useMealsStore } from '@/stores/meals.js'
+import { usePocketMoneyStore } from '@/stores/pocketMoney.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import { useServiceWorkerUpdate } from '@/composables/useServiceWorkerUpdate.js'
 
@@ -15,6 +16,7 @@ const family = useFamilyStore()
 const auth = useAuthStore()
 const shopping = useShoppingStore()
 const meals = useMealsStore()
+const pocketMoney = usePocketMoneyStore()
 
 const userMenu = ref(false)
 
@@ -32,10 +34,25 @@ onMounted(() => {
   useServiceWorkerUpdate()
 })
 
+// pocketMoney.setup needs the user's role, which arrives via the members onSnapshot
+// (asynchronously after familyId becomes non-null). Watch currentUser instead.
+watch(
+  () => family.currentUser,
+  (user, prev) => {
+    if (user && family.familyId) {
+      pocketMoney.setup(family.familyId, user)
+    } else if (!user && prev) {
+      pocketMoney.teardown()
+    }
+  },
+  { immediate: true },
+)
+
 onUnmounted(() => {
   family.teardown()
   shopping.teardown()
   meals.teardown()
+  pocketMoney.teardown()
 })
 
 async function signOut() {
@@ -46,9 +63,10 @@ async function signOut() {
 }
 
 const navItems = [
-  { label: 'Home',     icon: 'mdi-home',                 path: '/' },
-  { label: 'Shopping', icon: 'mdi-cart',                 path: '/shopping' },
-  { label: 'Meals',    icon: 'mdi-silverware-fork-knife', path: '/meals' },
+  { label: 'Home',     icon: 'mdi-home',                  path: '/' },
+  { label: 'Shopping', icon: 'mdi-cart',                  path: '/shopping' },
+  { label: 'Meals',    icon: 'mdi-silverware-fork-knife',  path: '/meals' },
+  { label: 'Money',    icon: 'mdi-piggy-bank-outline',     path: '/pocket-money' },
 ]
 
 const activeTab = ref(route.path)

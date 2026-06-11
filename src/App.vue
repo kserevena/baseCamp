@@ -8,6 +8,7 @@ import { useMealsStore } from '@/stores/meals.js'
 import { usePocketMoneyStore } from '@/stores/pocketMoney.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import { useServiceWorkerUpdate } from '@/composables/useServiceWorkerUpdate.js'
+import { isDev } from '@/utils/env.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -82,7 +83,10 @@ function navigate(path) {
 <template>
   <v-app>
     <v-app-bar v-if="!route.meta.hideNav" flat color="surface" border="b">
-      <v-app-bar-title class="text-primary font-weight-bold">BaseCamp</v-app-bar-title>
+      <v-app-bar-title>
+        <span class="text-primary font-weight-bold">BaseCamp</span>
+        <v-chip v-if="isDev" color="warning" size="x-small" label class="ml-2">DEV</v-chip>
+      </v-app-bar-title>
       <template #append>
         <v-menu v-model="userMenu" location="bottom end">
           <template #activator="{ props: menuProps }">

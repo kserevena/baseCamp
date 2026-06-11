@@ -43,8 +43,32 @@ function confirmDelete() {
 const aisleSheet = ref(false)
 
 const newAisle = ref('')
+
+// On Android, tapping an aisle chip dismisses the keyboard and the visual
+// viewport snaps back to full height. Without intervention the Vuetify overlay
+// content (aligned via align-self:flex-end inside a fixed full-screen container)
+// can end up partially below the screen edge during that snap.
+//
+// Fix: while the sheet is open, track the keyboard height via the Visual
+// Viewport API and store it as --add-item-sheet-bottom on :root. The
+// .add-item-overlay CSS rule uses this to apply a margin-bottom that lifts
+// the sheet above the keyboard smoothly as it appears and drops it back to
+// the screen bottom just as smoothly when the keyboard dismisses (#49).
+function syncKbd() {
+  const vv = window.visualViewport
+  const h = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0
+  document.documentElement.style.setProperty('--add-item-sheet-bottom', `${h}px`)
+}
+
 watch(sheet, (open) => {
-  if (open) newAisle.value = store.activeAisles[0]?.name ?? ''
+  if (open) {
+    newAisle.value = store.activeAisles[0]?.name ?? ''
+    syncKbd()
+    window.visualViewport?.addEventListener('resize', syncKbd)
+  } else {
+    window.visualViewport?.removeEventListener('resize', syncKbd)
+    document.documentElement.style.setProperty('--add-item-sheet-bottom', '0px')
+  }
 })
 
 const editSheet = ref(false)
@@ -155,7 +179,7 @@ function submitEdit() {
     </div>
 
     <!-- Add item bottom sheet -->
-    <v-bottom-sheet v-model="sheet" max-width="600">
+    <v-bottom-sheet v-model="sheet" max-width="600" content-class="add-item-overlay">
       <v-card rounded="t-xl" class="pa-4 add-item-card">
         <div class="text-subtitle-1 font-weight-medium mb-3">Add item</div>
         <v-text-field
@@ -265,6 +289,18 @@ function submitEdit() {
 
   </div>
 </template>
+
+<!-- Unscoped: targets the Vuetify overlay content element which is teleported
+     to <body> and therefore outside this component's scoped CSS reach. -->
+<style>
+/* Lift the add-item sheet above the Android virtual keyboard.
+   --add-item-sheet-bottom is set dynamically by the visualViewport resize
+   listener in the script; it equals the keyboard height in pixels (#49). */
+.add-item-overlay {
+  margin-bottom: var(--add-item-sheet-bottom, 0px);
+  transition: margin-bottom 0.15s ease;
+}
+</style>
 
 <style scoped>
 .shopping-view {

@@ -326,6 +326,120 @@ describe('ShoppingView', () => {
     })
   })
 
+  // ── Issue #49: keyboard-aware sheet positioning ─────────────────────────
+  // The add-item sheet uses window.visualViewport to track keyboard height and
+  // stores it as --add-item-sheet-bottom on :root. The .add-item-overlay CSS
+  // rule uses that variable as margin-bottom to lift the sheet above the
+  // keyboard while it is visible, and drops it back to 0px when the keyboard
+  // dismisses. These tests verify the JS side of that contract.
+  describe('keyboard-aware add-item sheet positioning (issue #49)', () => {
+    let mockVp
+
+    beforeEach(() => {
+      // Full-screen viewport with no keyboard; innerHeight matches vp.height.
+      mockVp = {
+        height: 851,
+        offsetTop: 0,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }
+      Object.defineProperty(window, 'visualViewport', {
+        value: mockVp, writable: true, configurable: true,
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        value: 851, writable: true, configurable: true,
+      })
+    })
+
+    afterEach(() => {
+      document.documentElement.style.removeProperty('--add-item-sheet-bottom')
+    })
+
+    async function openAddItemSheet(wrapper) {
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+    }
+
+    it('registers a visualViewport resize listener when the sheet opens', async () => {
+      const wrapper = mountView()
+      await openAddItemSheet(wrapper)
+      expect(mockVp.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
+    })
+
+    it('sets --add-item-sheet-bottom to 0px immediately on open when no keyboard is up', async () => {
+      const wrapper = mountView()
+      await openAddItemSheet(wrapper)
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
+    })
+
+    it('updates --add-item-sheet-bottom to the keyboard height when the viewport shrinks', async () => {
+      const wrapper = mountView()
+      await openAddItemSheet(wrapper)
+
+      // Keyboard appears: visual viewport shrinks by 340 px
+      mockVp.height = 511
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('340px')
+    })
+
+    it('accounts for visualViewport.offsetTop in the keyboard height calculation', async () => {
+      const wrapper = mountView()
+      await openAddItemSheet(wrapper)
+
+      // URL bar is visible (offsetTop=20) and keyboard is up; visible area = 491 px
+      mockVp.height = 491
+      mockVp.offsetTop = 20
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      // keyboard = 851 - 491 - 20 = 340 px
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('340px')
+    })
+
+    it('clamps --add-item-sheet-bottom to 0px when the visual viewport is larger than the window', async () => {
+      const wrapper = mountView()
+      await openAddItemSheet(wrapper)
+
+      mockVp.height = 900  // edge case: vv.height > innerHeight, no keyboard
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
+    })
+
+    it('resets --add-item-sheet-bottom to 0px and removes the listener when the sheet closes', async () => {
+      const wrapper = mountView()
+      await openAddItemSheet(wrapper)
+
+      // Keyboard appears
+      mockVp.height = 511
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('340px')
+
+      // User taps Cancel — sheet closes
+      const cancelBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Cancel')
+      await cancelBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
+      expect(mockVp.removeEventListener).toHaveBeenCalledWith('resize', resizeCb)
+    })
+
+    it('does not throw and defaults to 0px when window.visualViewport is unavailable', async () => {
+      Object.defineProperty(window, 'visualViewport', {
+        value: null, writable: true, configurable: true,
+      })
+      const wrapper = mountView()
+      await expect(openAddItemSheet(wrapper)).resolves.not.toThrow()
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
+    })
+  })
+
   describe('edit item sheet', () => {
     it('does not show the edit sheet initially', () => {
       mountView()

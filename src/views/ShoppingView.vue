@@ -156,7 +156,7 @@ function submitEdit() {
 
     <!-- Add item bottom sheet -->
     <v-bottom-sheet v-model="sheet" max-width="600">
-      <v-card rounded="t-xl" class="pa-4">
+      <v-card rounded="t-xl" class="pa-4 add-item-card">
         <div class="text-subtitle-1 font-weight-medium mb-3">Add item</div>
         <v-text-field
           v-model="newName"
@@ -175,7 +175,7 @@ function submitEdit() {
         />
         <div class="mb-3">
           <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-          <div class="d-flex flex-wrap gap-1">
+          <div class="aisle-chips d-flex flex-wrap gap-1">
             <v-chip
               v-for="aisle in store.activeAisles"
               :key="aisle.name"
@@ -304,5 +304,12 @@ function submitEdit() {
   align-items: center;
   justify-content: center;
   padding-top: 100px;
+}
+/* dvh (dynamic viewport height) shrinks automatically when the Android virtual
+   keyboard is shown, keeping the card fully visible above the keyboard (#49). */
+.add-item-card {
+  max-height: 90vh; /* fallback for browsers without dvh support */
+  max-height: 90dvh;
+  overflow-y: auto;
 }
 </style>

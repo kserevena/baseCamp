@@ -278,6 +278,69 @@ describe('shopping store', () => {
     })
   })
 
+  describe('restoreItem', () => {
+    it('returns false and does nothing when activeListId is null', () => {
+      const store = useShoppingStore()
+      const result = store.restoreItem('item-1', '1 pint', 'Dairy')
+      expect(result).toBe(false)
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('returns false and does nothing when item id is not found', () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      const result = store.restoreItem('nonexistent', '1 pint', 'Dairy')
+      expect(result).toBe(false)
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('returns true and calls updateDoc with done:false, qty, aisle, aisleOrder', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, aisle: 'Dairy', aisleOrder: 1 })] })
+
+      const result = store.restoreItem('item-1', '1 pint', 'Dairy')
+
+      expect(result).toBe(true)
+      expect(mockUpdateDoc).toHaveBeenCalledOnce()
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1,
+      })
+    })
+
+    it('updates item optimistically in local state', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, qty: '2 pints', aisle: 'Dairy', aisleOrder: 1 })] })
+
+      store.restoreItem('item-1', '1 pint', 'Dairy')
+
+      const item = store.items.find(i => i.id === 'item-1')
+      expect(item.done).toBe(false)
+      expect(item.qty).toBe('1 pint')
+    })
+
+    it('uses aisleOrder 99 when the aisle is not in activeAisles', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true })] })
+
+      store.restoreItem('item-1', '', 'Unknown aisle')
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ aisleOrder: 99 }))
+    })
+  })
+
   describe('toggleDone', () => {
     it('calls updateDoc on the correct path using activeListId', () => {
       let itemsCallback

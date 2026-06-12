@@ -150,6 +150,21 @@ export const useShoppingStore = defineStore('shopping', () => {
     })
   }
 
+  function restoreItem(id, qty, aisle) {
+    if (!activeListId.value) return false
+    const item = items.value.find(i => i.id === id)
+    if (!item) return false
+    const aisleObj = activeAisles.value.find(a => a.name === aisle)
+    item.done = false
+    item.qty = qty
+    item.aisle = aisle
+    item.aisleOrder = aisleObj?.order ?? 99
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), {
+      done: false, qty, aisle, aisleOrder: aisleObj?.order ?? 99,
+    })
+    return true
+  }
+
   async function saveAisles(aisles) {
     if (!activeListId.value) return
     await updateDoc(doc(db, 'shoppingLists', activeListId.value), { aisles })
@@ -170,5 +185,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, updateItem, addItem, reorderItems, saveAisles, deleteAisle }
+  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle }
 })

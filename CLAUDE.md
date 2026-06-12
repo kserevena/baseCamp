@@ -2,59 +2,19 @@
 
 This is a family organiser Progressive Web App (PWA) built with Vue 3 and hosted on
 Firebase Hosting. Family devices install it via the browser's "Add to Home Screen" flow.
-This file tells you everything you need to know to build, run, and extend the project.
 
 ---
 
-## Build progress
+## Quick reference
 
-| Phase | Status | Notes |
-|---|---|---|
-| Phase 0 — UI prototype | **Complete** | Scaffold complete; family skipped advanced UX features, moving to Firebase |
-| Phase 1 — Firebase data | **Complete** | Real-time Firestore sync confirmed across devices |
-| Phase 2 — Authentication | **Complete** | Google Sign-In live; family create/join flows working on real devices |
-| Phase 3 — Packaging & deploy | **Complete** | PWA live at https://basecamp-app-dev.web.app; install via browser on all devices |
-| Phase 4 — Pocket money | **Complete** | Parent config, auto-payment calc, withdrawal recording, child read-only view |
-
----
-
-> **Working title:** BaseCamp. The name and visual theme are provisional and will
-> be revisited once the app is built and in use by the family. Do not apply any
-> outdoor or camping visual theme to the UI — keep the design clean and neutral
-> until a theme is decided. Use the name BaseCamp in code, file names, and the
-> PWA manifest only.
-
----
-
-## Project overview
-
-BaseCamp is a private family app used by two parents (on Android phones) and children (on Amazon
-Fire tablets), plus a Chromebook. The app is delivered as a PWA hosted on Firebase
-Hosting. All devices install it via the browser's "Add to Home Screen" flow.
-All devices work fully offline thanks to Firestore's IndexedDB persistence and a
-Vite-generated service worker.
-
-Authentication uses Google Sign-In via Firebase Auth. Parents use standard Google
-accounts. Children use Google Family Link managed accounts — these work fine via the
-browser OAuth flow without Play Store involvement.
-
----
-
-## Tech stack
-
-| Layer | Technology | Purpose |
-|---|---|---|
-| UI framework | Vue 3 (Composition API) | App components and views |
-| Build tool | Vite | Dev server, bundling, PWA generation |
-| UI components | Vuetify 3 | Mobile-friendly component library |
-| Routing | Vue Router 4 | Screen navigation |
-| State | Pinia | Shared app state |
-| Backend | Firebase (Firestore, Auth, Hosting) | Data, auth, hosting |
-| Offline | Vite PWA plugin + Firestore IndexedDB persistence | Full offline support |
-| Install | PWA "Add to Home Screen" | Browser-based install on all devices |
-
-Always use the **Vue 3 Composition API** (`<script setup>` syntax). Never use the
-Options API. Always use `<script setup lang="ts">` if TypeScript is enabled.
+- **Stack:** Vue 3 (`<script setup>` only), Vite, Vuetify 3, Pinia, Firebase (Firestore + Auth + Hosting)
+- **Users:** Parents (Android), children (Fire tablets via Google Family Link), Chromebook
+- **Run:** `npm test` then `npm run test:integration` before every commit
+- **Deploy:** Always ask first. `npm run deploy:dev` / `npm run deploy:prod` (from `main` for prod)
+- **Key complexity:** `src/stores/pocketMoney.js` uses UTC-based date math — read `src/stores/CLAUDE.md` before touching
+- **Schema changes:** Follow expand–migrate–cut in "Firestore schema evolution" below
+- **Offline:** Update Pinia state immediately, fire Firestore write in background, never await write in UI
+- **Theme:** "BaseCamp" is a provisional name — do not apply outdoor/camping visual theme
 
 ---
 
@@ -73,8 +33,6 @@ baseCamp/
 │   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
 │   │   ├── MealVoting.vue           # Meal cards with vote button and voter avatars
 │   │   └── __tests__/
-│   │       ├── AisleManager.test.js
-│   │       └── ShoppingList.test.js
 │   ├── views/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top meal, family avatars
 │   │   ├── LoginView.vue            # Google Sign-In page
@@ -82,16 +40,12 @@ baseCamp/
 │   │   ├── ShoppingView.vue         # Shopping list — list, add-item FAB, manage aisles
 │   │   ├── MealsView.vue            # Meal voting wrapper
 │   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
+│   │   ├── CLAUDE.md                # UI design principles; PocketMoneyView complexity notes
 │   │   └── __tests__/
-│   │       ├── LoginView.test.js
-│   │       ├── SetupView.test.js
-│   │       ├── ShoppingView.test.js
-│   │       └── PocketMoneyView.test.js
 │   ├── composables/
 │   │   ├── useServiceWorkerUpdate.js  # SW update polling: controllerchange reload, visibilitychange + hourly check
 │   │   ├── useUserRole.js             # isParent/isChild computed derived from family.currentUser
 │   │   └── __tests__/
-│   │       └── useServiceWorkerUpdate.test.js
 │   ├── constants/
 │   │   └── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
 │   ├── utils/
@@ -99,9 +53,6 @@ baseCamp/
 │   │   ├── date.js                   # formatDate() — formats a Timestamp/Date as "9 Jun 2026"
 │   │   ├── env.js                    # isDev — true when VITE_USE_EMULATOR=true or project ID contains "dev"
 │   │   └── __tests__/
-│   │       ├── currency.test.js
-│   │       ├── date.test.js
-│   │       └── env.test.js
 │   ├── styles/
 │   │   └── utilities.css             # Shared CSS utilities (flex gap classes), imported in main.js
 │   ├── stores/
@@ -110,31 +61,25 @@ baseCamp/
 │   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort, aisle management)
 │   │   ├── meals.js                 # Meal suggestions and votes
 │   │   ├── pocketMoney.js           # Pocket money snapshots, auto-payment calc, withdrawal recording
+│   │   ├── CLAUDE.md                # pocketMoney UTC math + transaction safety; shopping store internals
 │   │   └── __tests__/
-│   │       ├── auth.test.js
-│   │       ├── family.test.js
-│   │       ├── shopping.test.js
-│   │       ├── pocketMoney.test.js
-│   │       └── family.integration.test.js
 │   ├── router/
 │   │   ├── index.js                 # Vue Router — routes and auth guard
 │   │   └── __tests__/
-│   │       └── guard.test.js
 │   └── firebase/
 │       ├── config.js                # Firebase init, App Check, emulator wiring, IndexedDB persistence
-│       └── seed.js                  # seedIfEmpty() — populates emulator with mock data
+│       ├── seed.js                  # seedIfEmpty() — populates emulator with mock data
+│       └── CLAUDE.md                # App Check rollout; emulator ports and connection
 ├── scripts/
 │   └── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
 ├── public/
-│   ├── icon-192.png
-│   └── icon-512.png                 # PWA manifest itself is generated by vite-plugin-pwa (see vite.config.js)
-├── firestore.rules                  # Firestore security rules — deploy with firebase deploy
+│   └── icon-192.png, icon-512.png
+├── firestore.rules                  # Firestore security rules
 ├── firestore.indexes.json
 ├── vite.config.js
 ├── vitest.config.js                 # Unit test config (jsdom)
 ├── vitest.integration.config.js     # Integration test config (node, 15s timeout)
 ├── firebase.json                    # Emulator ports, hosting config
-├── .firebaserc
 ├── .env                             # Dev Firebase credentials — never commit
 ├── .env.prod                        # Prod Firebase credentials — never commit
 └── package.json
@@ -155,6 +100,7 @@ Understanding this flow is essential for any work on auth, routing, or store set
    - If family found → proceed to the requested route
 4. `LoginView.vue` calls `authStore.signInWithGoogle()`, which opens a Google popup requesting the `profile.agerange.read` scope, then calls the Google People API to check whether the user is a minor. The `isMinor` flag is persisted to `localStorage` and restored by `startAuthListener` on subsequent visits.
    - **`isMinor` fails open by design.** If the People API call fails or returns no age data, `isMinor` defaults to `false` (treated as adult) with no error. This means the `profile.agerange.read` scope must be registered and granted on **each** Firebase project (a per-environment console step — see README); if it is missing on a project, children are silently treated as adults there. Note this is a UX guard only — the parent-only "Create family" restriction is enforced client-side, not in `firestore.rules`.
+   - Children use Google Family Link managed accounts — these work fine via the browser OAuth flow without Play Store involvement.
 5. `SetupView.vue` handles first-time setup:
    - **Create a family** (parents only — hidden when `isMinor` is true): writes a new `families/{id}` document and an `inviteCodes/{code}` document, then redirects home.
    - **Join a family** (all users): looks up the invite code in `inviteCodes`, adds the user to `families/{id}/members`, then redirects home.
@@ -168,7 +114,7 @@ The data stores (`family`, `shopping`, `meals`, `pocketMoney`) all follow the sa
 - `setup(...)` — subscribes to Firestore via `onSnapshot`, populates reactive state
 - `teardown()` — unsubscribes the listener, clears state
 
-`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping` and `meals` when it changes. This keeps listeners clean and prevents stale data if a user somehow ends up in a different family context. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
+`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping` and `meals` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
 
 **`pocketMoney` store exception:** `pocketMoney.setup(familyId, currentUser)` requires the user's `role` to decide whether to subscribe to the whole collection (parent) or a single document (child). `role` is only available after the `families/{familyId}/members` snapshot fires — which happens asynchronously after `familyId` becomes non-null. `App.vue` therefore watches `family.currentUser` (not `familyId`) to set up the pocketMoney store.
 
@@ -176,7 +122,7 @@ The data stores (`family`, `shopping`, `meals`, `pocketMoney`) all follow the sa
 
 **Pocket money date math is UTC-based — this is deliberate, do not change it to local time.** `pendingPaymentDates` (and the 90-day cutoff in `loadTransactions`) use UTC `Date` methods (`getUTCDay` / `setUTCHours` / `setUTCDate`). The accrued amount depends only on how many payment-weekdays fall between `lastUpdated` and now; anchoring that count to an absolute (UTC) timeline makes it invariant to the device's timezone, so a device that travels or has its clock zone changed can never double-count or skip a week. The trade-off is that a payment posts on UTC midnight rather than the family's local midnight (cosmetic for a UK family; the amount is always correct). Respecting a family's own non-UTC timezone is a future UX refinement tracked in **GitHub issue #15**. The unit tests pin the clock to UTC (`TZ=UTC` in both vitest configs and `src/test-setup.js`) and use fake timers so calendar boundaries, leap day, and DST transitions are verified with exact assertions.
 
-**`shopping` store specifics:** `setup(familyId)` subscribes to the `shoppingLists` collection (filtered by `familyId`) to get list metadata — it does **not** auto-create any document. When the snapshot fires with results, the store auto-activates the most recently created list. `activateList(listId)` starts a second listener on that list's items subcollection. `createList(name)` is a parent-only action that creates a new list document (with a default `aisles` array) and activates it. `reorderItems(updates)` is a parent-only action (enforced in the UI) that batch-writes `sortOrder` (and optionally `aisle`/`aisleOrder` for cross-section moves) to persist drag-and-drop order. `saveAisles(aisles)` is a parent-only action that writes the current aisle list to the list document. `deleteAisle(name)` is a parent-only action that batch-moves items in the deleted aisle to `aisle: 'Unknown'` and removes the aisle from the list document. `activeAisles` is a computed that returns the active list's `aisles` array, falling back to `DEFAULT_AISLES` if the field is absent (old documents). `teardown()` cleans up both the lists and items listeners.
+**`shopping` store internals** — see `src/stores/CLAUDE.md`.
 
 ---
 
@@ -255,8 +201,6 @@ Firestore has no server-side schema enforcement. The app code and the `firestore
 
 ### Safe changes — no migration needed
 
-These can be deployed in a single release:
-
 | Change | What to do in code |
 |---|---|
 | Add a new optional field | Read with a fallback: `data.newField ?? defaultValue`. Old documents return `undefined`, which the fallback handles. |
@@ -264,38 +208,17 @@ These can be deployed in a single release:
 | Relax a security rule (grant more access) | Deploy the new rules, then deploy the code. |
 | Add a new index | Add to `firestore.indexes.json`, deploy with `firebase deploy --only firestore:indexes`. |
 
-**Always read with a fallback.** Even when a field is "required" in the schema above, an old document might not have it. Every store that reads a Firestore document must use `data.field ?? defaultValue` rather than assuming the field exists. This is the single rule that makes the whole forward-compatibility story work.
+**Always read with a fallback.** Even when a field is "required" in the schema above, an old document might not have it. Every store that reads a Firestore document must use `data.field ?? defaultValue` rather than assuming the field exists.
 
 ### Breaking changes — use the expand–migrate–cut pattern
 
 Never rename, remove, re-type, or restructure a field in a single deploy. Use three stages:
 
-**Stage 1 — Expand:** Deploy code that writes *both* the old and new field (or collection) simultaneously. Read the new field with a fallback to the old one. Update security rules to allow both paths. At this point all clients — whether on the old or new code — continue to work.
+**Stage 1 — Expand:** Write both old and new field simultaneously. Read the new field with a fallback to the old one. Update security rules to allow both paths.
 
-**Stage 2 — Migrate:** Once the expanded code is live on all devices, backfill existing documents so they carry the new field. Run the migration script in the Firebase console or browser console (see below). Verify every document has been updated before proceeding.
+**Stage 2 — Migrate:** Once expanded code is live on all devices, backfill existing documents. Run the migration as a one-off script from the browser console while connected to production (import `{ db }` from `./src/firebase/config.js`; test against the emulator first; use `if (field == null)` guards for idempotency).
 
-**Stage 3 — Cut:** Deploy code that only writes and reads the new field. Remove writes to the old field. Tighten security rules if needed. Delete the old field from documents if it is sensitive or costly to store.
-
-### Writing a migration script
-
-There is no Cloud Functions layer yet. Run migrations as a one-off script from the browser console while connected to production (use `VITE_USE_EMULATOR=false` and ensure you are signed in as a parent):
-
-```js
-// Example: backfill a new `displayOrder` field on all meal documents for a family
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore'
-import { db } from './src/firebase/config.js'
-
-const snap = await getDocs(collection(db, 'meals'))
-let i = 0
-for (const d of snap.docs) {
-  if (d.data().displayOrder == null) {
-    await updateDoc(doc(db, 'meals', d.id), { displayOrder: i++ })
-  }
-}
-console.log('Migration complete')
-```
-
-Always test the script against the emulator first (`VITE_USE_EMULATOR=true`). Use `if (field == null)` guards so re-running the script is safe. After the migration, run `npm run test:integration` to confirm the rules still pass against the migrated shape.
+**Stage 3 — Cut:** Deploy code that only writes and reads the new field. Remove writes to the old field. Tighten security rules if needed.
 
 ### Security rules and schema changes
 
@@ -353,53 +276,7 @@ npm run test:integration  # integration tests (auto-starts/stops emulator) — r
 npm run test:watch        # unit tests in watch mode during development
 ```
 
-| File | Type | Covers |
-|---|---|---|
-| `src/stores/__tests__/auth.test.js` | Unit | Auth listener, Google Sign-In popup, People API isMinor detection, localStorage persistence, sign-out |
-| `src/stores/__tests__/family.test.js` | Unit | `resolveFamily`, `currentUser` computed, `createFamily`, `joinFamily` |
-| `src/stores/__tests__/shopping.test.js` | Unit | `setup`, `activateList`, `createList`, `addItem`, `toggleDone`, `teardown`, `activeAisles`, `saveAisles`, `deleteAisle` |
-| `src/stores/__tests__/family.integration.test.js` | Integration | All Firestore security rules verified against the emulator (families, shopping, meals, pocketMoney). Pocket money covers read/write/delete/list for parent, child (own-only), other child, non-member, unauthenticated, plus child self-create and cross-family isolation |
-| `src/views/__tests__/LoginView.test.js` | Unit | Sign-in button, post-login navigation, loading state, error snackbar |
-| `src/views/__tests__/SetupView.test.js` | Unit | Create/join family forms, child account (hide create), error handling |
-| `src/views/__tests__/ShoppingView.test.js` | Unit | List selector chip colours/checkmark, list switching, parent-only controls, empty state, manage-aisles button, aisle picker |
-| `src/components/__tests__/AisleManager.test.js` | Unit | Aisle CRUD UI: add, delete (with confirmation), reorder, save, cancel |
-| `src/components/__tests__/ShoppingList.test.js` | Unit | Empty aisle headers, aisle ordering, item placement, Unknown aisle, reactivity |
-| `src/router/__tests__/guard.test.js` | Unit | Unauthenticated redirect, family/no-family redirect, `resolveFamily` call timing |
-| `src/composables/__tests__/useServiceWorkerUpdate.test.js` | Unit | `controllerchange` → reload, reload guard, `visibilitychange` update check, hourly interval, no-op without SW support |
-| `src/composables/__tests__/useUserRole.test.js` | Unit | `isParent`/`isChild` computed for parent, child, and no current user |
-| `src/utils/__tests__/currency.test.js` | Unit | `formatGBP` — two-decimal-place `£` formatting |
-| `src/utils/__tests__/date.test.js` | Unit | `formatDate` — empty for missing value, Timestamp `toDate()` and `Date` formatting (UTC-pinned) |
-| `src/utils/__tests__/env.test.js` | Unit | `isDev` — true for emulator mode, true for dev project ID, false for prod |
-| `src/views/__tests__/App.test.js` | Unit | DEV chip visible when `isDev` is true, hidden when false |
-| `src/stores/__tests__/pocketMoney.test.js` | Unit | `pendingPaymentDates`, `displayBalance`, `setup` (parent vs child), `teardown`, `flushPendingPayments`, `saveConfig`, `recordWithdrawal`, `loadTransactions`. Date math is verified with **fake timers pinned to UTC** and **parameterised exact assertions** — month/year boundaries, leap day, multi-week gaps, all seven payment days, DST transitions, and ledger accuracy (increment delta + one dated `payment-YYYY-MM-DD` transaction per payment). Flush is tested as a transaction: server-doc recompute (concurrent-flush safety), missing `lastUpdated` no-op, 400-payment cap |
-| `src/views/__tests__/PocketMoneyView.test.js` | Unit | Parent view (child list, balance display, detail sheet, settings dialog, withdrawal dialog, history); child view (own balance, no admin controls, history); amount validation (negative weekly, empty starting amount, zero withdrawal, 2 dp rounding); optimistic dialogs (close without awaiting the write, failed writes swallowed) |
-
 Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.
-
----
-
-## Firebase emulator
-
-Emulator ports (defined in `firebase.json`):
-
-| Service | Port |
-|---|---|
-| Auth | 9099 |
-| Firestore | 8080 |
-| Hosting | 5000 |
-| Emulator UI | 4000 |
-
-To connect the app to the local emulator instead of the cloud project, set `VITE_USE_EMULATOR=true` in your environment (`.env` or `.env.local`). The connection is wired in `src/firebase/config.js` using `connectFirestoreEmulator` and `connectAuthEmulator`.
-
-`src/firebase/seed.js` exports a `seedIfEmpty()` function that checks whether the emulator already has data and, if not, writes mock family members, shopping items, and meals. It is called from the browser console or from test setup as needed.
-
----
-
-## App Check
-
-`src/firebase/config.js` initialises Firebase App Check (reCAPTCHA v3) to ensure only the genuine app can call Firestore and Auth. It is **guarded**: App Check is skipped when `VITE_USE_EMULATOR=true` or when `VITE_RECAPTCHA_SITE_KEY` is unset, so the emulator flow and tests are unaffected.
-
-Each environment has its own reCAPTCHA site key (from Firebase Console → Build → App Check): the dev key lives in `.env`, the prod key in `.env.prod`. Roll out per environment in **monitoring mode** first, then switch to **enforcement** in the console once metrics confirm legitimate traffic is passing — enforcement is reversible.
 
 ---
 
@@ -414,12 +291,6 @@ Two mechanisms work together to provide full offline support:
 When writing Firestore operations, never block the UI waiting for a write to complete. Write optimistically (update Pinia state immediately) and let Firestore sync in the background. Do not show error states for normal offline writes.
 
 Conflict resolution is last-write-wins. For a shopping list this is acceptable — if two people tick the same item while offline, the last sync wins and the item ends up ticked, which is the correct outcome.
-
----
-
-## Vite config
-
-`vite.config.js` uses three plugins: `@vitejs/plugin-vue`, `vite-plugin-vuetify` (with `autoImport: true`), and `vite-plugin-pwa`. The PWA plugin uses `registerType: 'autoUpdate'` and caches all JS, CSS, HTML, images, and fonts via Workbox. The `@` alias resolves to `src/`.
 
 ---
 
@@ -443,25 +314,26 @@ An Android WebView APK was considered for Fire tablets but skipped in favour of 
 
 Documentation is part of the code. Update it in the same commit as the change that makes it stale.
 
-**When a build phase completes** — update the status table in both `CLAUDE.md` and `README.md`.
-
 **When files are added, removed, or moved** — update the **Project structure** section in `CLAUDE.md`. Include new test files, stores, views, components, and config files.
 
 **When the Firestore data model changes** (new collection, new field, renamed field, removed field) — update the **Firebase data structure** section in `CLAUDE.md` and the **Data model** table in `README.md`. If the change is not purely additive, document the migration plan in the PR description and follow the expand–migrate–cut pattern in the **Firestore schema evolution** section.
 
 **When security rules change** — update the access summary table in the **Firestore security rules** section of `CLAUDE.md`. Always deploy rules after changing them: `firebase deploy --only firestore:rules`.
 
-**When new tests are added** — add a row to the testing table in the **Testing** section of `CLAUDE.md`.
+**When new tests are added** — no change needed to `CLAUDE.md`; tests are self-documenting by file name.
 
 **When environment variables change** — update the `.env` block in `README.md` step 3 and the `VITE_USE_EMULATOR` explanation in step 6.
 
 **When npm scripts change** — update the **Development workflow** section in `CLAUDE.md` and the **Running tests** / **Production build** sections in `README.md`.
 
-**When the authentication or store lifecycle changes** — update the **Authentication flow** and **Store lifecycle** sections in `CLAUDE.md`.
+**When the authentication or store lifecycle changes** — update the **Authentication flow** and **Store lifecycle** sections in `CLAUDE.md`. If store internals change, update the relevant `src/stores/CLAUDE.md` or `src/views/CLAUDE.md` subdirectory file.
 
 **What goes where:**
 - `README.md` — developer setup guide: prerequisites, env vars, how to run locally, how to test, how to deploy. No implementation detail.
-- `CLAUDE.md` — everything a coding agent or maintainer needs to work on the project: architecture, data model, conventions, security rules, test coverage. No step-by-step history of how past phases were built.
+- `CLAUDE.md` (root) — architecture, data model, conventions, security rules, workflow. No per-file implementation detail.
+- `src/stores/CLAUDE.md` — pocketMoney write semantics, UTC math, shopping store internals.
+- `src/views/CLAUDE.md` — UI design principles, view-specific complexity notes.
+- `src/firebase/CLAUDE.md` — App Check rollout, emulator ports.
 
 ---
 
@@ -486,7 +358,6 @@ npm run dev
 
 # Expose dev server on the local network (for testing on phones/tablets)
 npm run dev -- --host
-# → Vite will print a network URL, e.g. http://192.168.1.100:5173
 
 # Run unit tests
 npm test
@@ -525,28 +396,6 @@ If all four answers are "no", the change is safe to deploy as-is. Document the c
 
 **Rules changes must reach both environments.** `deploy:dev` and `deploy:prod` already deploy `firestore.rules` and `firestore.indexes.json` alongside the app, so a normal deploy to each environment keeps rules in sync with code. Only use the rules-only scripts (`deploy:rules:dev` / `deploy:rules:prod`) when rules changed but no app code did — and run both so the two environments don't diverge.
 
-Finding your local IP:
-- Windows: `ipconfig` → IPv4 Address
-- Mac: `ipconfig getifaddr en0`
-- Linux/WSL: `ip addr show` → inet address
-
-Every file save hot-reloads all connected devices instantly.
-
----
-
-## Phase 3 — packaging and deployment
-
-**Goal: deploy to Firebase Hosting and install the PWA on all family devices.**
-
-Steps:
-1. Run `npm run deploy:prod` — builds with prod credentials and deploys to the prod Firebase project
-2. Share the prod URL with the family: https://basecamp-app-prod.web.app
-3. Whitelist the Firebase Hosting URL in Google Family Link if web restrictions are enabled on children's accounts
-4. Each device: open the URL in the browser and use "Add to Home Screen" (see Device installation section)
-5. Test offline: turn on aeroplane mode, use the app, reconnect, verify sync
-
-**Phase 3 ends when:** every family device has the app installed, offline mode works, and the whole family can use it for the actual weekly shop.
-
 ---
 
 ## Coding conventions
@@ -556,29 +405,8 @@ Steps:
 - **Pinia stores** — Composition API style (`defineStore` with `ref` and `computed`)
 - **Firestore listeners** — use `onSnapshot` for real-time data; always unsubscribe in `onUnmounted` to prevent memory leaks
 - **Family colour system** — every member has a `colour` hex; use it consistently for avatars, badges, and vote indicators everywhere in the UI
-- **Aisle ordering** — aisles are stored per-list as `{ name, order }` objects in the `aisles` field of the list document. If absent (old documents), the store falls back to `DEFAULT_AISLES`. Items sort by `aisleOrder` ascending, then `sortOrder`, then name. Parents can add, delete, and reorder aisles via `saveAisles()` and `deleteAisle()`. Deleting an aisle reassigns its items to `{ aisle: 'Unknown', aisleOrder: 99 }` in a single batch write.
+- **Aisle ordering** — items sort by `aisleOrder` ascending, then `sortOrder`, then name. Deleted-aisle items go to `{ aisle: 'Unknown', aisleOrder: 99 }`. Store falls back to `DEFAULT_AISLES` when `aisles` field absent on old documents.
 - **Offline writes** — update Pinia state immediately, fire Firestore write in background, do not await in a way that blocks the UI
-- **Firestore security rules** — whenever application logic changes who can read or write data (new collections, new roles, new access patterns), update `firestore.rules` in the same change. Rules and code must stay in sync. After updating rules, deploy to both environments: `npm run deploy:rules:dev && npm run deploy:rules:prod`
+- **Firestore security rules** — whenever application logic changes who can read or write data, update `firestore.rules` in the same change. Deploy to both environments after updating rules.
 - **Defensive Firestore reads** — always read document fields with a fallback (`data.field ?? defaultValue`). Devices with offline-cached documents may have an older schema shape; never assume a field is present even if it is "required" in the data model.
-- **Tests** — any new functionality or modification to existing functionality must be accompanied by tests. Unit tests live alongside the code in `__tests__/` directories. Before every commit, run `npm test` (unit tests) first, and if they pass run `npm run test:integration` (integration tests). Do not commit if any tests are failing.
-
----
-
-## UI design principles
-
-- Mobile-first — design for a phone screen, verify on tablet and Chromebook
-- Touch targets — all interactive elements at least 44px tall for comfortable tapping
-- Family colours — avatars and vote indicators always use the member's colour
-- "From meal" badge — items auto-added from meal voting show a purple badge
-- Aisle grouping — group items by aisle with a clear section header when sorted by store layout
-- Keep it friendly and clear — children use this app too
-
----
-
-## Future milestones (do not build yet)
-
-- Meal voting screen and auto-add ingredients to shopping list
-- Family chat
-- Family event organiser and calendar
-- Individual birthday and Christmas wish lists shareable with grandparents
-- Chores list
+- **Tests** — unit tests live alongside the code in `__tests__/` directories. Run `npm test` then `npm run test:integration` before every commit. Do not commit if any tests are failing.

@@ -96,7 +96,12 @@ baseCamp/
 │   │   └── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
 │   ├── utils/
 │   │   ├── currency.js               # formatGBP() — formats a number as "£x.xx"
-│   │   └── date.js                   # formatDate() — formats a Timestamp/Date as "9 Jun 2026"
+│   │   ├── date.js                   # formatDate() — formats a Timestamp/Date as "9 Jun 2026"
+│   │   ├── env.js                    # isDev — true when VITE_USE_EMULATOR=true or project ID contains "dev"
+│   │   └── __tests__/
+│   │       ├── currency.test.js
+│   │       ├── date.test.js
+│   │       └── env.test.js
 │   ├── styles/
 │   │   └── utilities.css             # Shared CSS utilities (flex gap classes), imported in main.js
 │   ├── stores/
@@ -364,6 +369,8 @@ npm run test:watch        # unit tests in watch mode during development
 | `src/composables/__tests__/useUserRole.test.js` | Unit | `isParent`/`isChild` computed for parent, child, and no current user |
 | `src/utils/__tests__/currency.test.js` | Unit | `formatGBP` — two-decimal-place `£` formatting |
 | `src/utils/__tests__/date.test.js` | Unit | `formatDate` — empty for missing value, Timestamp `toDate()` and `Date` formatting (UTC-pinned) |
+| `src/utils/__tests__/env.test.js` | Unit | `isDev` — true for emulator mode, true for dev project ID, false for prod |
+| `src/views/__tests__/App.test.js` | Unit | DEV chip visible when `isDev` is true, hidden when false |
 | `src/stores/__tests__/pocketMoney.test.js` | Unit | `pendingPaymentDates`, `displayBalance`, `setup` (parent vs child), `teardown`, `flushPendingPayments`, `saveConfig`, `recordWithdrawal`, `loadTransactions`. Date math is verified with **fake timers pinned to UTC** and **parameterised exact assertions** — month/year boundaries, leap day, multi-week gaps, all seven payment days, DST transitions, and ledger accuracy (increment delta + one dated `payment-YYYY-MM-DD` transaction per payment). Flush is tested as a transaction: server-doc recompute (concurrent-flush safety), missing `lastUpdated` no-op, 400-payment cap |
 | `src/views/__tests__/PocketMoneyView.test.js` | Unit | Parent view (child list, balance display, detail sheet, settings dialog, withdrawal dialog, history); child view (own balance, no admin controls, history); amount validation (negative weekly, empty starting amount, zero withdrawal, 2 dp rounding); optimistic dialogs (close without awaiting the write, failed writes swallowed) |
 

@@ -60,6 +60,7 @@ describe('ShoppingView', () => {
       ],
       activateList: vi.fn((id) => { shoppingStore.activeListId = id }),
       addItem: vi.fn(),
+      restoreItem: vi.fn().mockReturnValue(true),
       createList: vi.fn(),
       updateItem: vi.fn(),
       saveAisles: vi.fn(),
@@ -437,6 +438,165 @@ describe('ShoppingView', () => {
       const wrapper = mountView()
       await expect(openAddItemSheet(wrapper)).resolves.not.toThrow()
       expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
+    })
+  })
+
+  describe('done-item suggestions (issue #29)', () => {
+    const doneItem = { id: 'done-1', name: 'Milk', qty: '2 pints', aisle: 'Dairy', done: true }
+    const activeItem = { id: 'active-1', name: 'Bread', qty: '', aisle: 'Bakery', done: false }
+
+    async function openSheet(wrapper) {
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+    }
+
+    it('shows no suggestion chips when name field is empty', async () => {
+      shoppingStore.items = [doneItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      expect(document.body.textContent).not.toContain('Re-add')
+    })
+
+    it('shows no suggestion chips when no done items match the typed text', async () => {
+      shoppingStore.items = [doneItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'xyz'
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Re-add')
+    })
+
+    it('shows suggestion chips for done items matching the typed text', async () => {
+      shoppingStore.items = [doneItem, activeItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'mil'
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).toContain('Re-add')
+      expect(document.body.textContent).toContain('Milk')
+    })
+
+    it('does not suggest active (not-done) items', async () => {
+      shoppingStore.items = [activeItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'Bread'
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Re-add')
+    })
+
+    it('matching is case-insensitive', async () => {
+      shoppingStore.items = [doneItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'MIL'
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).toContain('Milk')
+    })
+
+    it('tapping a suggestion chip fills in name, qty, and selects the correct aisle', async () => {
+      shoppingStore.items = [doneItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'mil'
+      await wrapper.vm.$nextTick()
+
+      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
+        .filter(c => c.textContent.trim() === 'Milk')
+      expect(suggestionChips.length).toBeGreaterThan(0)
+      await suggestionChips[0].click()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.newName).toBe('Milk')
+      expect(wrapper.vm.newQty).toBe('2 pints')
+      expect(wrapper.vm.newAisle).toBe('Dairy')
+    })
+
+    it('submitting after selecting a suggestion calls restoreItem, not addItem', async () => {
+      shoppingStore.items = [doneItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'mil'
+      await wrapper.vm.$nextTick()
+
+      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
+        .filter(c => c.textContent.trim() === 'Milk')
+      await suggestionChips[0].click()
+      await wrapper.vm.$nextTick()
+
+      const addBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+
+      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('done-1', '2 pints', 'Dairy')
+      expect(shoppingStore.addItem).not.toHaveBeenCalled()
+    })
+
+    it('falls back to addItem if restoreItem returns false (item deleted concurrently)', async () => {
+      shoppingStore.items = [doneItem]
+      shoppingStore.restoreItem.mockReturnValue(false)
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'mil'
+      await wrapper.vm.$nextTick()
+
+      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
+        .filter(c => c.textContent.trim() === 'Milk')
+      await suggestionChips[0].click()
+      await wrapper.vm.$nextTick()
+
+      const addBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Milk', '2 pints', 'Dairy')
+    })
+
+    it('clears selectedDoneItem and uses addItem when name is changed after chip selection', async () => {
+      shoppingStore.items = [doneItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'mil'
+      await wrapper.vm.$nextTick()
+
+      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
+        .filter(c => c.textContent.trim() === 'Milk')
+      await suggestionChips[0].click()
+      await wrapper.vm.$nextTick()
+
+      // User edits the name away from the suggestion
+      wrapper.vm.newName = 'Milk full fat'
+      await wrapper.vm.$nextTick()
+
+      const addBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+
+      expect(shoppingStore.restoreItem).not.toHaveBeenCalled()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Milk full fat', expect.any(String), expect.anything())
+    })
+
+    it('resets selectedDoneItem when the sheet closes', async () => {
+      shoppingStore.items = [doneItem]
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.newName = 'mil'
+      await wrapper.vm.$nextTick()
+
+      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
+        .filter(c => c.textContent.trim() === 'Milk')
+      await suggestionChips[0].click()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.selectedDoneItem).not.toBeNull()
+
+      const cancelBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Cancel')
+      await cancelBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.selectedDoneItem).toBeNull()
     })
   })
 

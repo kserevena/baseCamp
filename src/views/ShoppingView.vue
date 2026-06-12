@@ -13,12 +13,47 @@ const hasLists = computed(() => store.lists.length > 0)
 const sheet = ref(false)
 const newName = ref('')
 const newQty = ref('')
+const selectedDoneItem = ref(null)
+
+const doneSuggestions = computed(() => {
+  const q = newName.value.trim().toLowerCase()
+  if (!q) return []
+  const seen = new Set()
+  return store.items
+    .filter(i => i.done && i.name.toLowerCase().includes(q))
+    .filter(i => {
+      if (seen.has(i.name.toLowerCase())) return false
+      seen.add(i.name.toLowerCase())
+      return true
+    })
+    .slice(0, 5)
+})
+
+watch(newName, (val) => {
+  if (selectedDoneItem.value && val.trim() !== selectedDoneItem.value.name) {
+    selectedDoneItem.value = null
+  }
+})
+
+function selectSuggestion(item) {
+  selectedDoneItem.value = item
+  newName.value = item.name
+  newQty.value = item.qty ?? ''
+  newAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+}
 
 function submit() {
-  if (!newName.value.trim()) return
-  store.addItem(newName.value.trim(), newQty.value.trim(), newAisle.value || null)
+  const name = newName.value.trim()
+  if (!name) return
+  if (selectedDoneItem.value) {
+    const restored = store.restoreItem(selectedDoneItem.value.id, newQty.value.trim(), newAisle.value || null)
+    if (!restored) store.addItem(name, newQty.value.trim(), newAisle.value || null)
+  } else {
+    store.addItem(name, newQty.value.trim(), newAisle.value || null)
+  }
   newName.value = ''
   newQty.value = ''
+  selectedDoneItem.value = null
   sheet.value = false
 }
 
@@ -66,6 +101,7 @@ watch(sheet, (open) => {
     syncKbd()
     window.visualViewport?.addEventListener('resize', syncKbd)
   } else {
+    selectedDoneItem.value = null
     window.visualViewport?.removeEventListener('resize', syncKbd)
     document.documentElement.style.setProperty('--add-item-sheet-bottom', '0px')
   }
@@ -190,6 +226,21 @@ function submitEdit() {
           class="mb-2"
           @keyup.enter="submit"
         />
+        <div v-if="doneSuggestions.length" class="mb-2">
+          <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
+          <div class="d-flex flex-wrap gap-1">
+            <v-chip
+              v-for="item in doneSuggestions"
+              :key="item.id"
+              size="small"
+              variant="tonal"
+              color="primary"
+              @click="selectSuggestion(item)"
+            >
+              {{ item.name }}
+            </v-chip>
+          </div>
+        </div>
         <v-text-field
           v-model="newQty"
           label="Quantity (optional)"

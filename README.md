@@ -236,13 +236,3 @@ See `CLAUDE.md` for the full field-level schema and security rules.
 
 > **Pocket money runs in UTC.** Payment-day accrual is computed using UTC day boundaries so the amount can never double-count or skip a week when a device changes timezone. A payment therefore posts on UTC midnight rather than local midnight (cosmetic for a UK family; the amount is always correct). Supporting a family's own non-UTC timezone is tracked in [issue #15](https://github.com/kserevena/baseCamp/issues/15).
 
----
-
-## Tech Stack
-
-- **UI:** Vue 3 (Composition API) + Vuetify 3
-- **Build:** Vite with PWA plugin
-- **Routing:** Vue Router 4
-- **State:** Pinia
-- **Backend:** Firebase (Firestore, Auth, Hosting)
-- **Offline:** Service Worker + Firestore IndexedDB persistence

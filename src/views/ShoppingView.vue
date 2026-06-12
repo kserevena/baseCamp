@@ -20,10 +20,11 @@ const doneSuggestions = computed(() => {
   if (!q) return []
   const seen = new Set()
   return store.items
-    .filter(i => i.done && i.name.toLowerCase().includes(q))
     .filter(i => {
-      if (seen.has(i.name.toLowerCase())) return false
-      seen.add(i.name.toLowerCase())
+      if (!i.done || !i.name.toLowerCase().includes(q)) return false
+      const key = i.name.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
       return true
     })
     .slice(0, 5)

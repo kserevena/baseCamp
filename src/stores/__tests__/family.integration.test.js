@@ -386,6 +386,13 @@ describe('Firestore security rules', () => {
         updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), { name: 'Big shop' })
       )
     })
+
+    it('denies a child deleting a shopping list', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(
+        deleteDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'))
+      )
+    })
   })
 
   describe('meals collection', () => {

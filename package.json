@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:integration": "firebase emulators:exec --only firestore,auth 'vitest run --config vitest.integration.config.js'",
     "build:prod": "vite build --mode prod",
-    "deploy:checks": "npm install && npm test && npm run test:integration",
+    "deploy:checks": "npm ci && npm test && npm run test:integration",
     "deploy:dev": "node scripts/check-dev-env.mjs && npm run deploy:checks && npm run build && firebase deploy --only hosting,firestore:rules,firestore:indexes --project dev",
     "deploy:prod": "node scripts/check-prod-env.mjs && npm run deploy:checks && npm run build:prod && firebase deploy --only hosting,firestore:rules,firestore:indexes --project prod",
     "deploy:rules:dev": "firebase deploy --only firestore:rules,firestore:indexes --project dev",

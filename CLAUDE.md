@@ -355,7 +355,7 @@ cp /path/to/main-checkout/.env .env
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 
 # Start Firebase emulator (Auth + Firestore) — needed for sign-in and data
 firebase emulators:start
@@ -374,7 +374,7 @@ npm test
 npm run test:integration
 
 # Deploy to dev environment (build uses .env)
-# Runs npm install + unit tests + integration tests, then deploys
+# Runs npm ci + unit tests + integration tests, then deploys
 # hosting + firestore:rules + firestore:indexes together.
 npm run deploy:dev
 
@@ -387,7 +387,7 @@ npm run deploy:rules:dev
 npm run deploy:rules:prod
 ```
 
-**Deploy guardrails.** Both `deploy:dev` and `deploy:prod` run an env preflight check before anything else (`scripts/check-dev-env.mjs` and `scripts/check-prod-env.mjs` respectively), then run `npm run deploy:checks` (`npm install && npm test && npm run test:integration`) before building, and deploy `hosting,firestore:rules,firestore:indexes` in a single command. This guarantees the env file is present and points at the correct Firebase project, dependencies match the lockfile, all tests pass, and rules can never drift out of sync with the deployed app. Do not bypass these by calling `vite build` + `firebase deploy` directly.
+**Deploy guardrails.** Both `deploy:dev` and `deploy:prod` run an env preflight check before anything else (`scripts/check-dev-env.mjs` and `scripts/check-prod-env.mjs` respectively), then run `npm run deploy:checks` (`npm ci && npm test && npm run test:integration`) before building, and deploy `hosting,firestore:rules,firestore:indexes` in a single command. This guarantees the env file is present and points at the correct Firebase project, dependencies match the lockfile, all tests pass, and rules can never drift out of sync with the deployed app. Do not bypass these by calling `vite build` + `firebase deploy` directly.
 
 **Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. This includes `deploy:dev`, `deploy:prod`, `deploy:rules:dev`, `deploy:rules:prod`, and any `firebase deploy` invocation — deployments affect live devices and shared infrastructure.
 
@@ -418,3 +418,4 @@ If all four answers are "no", the change is safe to deploy as-is. Document the c
 - **Firestore security rules** — whenever application logic changes who can read or write data, update `firestore.rules` in the same change. Deploy to both environments after updating rules.
 - **Defensive Firestore reads** — always read document fields with a fallback (`data.field ?? defaultValue`). Devices with offline-cached documents may have an older schema shape; never assume a field is present even if it is "required" in the data model.
 - **Tests** — unit tests live alongside the code in `__tests__/` directories. Run `npm test` then `npm run test:integration` before every commit. Do not commit if any tests are failing.
+- **npm install vs npm ci** — Use `npm ci` to install dependencies before running tests, building, or any task where installing is a prerequisite rather than the goal. Only use `npm install` (or `npm install <pkg>`) when the explicit task is to add or update a dependency; commit the resulting `package-lock.json` change in that same PR.

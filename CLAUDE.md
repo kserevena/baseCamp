@@ -343,6 +343,10 @@ Documentation is part of the code. Update it in the same commit as the change th
 
 ## Development workflow
 
+**Git workflow.** All changes to the app must go through pull requests — never commit or push directly to `main`. The `main` branch has GitHub branch protection enabled: direct pushes are blocked and CI must pass before a PR can be merged. Work on a feature branch, open a PR, wait for CI to go green, then merge manually. Never merge a PR without explicit decision to do so.
+
+**CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
+
 **Working in a git worktree?** The `.env` file is gitignored (never committed), so a freshly created worktree will not have it — the dev server will fail without the Firebase credentials. After creating a worktree, copy `.env` over from the main checkout so the dev environment can run (note the `.env` file may not exist in the main checkout — if it's missing, the credentials must be obtained separately):
 
 ```bash

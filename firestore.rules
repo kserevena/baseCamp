@@ -93,13 +93,19 @@ service cloud.firestore {
     // A shopping list document holds a family's named shopping list.
     // The items subcollection holds the individual shopping items.
     match /shoppingLists/{listId} {
-      // Any family member can read or update a list.
+      // Any family member can read a list.
       // Only parents can create or delete a list.
       // Note: create uses request.resource (incoming data) because resource is null
       // for documents that don't exist yet.
-      allow read, update: if isFamilyMember(resource.data.familyId);
+      allow read: if isFamilyMember(resource.data.familyId);
       allow create: if isParent(request.resource.data.familyId);
       allow delete: if isParent(resource.data.familyId);
+      // Family members can update a list but not the aisles or name fields —
+      // those are parent-only to prevent children from corrupting the aisle layout.
+      allow update: if isFamilyMember(resource.data.familyId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['aisles', 'name']);
+      // Parents can update anything on the list document.
+      allow update: if isParent(resource.data.familyId);
 
       // Individual shopping items live in the items subcollection.
       // The rule reads the parent shoppingList document to get the familyId,

@@ -356,6 +356,36 @@ describe('Firestore security rules', () => {
         })
       )
     })
+
+    it('denies a child updating the aisles field on a shopping list', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(
+        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), { aisles: [] })
+      )
+    })
+
+    it('denies a child updating the name field on a shopping list', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(
+        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), { name: 'Hacked' })
+      )
+    })
+
+    it('allows a parent to update the aisles field on a shopping list', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(
+        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), {
+          aisles: [{ name: 'Produce', order: 1 }],
+        })
+      )
+    })
+
+    it('allows a parent to update the name of a shopping list', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(
+        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), { name: 'Big shop' })
+      )
+    })
   })
 
   describe('meals collection', () => {

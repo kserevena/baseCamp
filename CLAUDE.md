@@ -72,7 +72,10 @@ baseCamp/
 │       ├── seed.js                  # seedIfEmpty() — populates emulator with mock data
 │       └── CLAUDE.md                # App Check rollout; emulator ports and connection
 ├── scripts/
-│   └── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
+│   ├── check-dev-env.mjs            # Preflight guard run by deploy:dev (validates .env)
+│   ├── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
+│   └── __tests__/
+│       └── check-dev-env.test.mjs   # Unit tests for check-dev-env validation logic
 ├── public/
 │   └── icon-192.png, icon-512.png
 ├── firestore.rules                  # Firestore security rules
@@ -380,7 +383,7 @@ npm run deploy:rules:dev
 npm run deploy:rules:prod
 ```
 
-**Deploy guardrails.** `deploy:dev` and `deploy:prod` each run `npm run deploy:checks` (`npm install && npm test && npm run test:integration`) before building, and deploy `hosting,firestore:rules,firestore:indexes` in a single command. This guarantees dependencies match the lockfile, all tests pass, and rules can never drift out of sync with the deployed app. Do not bypass these by calling `vite build` + `firebase deploy` directly.
+**Deploy guardrails.** Both `deploy:dev` and `deploy:prod` run an env preflight check before anything else (`scripts/check-dev-env.mjs` and `scripts/check-prod-env.mjs` respectively), then run `npm run deploy:checks` (`npm install && npm test && npm run test:integration`) before building, and deploy `hosting,firestore:rules,firestore:indexes` in a single command. This guarantees the env file is present and points at the correct Firebase project, dependencies match the lockfile, all tests pass, and rules can never drift out of sync with the deployed app. Do not bypass these by calling `vite build` + `firebase deploy` directly.
 
 **Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. This includes `deploy:dev`, `deploy:prod`, `deploy:rules:dev`, `deploy:rules:prod`, and any `firebase deploy` invocation — deployments affect live devices and shared infrastructure.
 

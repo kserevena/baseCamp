@@ -201,6 +201,17 @@ npm run deploy:rules:prod
 
 ---
 
+## Contributing
+
+All changes must go through a pull request — direct pushes to `main` are blocked by branch protection.
+
+1. Create a feature branch from `main`.
+2. Make your changes and run `npm test && npm run test:integration` locally.
+3. Open a PR — CI runs both test suites automatically.
+4. Merge only once CI passes. Merging is always a manual step.
+
+---
+
 ## Project structure
 
 ```

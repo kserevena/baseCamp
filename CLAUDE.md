@@ -362,9 +362,9 @@ npm install -g firebase-tools
 npm run test:integration
 ```
 
-**Taking screenshots in a cloud/remote session.** There is no display server and `cdn.playwright.dev` is blocked, but Playwright and a pre-cached Chromium binary are installed at `/opt/node22/lib/node_modules/playwright` and `/opt/pw-browsers/`. Puppeteer is **not** available — use Playwright. To take screenshots:
+**Taking screenshots in a cloud/remote session.** There is no display server and `cdn.playwright.dev` is blocked, but Playwright and a pre-cached Chromium binary are available. Puppeteer is **not** installed — use Playwright. Steps:
 
-1. Create a minimal `.env` (the real Firebase credentials are not needed against the emulator):
+1. **Environment.** If `.env` is missing, create a minimal one pointing at the emulator (no real credentials needed):
    ```bash
    cat > .env << 'EOF'
    VITE_FIREBASE_API_KEY=fake-api-key
@@ -377,33 +377,39 @@ npm run test:integration
    EOF
    ```
 
-2. Start the emulators and Vite dev server in the background:
+2. **Start services** (emulators + dev server) in the background:
    ```bash
    firebase emulators:start --project demo-test --only firestore,auth > /tmp/emulator.log 2>&1 &
-   sleep 6  # wait for emulators to be ready
+   sleep 6
    npm run dev -- --port 5173 > /tmp/vite.log 2>&1 &
    sleep 4
    ```
 
-3. Seed Auth users via the emulator admin API (bearer `owner` bypasses rules). Use `accounts:signInWithPassword` to obtain real `idToken`/`refreshToken` values — **do not fabricate tokens**. Seeding with `batchCreate` then signing in with the password flow gives you real tokens that the Firebase SDK will accept:
+3. **Seed users** via the emulator admin API. Always sign in with the password flow afterwards to get real tokens — never fabricate token values:
    ```bash
-   # Clear and re-create users
-   curl -s -X DELETE http://localhost:9099/emulator/v1/projects/demo-test/accounts -H "Authorization: Bearer owner"
+   curl -s -X DELETE http://localhost:9099/emulator/v1/projects/demo-test/accounts \
+     -H "Authorization: Bearer owner"
    curl -s -X POST \
      "http://localhost:9099/identitytoolkit.googleapis.com/v1/projects/demo-test/accounts:batchCreate" \
      -H "Content-Type: application/json" -H "Authorization: Bearer owner" \
-     -d '{"users":[{"localId":"uid_alice","email":"alice@example.com","rawPassword":"password123","emailVerified":true}]}'
+     -d '{"users":[{"localId":"<uid>","email":"<email>","rawPassword":"password123","emailVerified":true}]}'
    ```
 
-4. Seed Firestore data (also using `Authorization: Bearer owner` to bypass security rules):
+4. **Seed Firestore** using `Authorization: Bearer owner` to bypass security rules:
    ```bash
    BASE="http://localhost:8080/v1/projects/demo-test/databases/(default)/documents"
-   curl -s -X PATCH "$BASE/users/uid_alice" -H "Authorization: Bearer owner" -H "Content-Type: application/json" \
-     -d '{"fields":{"familyId":{"stringValue":"family_1"}}}'
-   # … repeat for each document needed
+   curl -s -X PATCH "$BASE/<collection>/<docId>" \
+     -H "Authorization: Bearer owner" -H "Content-Type: application/json" \
+     -d '{"fields":{"<field>":{"stringValue":"<value>"}}}'
    ```
 
-5. Use Playwright (CJS scripts, `.cjs` extension) with the pre-installed binary. **Do not use `networkidle0`** — the Firestore WebSocket keeps the connection open; use `domcontentloaded` instead. Inject Firebase Auth state via `addInitScript` before navigation, using tokens obtained from a real sign-in call (step 3):
+5. **Write the script** as a `.cjs` file and run it with `node`. Key points:
+   - Import Playwright from `/opt/node22/lib/node_modules/playwright`
+   - Use Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+   - Use `domcontentloaded` (not `networkidle0`) — the Firestore WebSocket keeps the connection open
+   - Sign in via the emulator REST API to get a real `idToken`/`refreshToken`, then inject into `localStorage` with `addInitScript` before navigating
+   - Use `waitForFunction` to confirm the page has loaded the expected data before taking the screenshot
+
    ```js
    const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 
@@ -413,15 +419,17 @@ npm run test:integration
        { method: 'POST', headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ email, password, returnSecureToken: true }) }
      );
-     return res.json(); // .idToken, .refreshToken, .localId
+     return res.json(); // { localId, idToken, refreshToken, email, ... }
    }
 
-   const executablePath = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-   const browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
-   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-   const page = await ctx.newPage();
+   const browser = await chromium.launch({
+     executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+     headless: true,
+     args: ['--no-sandbox', '--disable-gpu'],
+   });
+   const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
 
-   const auth = await signIn('alice@example.com', 'password123');
+   const auth = await signIn('<email>', 'password123');
    await page.addInitScript((a) => {
      localStorage.setItem('firebase:authUser:fake-api-key:[DEFAULT]', JSON.stringify({
        uid: a.localId, email: a.email, emailVerified: true, isAnonymous: false,
@@ -434,16 +442,17 @@ npm run test:integration
      localStorage.setItem('isMinor', 'false');
    }, auth);
 
-   await page.goto('http://localhost:5173/shopping', { waitUntil: 'domcontentloaded' });
-   await page.waitForFunction(() => document.body.innerText.includes('Expected text'), { timeout: 15000 });
+   await page.goto('http://localhost:5173/<route>', { waitUntil: 'domcontentloaded' });
+   await page.waitForFunction(() => document.body.innerText.includes('<expected text>'), { timeout: 15000 });
    await page.screenshot({ path: '/tmp/screenshot.png' });
    await browser.close();
    ```
 
-6. **Adding screenshots to a PR.** Screenshots should be attached to the PR — not committed to the repository. The GitHub MCP tools available in cloud sessions do not support binary asset uploads. To get screenshots into a PR:
-   - Use `SendUserFile` to deliver the PNG files to the user's chat so they can drag-and-drop them into the PR description or a comment on GitHub.com.
-   - In the PR description, leave clearly-labelled placeholders (`<!-- attach screenshot here -->`) so the user knows where to drop each image.
-   - Never fabricate `github.com/user-attachments/assets/…` URLs — these only become valid after a real upload via the GitHub web interface.
+6. **Adding screenshots to a PR.** Screenshots belong in the PR, not in the repository. The GitHub MCP tools do not support binary asset uploads. Instead:
+   - Use `SendUserFile` to send the PNG files to the user's chat.
+   - In the PR description, write a clear prose description of what each screenshot shows and leave a labelled placeholder comment (`<!-- attach screenshot-name.png here -->`) at each insertion point.
+   - The user can then drag-and-drop the images from chat into the PR on GitHub.com.
+   - Never fabricate `github.com/user-attachments/assets/…` URLs — they are only valid after a real upload.
 
 ```bash
 # Install dependencies

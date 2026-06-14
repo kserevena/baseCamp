@@ -353,6 +353,13 @@ Documentation is part of the code. Update it in the same commit as the change th
 cp /path/to/main-checkout/.env .env
 ```
 
+**Running integration tests in a cloud/remote session (e.g. Claude Code on the web)?** The `firebase` CLI is not pre-installed in cloud containers. Install it globally before running `npm run test:integration`:
+
+```bash
+npm install -g firebase-tools
+npm run test:integration
+```
+
 ```bash
 # Install dependencies
 npm ci

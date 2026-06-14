@@ -86,7 +86,7 @@ export const useFamilyStore = defineStore('family', () => {
 
     const id = codeDoc.data().familyId ?? null
     if (!id) return false
-    const colour = COLOUR_PALETTE[Math.floor(Math.random() * COLOUR_PALETTE.length)]
+    const colour = COLOUR_PALETTE[crypto.getRandomValues(new Uint32Array(1))[0] % COLOUR_PALETTE.length]
 
     // inviteCode is stored on the member doc so the security rule can verify the
     // joining user actually holds a valid code for this family.

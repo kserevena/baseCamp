@@ -319,9 +319,19 @@ describe('Firestore security rules', () => {
       await assertFails(getDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1')))
     })
 
-    it('allows a family member to add a shopping item', async () => {
-      const ctx = testEnv.authenticatedContext('child-uid')
+    it('allows a parent to add a shopping item', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
       await assertSucceeds(
+        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+          name: 'Milk', qty: '2 pints', aisle: 'Dairy',
+          aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
+        })
+      )
+    })
+
+    it('denies a child adding a shopping item', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(
         addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
           name: 'Milk', qty: '2 pints', aisle: 'Dairy',
           aisleOrder: 1, done: false, addedBy: 'child-uid', fromMeal: null,
@@ -337,6 +347,28 @@ describe('Firestore security rules', () => {
           aisleOrder: 1, done: false, addedBy: 'outsider-uid', fromMeal: null,
         })
       )
+    })
+
+    it('allows a parent to tick off a shopping item', async () => {
+      let itemRef
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+          name: 'Eggs', qty: '6', aisle: 'Dairy', aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
+        })
+      })
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true }))
+    })
+
+    it('denies a child ticking off a shopping item', async () => {
+      let itemRef
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+          name: 'Eggs', qty: '6', aisle: 'Dairy', aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
+        })
+      })
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true }))
     })
 
     it('allows a parent to create a shopping list', async () => {

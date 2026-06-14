@@ -251,7 +251,7 @@ Access summary:
 | `families/{familyId}` | Family members | Anyone signed-in who stamps `createdBy` as themselves (create); parents (update) |
 | `families/{familyId}/members/{uid}` | Family members | Parents (any member); the family `createdBy` user seating themselves as parent; a user seating themselves as `child` with a valid invite code; self-updates that don't change `role` |
 | `shoppingLists/{listId}` | Family members | Parents (create/update/delete) |
-| `shoppingLists/{listId}/items/{itemId}` | Family members | Family members (create/update); parents (delete) |
+| `shoppingLists/{listId}/items/{itemId}` | Family members | Parents only (create/update/delete) |
 | `meals/{mealId}` | Family members | Family members (create/update); parents (delete) |
 | `families/{familyId}/pocketMoney/{uid}` | Parents (any child); child (own only) | Parents only |
 | `families/{familyId}/pocketMoney/{uid}/transactions/{txnId}` | Parents (any child); child (own only) | Parents only |
@@ -345,6 +345,8 @@ Documentation is part of the code. Update it in the same commit as the change th
 
 **Git workflow.** All changes to the app must go through pull requests — never commit or push directly to `main`. The `main` branch has GitHub branch protection enabled: direct pushes are blocked and CI must pass before a PR can be merged. Work on a feature branch, open a PR, wait for CI to go green, then merge manually. Never merge a PR without explicit decision to do so.
 
+**Branch naming.** Name branches after the work being done, not after the session. Use kebab-case prefixed with a short type: `feature/`, `fix/`, or `chore/`. Examples: `feature/parent-only-shopping-items`, `fix/pocket-money-utc-rounding`, `chore/update-firestore-indexes`. Never use auto-generated session names like `claude/dreamy-davinci-*`.
+
 **CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
 
 **Working in a git worktree?** The `.env` file is gitignored (never committed), so a freshly created worktree will not have it — the dev server will fail without the Firebase credentials. After creating a worktree, copy `.env` over from the main checkout so the dev environment can run (note the `.env` file may not exist in the main checkout — if it's missing, the credentials must be obtained separately):
@@ -352,6 +354,65 @@ Documentation is part of the code. Update it in the same commit as the change th
 ```bash
 cp /path/to/main-checkout/.env .env
 ```
+
+**Running integration tests in a cloud/remote session (e.g. Claude Code on the web)?** The `firebase` CLI is not pre-installed in cloud containers. Install it globally before running `npm run test:integration`:
+
+```bash
+npm install -g firebase-tools
+npm run test:integration
+```
+
+**Taking screenshots in a cloud/remote session.** There is no display server and `cdn.playwright.dev` is blocked, but a Chromium binary and Puppeteer are pre-installed. To take screenshots:
+
+1. Create a minimal `.env` (the real Firebase credentials are not needed against the emulator):
+   ```bash
+   cat > .env << 'EOF'
+   VITE_FIREBASE_API_KEY=fake-api-key
+   VITE_FIREBASE_AUTH_DOMAIN=demo-test.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=demo-test
+   VITE_FIREBASE_STORAGE_BUCKET=demo-test.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
+   VITE_FIREBASE_APP_ID=1:000000000000:web:0000000000000000
+   VITE_USE_EMULATOR=true
+   EOF
+   ```
+
+2. Start the emulators and Vite dev server in the background:
+   ```bash
+   firebase emulators:start --project demo-test --only firestore,auth > /tmp/emulator.log 2>&1 &
+   sleep 6  # wait for emulators to be ready
+   npm run dev -- --port 5173 > /tmp/vite.log 2>&1 &
+   sleep 4
+   ```
+
+3. Seed Auth users with specific UIDs using the emulator admin API (bearer `owner` bypasses rules):
+   ```bash
+   # Clear existing accounts first
+   curl -s -X DELETE http://localhost:9099/emulator/v1/projects/demo-test/accounts -H "Authorization: Bearer owner"
+   # Create users with UIDs matching seed.js
+   curl -s -X POST \
+     "http://localhost:9099/identitytoolkit.googleapis.com/v1/projects/demo-test/accounts:batchCreate" \
+     -H "Content-Type: application/json" -H "Authorization: Bearer owner" \
+     -d '{"users":[{"localId":"mock_dad","email":"dad@example.com","rawPassword":"password123","emailVerified":true},{"localId":"mock_ella","email":"ella@example.com","rawPassword":"password123","emailVerified":true}]}'
+   ```
+
+4. Seed Firestore data (also using `Authorization: Bearer owner` to bypass security rules):
+   ```bash
+   BASE="http://localhost:8080/v1/projects/demo-test/databases/(default)/documents"
+   curl -s -X PATCH "$BASE/users/mock_dad" -H "Authorization: Bearer owner" -H "Content-Type: application/json" \
+     -d '{"fields":{"familyId":{"stringValue":"family_1"}}}'
+   # … repeat for each document needed
+   ```
+
+5. Use Puppeteer (pre-installed at `/opt/node22/lib/node_modules/puppeteer`) with `headless: true` and `--no-sandbox`. Import it with the absolute path in CJS scripts. **Do not use `networkidle0`** as the Firestore WebSocket keeps the connection open; use `domcontentloaded` instead. Inject Firebase Auth state via localStorage before navigating to protected routes:
+   ```js
+   const puppeteer = require('/opt/node22/lib/node_modules/puppeteer');
+   const executablePath = await puppeteer.executablePath(); // resolves to pre-cached binary
+   const browser = await puppeteer.launch({ executablePath, headless: true, args: ['--no-sandbox','--disable-gpu'] });
+   const page = await browser.newPage();
+   await page.goto('http://localhost:5173/login', { waitUntil: 'domcontentloaded' });
+   // inject auth state into localStorage, then navigate to the target route
+   ```
 
 ```bash
 # Install dependencies

@@ -1,6 +1,7 @@
 <script setup>
 import FamilyAvatar from './FamilyAvatar.vue'
 import { useShoppingStore } from '@/stores/shopping.js'
+import { useUserRole } from '@/composables/useUserRole.js'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -11,6 +12,7 @@ const props = defineProps({
 
 const emit = defineEmits(['delete', 'edit'])
 const store = useShoppingStore()
+const { isParent } = useUserRole()
 </script>
 
 <template>
@@ -24,6 +26,7 @@ const store = useShoppingStore()
     <template #prepend>
       <v-checkbox-btn
         :model-value="item.done"
+        :disabled="!isParent"
         color="primary"
         class="mr-1"
         style="min-width: 44px;"

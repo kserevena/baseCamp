@@ -111,8 +111,16 @@ export const useShoppingStore = defineStore('shopping', () => {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
     if (!item) return
+    const wasUnchecked = item.done
     item.done = !item.done
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { done: item.done })
+    const update = { done: item.done }
+    if (wasUnchecked) {
+      const familyStore = useFamilyStore()
+      const uid = familyStore.currentUser?.uid ?? ''
+      item.addedBy = uid
+      update.addedBy = uid
+    }
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), update)
   }
 
   function updateItem(id, { name, qty }) {

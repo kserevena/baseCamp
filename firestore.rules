@@ -104,11 +104,11 @@ service cloud.firestore {
       // Individual shopping items live in the items subcollection.
       // The rule reads the parent shoppingList document to get the familyId,
       // then checks membership against that.
+      // Children are read-only on items — only parents can add, tick, or delete.
       match /items/{itemId} {
-        allow read, create, update: if isFamilyMember(
+        allow read: if isFamilyMember(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
-        // Only parents can permanently delete an item.
-        allow delete: if isParent(
+        allow create, update, delete: if isParent(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
       }
     }

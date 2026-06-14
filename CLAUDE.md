@@ -345,7 +345,7 @@ Documentation is part of the code. Update it in the same commit as the change th
 
 **Git workflow.** All changes to the app must go through pull requests — never commit or push directly to `main`. The `main` branch has GitHub branch protection enabled: direct pushes are blocked and CI must pass before a PR can be merged. Work on a feature branch, open a PR, wait for CI to go green, then merge manually. Never merge a PR without explicit decision to do so.
 
-**Branch naming.** Name branches after the work being done, not after the session. Use kebab-case prefixed with a short type: `feature/`, `fix/`, or `chore/`. Examples: `feature/parent-only-shopping-items`, `fix/pocket-money-utc-rounding`, `chore/update-firestore-indexes`. Never use auto-generated session names like `claude/dreamy-davinci-*`.
+**Branch naming.** Name branches after the work being done, not after the session. Use kebab-case prefixed with a short type: `feature/`, `fix/`, or `chore/`. Examples: `feature/parent-only-shopping-items`, `fix/pocket-money-utc-rounding`, `chore/update-firestore-indexes`. Never use auto-generated session names like `claude/dreamy-davinci-*`. **Before pushing to GitHub or opening a PR**, always confirm the working branch has an appropriate name — if it doesn't, create a correctly-named branch from the current HEAD and push that instead.
 
 **CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
 
@@ -362,7 +362,7 @@ npm install -g firebase-tools
 npm run test:integration
 ```
 
-**Taking screenshots in a cloud/remote session.** There is no display server and `cdn.playwright.dev` is blocked, but a Chromium binary and Puppeteer are pre-installed. To take screenshots:
+**Taking screenshots in a cloud/remote session.** There is no display server and `cdn.playwright.dev` is blocked, but Playwright and a pre-cached Chromium binary are installed at `/opt/node22/lib/node_modules/playwright` and `/opt/pw-browsers/`. Puppeteer is **not** available — use Playwright. To take screenshots:
 
 1. Create a minimal `.env` (the real Firebase credentials are not needed against the emulator):
    ```bash
@@ -385,34 +385,65 @@ npm run test:integration
    sleep 4
    ```
 
-3. Seed Auth users with specific UIDs using the emulator admin API (bearer `owner` bypasses rules):
+3. Seed Auth users via the emulator admin API (bearer `owner` bypasses rules). Use `accounts:signInWithPassword` to obtain real `idToken`/`refreshToken` values — **do not fabricate tokens**. Seeding with `batchCreate` then signing in with the password flow gives you real tokens that the Firebase SDK will accept:
    ```bash
-   # Clear existing accounts first
+   # Clear and re-create users
    curl -s -X DELETE http://localhost:9099/emulator/v1/projects/demo-test/accounts -H "Authorization: Bearer owner"
-   # Create users with UIDs matching seed.js
    curl -s -X POST \
      "http://localhost:9099/identitytoolkit.googleapis.com/v1/projects/demo-test/accounts:batchCreate" \
      -H "Content-Type: application/json" -H "Authorization: Bearer owner" \
-     -d '{"users":[{"localId":"mock_dad","email":"dad@example.com","rawPassword":"password123","emailVerified":true},{"localId":"mock_ella","email":"ella@example.com","rawPassword":"password123","emailVerified":true}]}'
+     -d '{"users":[{"localId":"uid_alice","email":"alice@example.com","rawPassword":"password123","emailVerified":true}]}'
    ```
 
 4. Seed Firestore data (also using `Authorization: Bearer owner` to bypass security rules):
    ```bash
    BASE="http://localhost:8080/v1/projects/demo-test/databases/(default)/documents"
-   curl -s -X PATCH "$BASE/users/mock_dad" -H "Authorization: Bearer owner" -H "Content-Type: application/json" \
+   curl -s -X PATCH "$BASE/users/uid_alice" -H "Authorization: Bearer owner" -H "Content-Type: application/json" \
      -d '{"fields":{"familyId":{"stringValue":"family_1"}}}'
    # … repeat for each document needed
    ```
 
-5. Use Puppeteer (pre-installed at `/opt/node22/lib/node_modules/puppeteer`) with `headless: true` and `--no-sandbox`. Import it with the absolute path in CJS scripts. **Do not use `networkidle0`** as the Firestore WebSocket keeps the connection open; use `domcontentloaded` instead. Inject Firebase Auth state via localStorage before navigating to protected routes:
+5. Use Playwright (CJS scripts, `.cjs` extension) with the pre-installed binary. **Do not use `networkidle0`** — the Firestore WebSocket keeps the connection open; use `domcontentloaded` instead. Inject Firebase Auth state via `addInitScript` before navigation, using tokens obtained from a real sign-in call (step 3):
    ```js
-   const puppeteer = require('/opt/node22/lib/node_modules/puppeteer');
-   const executablePath = await puppeteer.executablePath(); // resolves to pre-cached binary
-   const browser = await puppeteer.launch({ executablePath, headless: true, args: ['--no-sandbox','--disable-gpu'] });
-   const page = await browser.newPage();
-   await page.goto('http://localhost:5173/login', { waitUntil: 'domcontentloaded' });
-   // inject auth state into localStorage, then navigate to the target route
+   const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+
+   async function signIn(email, password) {
+     const res = await fetch(
+       'http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-api-key',
+       { method: 'POST', headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ email, password, returnSecureToken: true }) }
+     );
+     return res.json(); // .idToken, .refreshToken, .localId
+   }
+
+   const executablePath = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+   const browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox', '--disable-gpu'] });
+   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+   const page = await ctx.newPage();
+
+   const auth = await signIn('alice@example.com', 'password123');
+   await page.addInitScript((a) => {
+     localStorage.setItem('firebase:authUser:fake-api-key:[DEFAULT]', JSON.stringify({
+       uid: a.localId, email: a.email, emailVerified: true, isAnonymous: false,
+       providerData: [{ providerId: 'password', uid: a.email, email: a.email }],
+       stsTokenManager: { refreshToken: a.refreshToken, accessToken: a.idToken,
+                          expirationTime: Date.now() + 3600000 },
+       createdAt: String(Date.now()), lastLoginAt: String(Date.now()),
+       apiKey: 'fake-api-key', appName: '[DEFAULT]',
+     }));
+     localStorage.setItem('isMinor', 'false');
+   }, auth);
+
+   await page.goto('http://localhost:5173/shopping', { waitUntil: 'domcontentloaded' });
+   await page.waitForFunction(() => document.body.innerText.includes('Expected text'), { timeout: 15000 });
+   await page.screenshot({ path: '/tmp/screenshot.png' });
+   await browser.close();
    ```
+
+6. **Adding screenshots to a PR.** Screenshots should be attached to the PR — not committed to the repository. The GitHub MCP tools available in cloud sessions do not support binary asset uploads. To get screenshots into a PR:
+   - Use `SendUserFile` to deliver the PNG files to the user's chat so they can drag-and-drop them into the PR description or a comment on GitHub.com.
+   - In the PR description, leave clearly-labelled placeholders (`<!-- attach screenshot here -->`) so the user knows where to drop each image.
+   - Never fabricate `github.com/user-attachments/assets/…` URLs — these only become valid after a real upload via the GitHub web interface.
 
 ```bash
 # Install dependencies

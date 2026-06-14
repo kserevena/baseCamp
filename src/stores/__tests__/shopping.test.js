@@ -362,6 +362,35 @@ describe('shopping store', () => {
 
       expect(mockUpdateDoc).not.toHaveBeenCalled()
     })
+
+    it('does not include addedBy when checking an item (done: false → true)', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: false, addedBy: 'original-uid' })] })
+
+      store.toggleDone('item-1')
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: true })
+      expect(store.items[0].addedBy).toBe('original-uid')
+    })
+
+    it('updates addedBy to the current user when unchecking an item (done: true → false)', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+      mockUseFamilyStore.mockReturnValue({ currentUser: { uid: 'unchecking-uid' } })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, addedBy: 'original-uid' })] })
+
+      store.toggleDone('item-1')
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: false, addedBy: 'unchecking-uid' })
+      expect(store.items[0].addedBy).toBe('unchecking-uid')
+    })
   })
 
   describe('updateItem', () => {

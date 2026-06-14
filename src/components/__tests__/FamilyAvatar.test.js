@@ -70,8 +70,8 @@ describe('FamilyAvatar', () => {
   describe('colour', () => {
     it('applies the member colour as background', () => {
       const wrapper = mountAvatar({ uid: 'user-2' })
-      // Vue renders inline style; jsdom normalises hex to rgb
-      expect(wrapper.element.style.backgroundColor).toBeTruthy()
+      // #00AA00 normalises to rgb(0, 170, 0) in jsdom
+      expect(wrapper.element.style.backgroundColor).toBe('rgb(0, 170, 0)')
     })
 
     it('falls back to #9E9E9E when the uid is not in the members list', () => {

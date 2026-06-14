@@ -117,9 +117,12 @@ describe('App — store lifecycle', () => {
   })
 
   it('calls shopping.teardown and meals.teardown when familyId clears', async () => {
-    familyStore.familyId = 'fam-1'
     const wrapper = mountApp()
     await wrapper.vm.$nextTick()
+
+    familyStore.familyId = 'fam-1'
+    await wrapper.vm.$nextTick()
+    expect(shoppingStore.setup).toHaveBeenCalledWith('fam-1')
 
     familyStore.familyId = null
     await wrapper.vm.$nextTick()
@@ -145,8 +148,7 @@ describe('App — store lifecycle', () => {
     familyStore.currentUser = user
     const wrapper = mountApp()
     await wrapper.vm.$nextTick()
-    // pocketMoney watch runs with immediate:true — setup should fire on mount
-    // because currentUser and familyId are both already set
+    expect(pocketMoneyStore.setup).toHaveBeenCalledWith('fam-1', user)
 
     familyStore.currentUser = null
     await wrapper.vm.$nextTick()

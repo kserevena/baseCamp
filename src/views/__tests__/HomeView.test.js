@@ -122,8 +122,8 @@ describe('HomeView', () => {
     it('does not show a top meal when there are no meals', () => {
       mealsStore.meals = []
       const wrapper = mountView()
-      // Trophy icon text not present, no meal name
-      expect(wrapper.text()).not.toContain('votes')
+      // Trophy icon not rendered when there are no meals
+      expect(wrapper.html()).not.toContain('mdi-trophy')
     })
 
     it('handles meals with absent votes field without crashing', () => {

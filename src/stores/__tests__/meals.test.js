@@ -30,7 +30,7 @@ vi.mock('firebase/firestore', () => ({
 
 import { useMealsStore } from '@/stores/meals.js'
 
-function fireSnapshot(store, docs) {
+function fireSnapshot(docs) {
   const callback = mockOnSnapshot.mock.calls[mockOnSnapshot.mock.calls.length - 1][1]
   callback({ docs: docs.map(d => ({ id: d.id, data: () => d.data })) })
 }
@@ -55,7 +55,7 @@ describe('meals store', () => {
     it('populates meals from the initial snapshot', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { familyId: 'fam-1', name: 'Pasta', votes: [] } },
         { id: 'meal-2', data: { familyId: 'fam-1', name: 'Pizza', votes: ['uid-1'] } },
       ])
@@ -67,11 +67,11 @@ describe('meals store', () => {
     it('replaces meals on subsequent snapshot updates', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: [] } },
       ])
       expect(store.meals).toHaveLength(1)
-      fireSnapshot(store, [])
+      fireSnapshot([])
       expect(store.meals).toHaveLength(0)
     })
 
@@ -101,7 +101,7 @@ describe('meals store', () => {
     it('clears the meals array', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: [] } },
       ])
       expect(store.meals).toHaveLength(1)
@@ -131,7 +131,7 @@ describe('meals store', () => {
     it('adds uid to votes optimistically when user has not yet voted', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: [] } },
       ])
       store.toggleVote('meal-1', 'uid-1')
@@ -141,7 +141,7 @@ describe('meals store', () => {
     it('calls updateDoc with arrayUnion when user has not voted', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: [] } },
       ])
       store.toggleVote('meal-1', 'uid-1')
@@ -153,7 +153,7 @@ describe('meals store', () => {
     it('removes uid from votes optimistically when user has already voted', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: ['uid-1', 'uid-2'] } },
       ])
       store.toggleVote('meal-1', 'uid-1')
@@ -164,7 +164,7 @@ describe('meals store', () => {
     it('calls updateDoc with arrayRemove when user has already voted', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: ['uid-1'] } },
       ])
       store.toggleVote('meal-1', 'uid-1')
@@ -176,7 +176,7 @@ describe('meals store', () => {
     it('does not update state or call updateDoc when mealId is not found', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: [] } },
       ])
       expect(() => store.toggleVote('nonexistent', 'uid-1')).not.toThrow()
@@ -188,7 +188,7 @@ describe('meals store', () => {
       mockUpdateDoc.mockRejectedValue(new Error('network error'))
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: [] } },
       ])
       expect(() => store.toggleVote('meal-1', 'uid-1')).not.toThrow()
@@ -200,16 +200,17 @@ describe('meals store', () => {
       const store = useMealsStore()
       store.setup('fam-1')
       // Old documents may not have a votes field
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta' } },
       ])
       expect(() => store.toggleVote('meal-1', 'uid-1')).not.toThrow()
+      expect(store.meals[0].votes).toContain('uid-1')
     })
 
     it('does not mutate other meals when toggling one', () => {
       const store = useMealsStore()
       store.setup('fam-1')
-      fireSnapshot(store, [
+      fireSnapshot([
         { id: 'meal-1', data: { name: 'Pasta', votes: [] } },
         { id: 'meal-2', data: { name: 'Pizza', votes: ['uid-1'] } },
       ])

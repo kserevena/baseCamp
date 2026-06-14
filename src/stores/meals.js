@@ -14,7 +14,7 @@ export const useMealsStore = defineStore('meals', () => {
     unsubscribe = onSnapshot(
       query(collection(db, 'meals'), where('familyId', '==', familyId)),
       (snap) => {
-        meals.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        meals.value = snap.docs.map(d => ({ votes: [], ...d.data(), id: d.id }))
       },
     )
   }
@@ -28,6 +28,7 @@ export const useMealsStore = defineStore('meals', () => {
   function toggleVote(mealId, uid) {
     const meal = meals.value.find(m => m.id === mealId)
     if (!meal) return
+    if (!uid) return
     const votes = meal.votes ?? []
     const hasVoted = votes.includes(uid)
     meal.votes = hasVoted

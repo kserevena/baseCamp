@@ -51,6 +51,11 @@ function mountItem(item, props = {}) {
   })
 }
 
+function findDeleteBtn(wrapper) {
+  return wrapper.findAllComponents({ name: 'VBtn' })
+    .find(b => b.html().includes('mdi-delete-outline'))
+}
+
 describe('ShoppingItem', () => {
   beforeEach(() => {
     isParentRef = ref(true)
@@ -150,24 +155,17 @@ describe('ShoppingItem', () => {
   describe('delete button', () => {
     it('shows the delete button when showDelete is true', () => {
       const wrapper = mountItem(makeItem(), { showDelete: true })
-      // The delete VBtn contains the delete icon
-      const btn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-delete-outline'))
-      expect(btn).toBeTruthy()
+      expect(findDeleteBtn(wrapper)).toBeTruthy()
     })
 
     it('hides the delete button when showDelete is false', () => {
       const wrapper = mountItem(makeItem(), { showDelete: false })
-      const btn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-delete-outline'))
-      expect(btn).toBeUndefined()
+      expect(findDeleteBtn(wrapper)).toBeUndefined()
     })
 
     it('emits delete when the delete button is clicked', async () => {
       const wrapper = mountItem(makeItem(), { showDelete: true })
-      const btn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-delete-outline'))
-      await btn.trigger('click')
+      await findDeleteBtn(wrapper).trigger('click')
       expect(wrapper.emitted('delete')).toHaveLength(1)
     })
   })

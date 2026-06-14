@@ -10,6 +10,7 @@ export const useMealsStore = defineStore('meals', () => {
   let unsubscribe = null
 
   function setup(familyId) {
+    if (unsubscribe) unsubscribe()
     unsubscribe = onSnapshot(
       query(collection(db, 'meals'), where('familyId', '==', familyId)),
       (snap) => {
@@ -27,10 +28,11 @@ export const useMealsStore = defineStore('meals', () => {
   function toggleVote(mealId, uid) {
     const meal = meals.value.find(m => m.id === mealId)
     if (!meal) return
-    const hasVoted = meal.votes.includes(uid)
+    const votes = meal.votes ?? []
+    const hasVoted = votes.includes(uid)
     meal.votes = hasVoted
-      ? meal.votes.filter(v => v !== uid)
-      : [...meal.votes, uid]
+      ? votes.filter(v => v !== uid)
+      : [...votes, uid]
     updateDoc(doc(db, 'meals', mealId), {
       votes: hasVoted ? arrayRemove(uid) : arrayUnion(uid),
     })

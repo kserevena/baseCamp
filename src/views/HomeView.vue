@@ -8,7 +8,7 @@ const family = useFamilyStore()
 const meals = useMealsStore()
 
 const topMeal = computed(() =>
-  [...meals.meals].sort((a, b) => b.votes.length - a.votes.length)[0]
+  [...meals.meals].sort((a, b) => (b.votes?.length ?? 0) - (a.votes?.length ?? 0))[0]
 )
 </script>
 
@@ -38,7 +38,7 @@ const topMeal = computed(() =>
         <div v-if="topMeal" class="d-flex align-center gap-2">
           <v-icon size="16" color="amber-darken-2">mdi-trophy</v-icon>
           <span class="text-body-2">{{ topMeal.name }}</span>
-          <span class="text-caption text-medium-emphasis">({{ topMeal.votes.length }} votes)</span>
+          <span class="text-caption text-medium-emphasis">({{ topMeal.votes?.length ?? 0 }} votes)</span>
         </div>
       </v-card-text>
     </v-card>

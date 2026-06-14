@@ -7,6 +7,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       TZ: UTC
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

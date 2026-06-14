@@ -189,6 +189,7 @@ function submitEdit() {
 
       <!-- Add item FAB -->
       <v-btn
+        v-if="isParent"
         icon
         color="primary"
         size="56"

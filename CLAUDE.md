@@ -440,10 +440,25 @@ npm run test:integration
    await browser.close();
    ```
 
-6. **Adding screenshots to a PR.** Screenshots should be attached to the PR — not committed to the repository. The GitHub MCP tools available in cloud sessions do not support binary asset uploads. To get screenshots into a PR:
-   - Use `SendUserFile` to deliver the PNG files to the user's chat so they can drag-and-drop them into the PR description or a comment on GitHub.com.
-   - In the PR description, leave clearly-labelled placeholders (`<!-- attach screenshot here -->`) so the user knows where to drop each image.
-   - Never fabricate `github.com/user-attachments/assets/…` URLs — these only become valid after a real upload via the GitHub web interface.
+6. **Adding screenshots to a PR.** Screenshots should be attached to the PR — not committed to the repository. The GitHub MCP tools do not support binary asset uploads, but the GitHub REST API does. Use `curl` with a `GITHUB_TOKEN` environment variable:
+
+   ```bash
+   # Upload one PNG and capture the resulting GitHub-hosted URL
+   GITHUB_URL=$(curl -s \
+     -X POST \
+     -H "Authorization: Bearer $GITHUB_TOKEN" \
+     -H "Content-Type: image/png" \
+     --data-binary @/tmp/screenshot.png \
+     "https://uploads.github.com/repos/kserevena/baseCamp/issues/67/assets" \
+     | python3 -c "import sys,json; print(json.load(sys.stdin)['url'])")
+   echo "$GITHUB_URL"   # e.g. https://github.com/user-attachments/assets/<uuid>
+   ```
+
+   The returned URL is a real GitHub CDN URL that can be embedded directly in the PR description or a comment as `![](<url>)`. Upload all screenshots, collect the URLs, then call `mcp__github__update_pull_request` (or `mcp__github__add_issue_comment`) with the markdown that references them.
+
+   **Prerequisite:** `GITHUB_TOKEN` must be set as an environment variable in the cloud session — a GitHub PAT with `repo` scope is sufficient. Add it in the Claude Code on the web environment settings. Without it, fall back to `SendUserFile` to deliver the PNGs to the user's chat and leave `<!-- attach <filename> here -->` placeholders in the PR description so the user can drag-and-drop the images on GitHub.com.
+
+   Never fabricate `github.com/user-attachments/assets/…` URLs — these are only valid after a real upload.
 
 ```bash
 # Install dependencies

@@ -1,20 +1,23 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
+import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
 
 const store = useShoppingStore()
+const family = useFamilyStore()
 const { isParent } = useUserRole()
 
 const hasLists = computed(() => store.lists.length > 0)
 
-const showHeaders = ref(sessionStorage.getItem('shoppingHeadersVisible') !== 'false')
+const storageKey = `shoppingHeadersVisible_${family.currentUser?.uid}`
+const showHeaders = ref(localStorage.getItem(storageKey) !== 'false')
 
 function toggleHeaders() {
   showHeaders.value = !showHeaders.value
-  sessionStorage.setItem('shoppingHeadersVisible', String(showHeaders.value))
+  localStorage.setItem(storageKey, String(showHeaders.value))
 }
 
 const sheet = ref(false)

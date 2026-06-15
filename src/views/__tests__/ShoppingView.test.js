@@ -603,12 +603,14 @@ describe('ShoppingView', () => {
   })
 
   describe('toggle aisle headers (issue #65)', () => {
+    const STORAGE_KEY = 'shoppingHeadersVisible_parent-uid'
+
     beforeEach(() => {
-      sessionStorage.removeItem('shoppingHeadersVisible')
+      localStorage.removeItem(STORAGE_KEY)
     })
 
     afterEach(() => {
-      sessionStorage.removeItem('shoppingHeadersVisible')
+      localStorage.removeItem(STORAGE_KEY)
     })
 
     it('shows the toggle header button when lists exist', () => {
@@ -668,17 +670,17 @@ describe('ShoppingView', () => {
       expect(list.props('showHeaders')).toBe(true)
     })
 
-    it('persists hidden state to sessionStorage', async () => {
+    it('persists hidden state to localStorage with a per-user key', async () => {
       const wrapper = mountView()
       const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
         .find(b => b.html().includes('mdi-label-outline'))
       await toggleBtn.trigger('click')
 
-      expect(sessionStorage.getItem('shoppingHeadersVisible')).toBe('false')
+      expect(localStorage.getItem(STORAGE_KEY)).toBe('false')
     })
 
-    it('restores hidden state from sessionStorage on mount', () => {
-      sessionStorage.setItem('shoppingHeadersVisible', 'false')
+    it('restores hidden state from localStorage on mount', () => {
+      localStorage.setItem(STORAGE_KEY, 'false')
       const wrapper = mountView()
       const list = wrapper.findComponent({ name: 'ShoppingList' })
       expect(list.props('showHeaders')).toBe(false)

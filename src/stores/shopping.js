@@ -27,9 +27,16 @@ export const useShoppingStore = defineStore('shopping', () => {
   let unsubscribeLists = null
   let unsubscribeItems = null
 
+  function storageKey(familyId) {
+    return `lastActiveListId_${familyId}`
+  }
+
   function activateList(listId) {
     if (unsubscribeItems) unsubscribeItems()
     activeListId.value = listId
+    if (currentFamilyId) {
+      localStorage.setItem(storageKey(currentFamilyId), listId)
+    }
     unsubscribeItems = onSnapshot(
       collection(db, 'shoppingLists', listId, 'items'),
       (snap) => {
@@ -58,7 +65,9 @@ export const useShoppingStore = defineStore('shopping', () => {
           lists.value.some(l => l.id === activeListId.value)
         if (!idStillValid) {
           if (lists.value.length > 0) {
-            activateList(lists.value[0].id)
+            const savedId = localStorage.getItem(storageKey(familyId))
+            const savedValid = savedId !== null && lists.value.some(l => l.id === savedId)
+            activateList(savedValid ? savedId : lists.value[0].id)
           } else {
             unsubscribeItems?.()
             unsubscribeItems = null

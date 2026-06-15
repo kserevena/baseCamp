@@ -2,14 +2,23 @@
 import { computed } from 'vue'
 import { useFamilyStore } from '@/stores/family.js'
 import { useMealsStore } from '@/stores/meals.js'
+import { useShoppingStore } from '@/stores/shopping.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 
 const family = useFamilyStore()
 const meals = useMealsStore()
+const shopping = useShoppingStore()
 
 const topMeal = computed(() =>
   [...meals.meals].sort((a, b) => (b.votes?.length ?? 0) - (a.votes?.length ?? 0))[0]
 )
+
+const lastActiveList = computed(() => {
+  if (!family.familyId) return null
+  const savedId = localStorage.getItem(`lastActiveListId_${family.familyId}`)
+  if (!savedId) return null
+  return shopping.lists.find(l => l.id === savedId) ?? null
+})
 </script>
 
 <template>
@@ -24,6 +33,9 @@ const topMeal = computed(() =>
         <div class="d-flex align-center">
           <v-icon color="primary" class="mr-2">mdi-cart</v-icon>
           <span class="text-subtitle-1 font-weight-medium">Shopping list</span>
+        </div>
+        <div v-if="lastActiveList" class="text-body-2 text-medium-emphasis mt-1">
+          {{ lastActiveList.name }}
         </div>
       </v-card-text>
     </v-card>

@@ -4,6 +4,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 import { useShoppingStore } from '@/stores/shopping.js'
 
 const store = useShoppingStore()
+const emit = defineEmits(['close'])
 
 const localAisles = ref([])
 const newAisleName = ref('')
@@ -66,7 +67,12 @@ async function confirmDelete() {
 
 <template>
   <v-card rounded="t-xl" class="pa-4">
-    <div class="text-subtitle-1 font-weight-medium mb-3">Manage aisles</div>
+    <div class="d-flex align-center mb-3">
+      <span class="text-subtitle-1 font-weight-medium flex-grow-1">Manage aisles</span>
+      <v-btn icon variant="text" size="small" @click="emit('close')">
+        <v-icon>mdi-close</v-icon>
+      </v-btn>
+    </div>
 
     <VueDraggable
       v-model="localAisles"

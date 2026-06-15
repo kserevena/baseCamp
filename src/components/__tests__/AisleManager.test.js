@@ -121,6 +121,15 @@ describe('AisleManager', () => {
       expect(cancelBtn).toBeUndefined()
     })
 
+    it('emits close when the × button in the title bar is clicked', async () => {
+      const wrapper = mountManager()
+      const closeBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-close'))
+      await closeBtn.trigger('click')
+      expect(wrapper.emitted('close')).toBeTruthy()
+      expect(shoppingStore.saveAisles).not.toHaveBeenCalled()
+    })
+
     it('calls store.saveAisles immediately when an aisle is added', async () => {
       const wrapper = mountManager()
       const input = wrapper.find('input[type="text"], input:not([type])')

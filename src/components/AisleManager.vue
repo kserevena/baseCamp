@@ -4,7 +4,6 @@ import { VueDraggable } from 'vue-draggable-plus'
 import { useShoppingStore } from '@/stores/shopping.js'
 
 const store = useShoppingStore()
-const emit = defineEmits(['close'])
 
 const localAisles = ref([])
 const newAisleName = ref('')
@@ -21,15 +20,17 @@ watch(
   { immediate: true },
 )
 
+function normalised() {
+  return localAisles.value.map((a, i) => ({ name: a.name, order: (i + 1) * 10 }))
+}
+
 function onDragStart() {
   pendingReorder = true
 }
 
 function onDragEnd() {
-  localAisles.value.forEach((aisle, idx) => {
-    aisle.order = (idx + 1) * 10
-  })
   pendingReorder = false
+  store.saveAisles(normalised())
 }
 
 function addAisle() {
@@ -46,6 +47,7 @@ function addAisle() {
   localAisles.value.push({ name, order: maxOrder + 10 })
   newAisleName.value = ''
   nameError.value = ''
+  store.saveAisles(normalised())
 }
 
 function requestDelete(aisle) {
@@ -59,13 +61,6 @@ async function confirmDelete() {
   localAisles.value = localAisles.value.filter(a => a.name !== aisleToDelete.value.name)
   deleteDialog.value = false
   aisleToDelete.value = null
-}
-
-async function save() {
-  // Recalculate order to be clean multiples of 10
-  const normalised = localAisles.value.map((a, i) => ({ name: a.name, order: (i + 1) * 10 }))
-  await store.saveAisles(normalised)
-  emit('close')
 }
 </script>
 
@@ -122,11 +117,6 @@ async function save() {
       </v-btn>
     </div>
 
-    <div class="d-flex gap-2 mt-2">
-      <v-btn variant="text" @click="emit('close')">Cancel</v-btn>
-      <v-spacer />
-      <v-btn color="primary" variant="flat" @click="save">Save</v-btn>
-    </div>
   </v-card>
 
   <!-- Delete confirmation -->

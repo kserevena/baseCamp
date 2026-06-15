@@ -7,6 +7,7 @@ import { reactive } from 'vue'
 
 vi.mock('vue-draggable-plus', () => ({
   VueDraggable: {
+    name: 'VueDraggable',
     props: ['modelValue', 'handle', 'animation'],
     emits: ['update:modelValue', 'start', 'end'],
     template: '<div><slot /></div>',
@@ -107,30 +108,43 @@ describe('AisleManager', () => {
     })
   })
 
-  describe('save', () => {
-    it('calls store.saveAisles with normalised orders and emits close', async () => {
+  describe('auto-save', () => {
+    it('does not show a Save button', () => {
       const wrapper = mountManager()
-      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.text() === 'Save')
-      await saveBtn.trigger('click')
+      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text() === 'Save')
+      expect(saveBtn).toBeUndefined()
+    })
+
+    it('does not show a Cancel button', () => {
+      const wrapper = mountManager()
+      const cancelBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text() === 'Cancel')
+      expect(cancelBtn).toBeUndefined()
+    })
+
+    it('calls store.saveAisles immediately when an aisle is added', async () => {
+      const wrapper = mountManager()
+      const input = wrapper.find('input[type="text"], input:not([type])')
+      await input.setValue('Frozen')
+      const addBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text() === 'Add')
+      await addBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(shoppingStore.saveAisles).toHaveBeenCalledOnce()
+      const [saved] = shoppingStore.saveAisles.mock.calls[0]
+      expect(saved).toHaveLength(4)
+      expect(saved[3]).toEqual({ name: 'Frozen', order: 40 })
+    })
+
+    it('calls store.saveAisles on drag end with normalised orders', async () => {
+      const wrapper = mountManager()
+      const draggable = wrapper.findComponent({ name: 'VueDraggable' })
+      await draggable.vm.$emit('end')
       await wrapper.vm.$nextTick()
       expect(shoppingStore.saveAisles).toHaveBeenCalledOnce()
       const [saved] = shoppingStore.saveAisles.mock.calls[0]
       expect(saved).toHaveLength(3)
       expect(saved[0]).toEqual({ name: 'Dairy', order: 10 })
       expect(saved[1]).toEqual({ name: 'Meat', order: 20 })
-      expect(wrapper.emitted('close')).toBeTruthy()
-    })
-  })
-
-  describe('cancel', () => {
-    it('emits close without calling store.saveAisles', async () => {
-      const wrapper = mountManager()
-      const cancelBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.text() === 'Cancel')
-      await cancelBtn.trigger('click')
-      expect(shoppingStore.saveAisles).not.toHaveBeenCalled()
-      expect(wrapper.emitted('close')).toBeTruthy()
+      expect(saved[2]).toEqual({ name: 'Dry goods', order: 30 })
     })
   })
 

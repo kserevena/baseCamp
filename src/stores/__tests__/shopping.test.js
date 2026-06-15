@@ -73,6 +73,7 @@ describe('shopping store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    localStorage.clear()
     mockOnSnapshot.mockReturnValue(vi.fn())
     mockAddDoc.mockResolvedValue({ id: 'new-list-id' })
     mockDeleteDoc.mockResolvedValue(undefined)
@@ -763,6 +764,75 @@ describe('shopping store', () => {
       await store.deleteAisle('Dairy')
 
       expect(mockBatchCommit).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('setup — localStorage preference', () => {
+    it('activates the saved list when it is present in the snapshot', () => {
+      localStorage.setItem('lastActiveListId_fam-1', 'list-2')
+      let listsCallback
+      mockOnSnapshot.mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Newest', 2000), mockList('list-2', 'Saved', 1000)] })
+
+      expect(store.activeListId).toBe('list-2')
+    })
+
+    it('falls back to newest list when the saved ID is no longer in the snapshot', () => {
+      localStorage.setItem('lastActiveListId_fam-1', 'list-deleted')
+      let listsCallback
+      mockOnSnapshot.mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Newest', 2000), mockList('list-2', 'Older', 1000)] })
+
+      expect(store.activeListId).toBe('list-1')
+    })
+
+    it('defaults to the newest list when no localStorage entry exists', () => {
+      let listsCallback
+      mockOnSnapshot.mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-1', 'Newest', 2000), mockList('list-2', 'Older', 1000)] })
+
+      expect(store.activeListId).toBe('list-1')
+    })
+
+    it('writes the list ID to localStorage when activateList is called after setup', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      store.activateList('list-99')
+
+      expect(localStorage.getItem('lastActiveListId_fam-1')).toBe('list-99')
+    })
+
+    it('does not write to localStorage when activateList is called before setup', () => {
+      const store = useShoppingStore()
+      store.activateList('list-99')
+
+      expect(localStorage.getItem('lastActiveListId_fam-1')).toBeNull()
+    })
+
+    it('does not clear localStorage on teardown', () => {
+      localStorage.setItem('lastActiveListId_fam-1', 'list-2')
+      let listsCallback, itemsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      // list-2 is in the snapshot so the saved ID is valid → activateList('list-2') writes 'list-2'
+      listsCallback({ docs: [mockList('list-1', 'Newest', 2000), mockList('list-2', 'Saved', 1000)] })
+      itemsCallback({ docs: [] })
+      store.teardown()
+
+      expect(localStorage.getItem('lastActiveListId_fam-1')).toBe('list-2')
     })
   })
 

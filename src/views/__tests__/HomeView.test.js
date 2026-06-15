@@ -7,6 +7,7 @@ import { reactive } from 'vue'
 
 let familyStore
 let mealsStore
+let shoppingStore
 
 vi.mock('@/stores/family.js', () => ({
   useFamilyStore: () => familyStore,
@@ -14,6 +15,10 @@ vi.mock('@/stores/family.js', () => ({
 
 vi.mock('@/stores/meals.js', () => ({
   useMealsStore: () => mealsStore,
+}))
+
+vi.mock('@/stores/shopping.js', () => ({
+  useShoppingStore: () => shoppingStore,
 }))
 
 vi.mock('@/components/FamilyAvatar.vue', () => ({
@@ -42,6 +47,7 @@ function mountView() {
 
 describe('HomeView', () => {
   beforeEach(() => {
+    localStorage.clear()
     familyStore = reactive({
       currentUser: { uid: 'parent-uid', name: 'Alice', role: 'parent' },
       members: [
@@ -51,6 +57,9 @@ describe('HomeView', () => {
     })
     mealsStore = reactive({
       meals: [],
+    })
+    shoppingStore = reactive({
+      lists: [],
     })
   })
 

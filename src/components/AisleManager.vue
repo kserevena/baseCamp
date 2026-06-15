@@ -21,15 +21,17 @@ watch(
   { immediate: true },
 )
 
+function normalised() {
+  return localAisles.value.map((a, i) => ({ name: a.name, order: (i + 1) * 10 }))
+}
+
 function onDragStart() {
   pendingReorder = true
 }
 
 function onDragEnd() {
-  localAisles.value.forEach((aisle, idx) => {
-    aisle.order = (idx + 1) * 10
-  })
   pendingReorder = false
+  store.saveAisles(normalised())
 }
 
 function addAisle() {
@@ -46,6 +48,7 @@ function addAisle() {
   localAisles.value.push({ name, order: maxOrder + 10 })
   newAisleName.value = ''
   nameError.value = ''
+  store.saveAisles(normalised())
 }
 
 function requestDelete(aisle) {
@@ -60,18 +63,16 @@ async function confirmDelete() {
   deleteDialog.value = false
   aisleToDelete.value = null
 }
-
-async function save() {
-  // Recalculate order to be clean multiples of 10
-  const normalised = localAisles.value.map((a, i) => ({ name: a.name, order: (i + 1) * 10 }))
-  await store.saveAisles(normalised)
-  emit('close')
-}
 </script>
 
 <template>
   <v-card rounded="t-xl" class="pa-4">
-    <div class="text-subtitle-1 font-weight-medium mb-3">Manage aisles</div>
+    <div class="d-flex align-center mb-3">
+      <span class="text-subtitle-1 font-weight-medium flex-grow-1">Manage aisles</span>
+      <v-btn icon variant="text" size="small" @click="emit('close')">
+        <v-icon>mdi-close</v-icon>
+      </v-btn>
+    </div>
 
     <VueDraggable
       v-model="localAisles"
@@ -122,11 +123,6 @@ async function save() {
       </v-btn>
     </div>
 
-    <div class="d-flex gap-2 mt-2">
-      <v-btn variant="text" @click="emit('close')">Cancel</v-btn>
-      <v-spacer />
-      <v-btn color="primary" variant="flat" @click="save">Save</v-btn>
-    </div>
   </v-card>
 
   <!-- Delete confirmation -->

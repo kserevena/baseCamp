@@ -190,6 +190,16 @@ npm run deploy:prod
 
 Because every deploy includes `firestore.rules` and `firestore.indexes.json`, rules can no longer drift out of sync with the deployed code. To deploy to prod you must first create a `.env.prod` file — see the **Environments** section below.
 
+#### Deploying via GitHub Actions
+
+Manual deploy workflows are available in the GitHub Actions UI (Actions tab → **Deploy to Dev** or **Deploy to Prod** → Run workflow). They run the same checks as the local scripts. The prod workflow only runs from `main`. Three repository secrets must be configured in Settings → Secrets and variables → Actions:
+
+| Secret | Value |
+|---|---|
+| `DEV_ENV_FILE` | Full contents of your local `.env` file |
+| `PROD_ENV_FILE` | Full contents of your local `.env.prod` file |
+| `FIREBASE_TOKEN` | Output of `firebase login:ci` |
+
 #### Deploying rules only
 
 The unified deploy commands above are the normal path. If you only changed `firestore.rules` or `firestore.indexes.json` and want to push them without rebuilding the app, the rules-only scripts are still available:

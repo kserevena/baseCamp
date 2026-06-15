@@ -84,6 +84,12 @@ baseCamp/
 ├── vitest.config.js                 # Unit test config (jsdom)
 ├── vitest.integration.config.js     # Integration test config (node, 15s timeout)
 ├── firebase.json                    # Emulator ports, hosting config
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                   # Runs unit + integration tests on every PR
+│   │   ├── deploy-dev.yml           # Manual workflow_dispatch deploy to basecamp-app-dev
+│   │   └── deploy-prod.yml          # Manual workflow_dispatch deploy to basecamp-app-prod (main only)
+│   └── dependabot.yml
 ├── .env                             # Dev Firebase credentials — never commit
 ├── .env.prod                        # Prod Firebase credentials — never commit
 └── package.json
@@ -348,6 +354,8 @@ Documentation is part of the code. Update it in the same commit as the change th
 **Branch naming.** Name branches after the work being done, not after the session. Use kebab-case prefixed with a short type: `feature/`, `fix/`, or `chore/`. Examples: `feature/parent-only-shopping-items`, `fix/pocket-money-utc-rounding`, `chore/update-firestore-indexes`. Never use auto-generated session names like `claude/dreamy-davinci-*`. **Before pushing to GitHub or opening a PR**, always confirm the working branch has an appropriate name — if it doesn't, create a correctly-named branch from the current HEAD and push that instead.
 
 **CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
+
+**Manual deploy workflows.** `.github/workflows/deploy-dev.yml` and `deploy-prod.yml` provide `workflow_dispatch` triggers for deploying from the GitHub Actions UI (Actions tab → select workflow → Run workflow). They mirror the local `deploy:dev` / `deploy:prod` scripts exactly. The prod workflow refuses to run on any branch other than `main`. Both require three repository secrets: `DEV_ENV_FILE` / `PROD_ENV_FILE` (full contents of `.env` / `.env.prod`) and `FIREBASE_TOKEN` (from `firebase login:ci`).
 
 **Working in a git worktree?** The `.env` file is gitignored (never committed), so a freshly created worktree will not have it — the dev server will fail without the Firebase credentials. After creating a worktree, copy `.env` over from the main checkout so the dev environment can run (note the `.env` file may not exist in the main checkout — if it's missing, the credentials must be obtained separately):
 

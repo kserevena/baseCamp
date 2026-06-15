@@ -44,8 +44,9 @@ const DEFAULT_AISLES = [
   { name: 'Dry goods', order: 3 },
 ]
 
-function mountList() {
+function mountList(props = {}) {
   return mount(ShoppingList, {
+    props,
     global: { plugins: [vuetify] },
     attachTo: document.body,
   })
@@ -239,6 +240,62 @@ describe('ShoppingList', () => {
       // The stub's props should not include showDragHandle=true
       const itemComponent = doneSection.findComponent({ name: 'ShoppingItem' })
       expect(itemComponent.props('showDragHandle')).toBeFalsy()
+    })
+  })
+
+  describe('showHeaders prop', () => {
+    it('renders aisle subheaders by default (showHeaders not provided)', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.findAll('.v-list-subheader').length).toBeGreaterThan(0)
+      expect(wrapper.text()).toContain('Dairy')
+    })
+
+    it('renders aisle subheaders when showHeaders is true', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList({ showHeaders: true })
+      expect(wrapper.findAll('.v-list-subheader').length).toBeGreaterThan(0)
+      expect(wrapper.text()).toContain('Dairy')
+    })
+
+    it('hides aisle subheaders when showHeaders is false', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList({ showHeaders: false })
+      expect(wrapper.findAll('.v-list-subheader').length).toBe(0)
+      expect(wrapper.text()).not.toContain('Dairy')
+    })
+
+    it('still renders items in aisle order when showHeaders is false', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+        { id: 'i2', name: 'Steak', aisle: 'Meat', aisleOrder: 2, done: false },
+      ]
+      const wrapper = mountList({ showHeaders: false })
+      expect(wrapper.text()).toContain('Milk')
+      expect(wrapper.text()).toContain('Steak')
+    })
+
+    it('hides the Done section header when showHeaders is false', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList({ showHeaders: false })
+      expect(wrapper.text()).not.toContain('Done (1)')
+    })
+
+    it('still renders done items when showHeaders is false', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList({ showHeaders: false })
+      expect(wrapper.find('.done-section').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Eggs')
     })
   })
 })

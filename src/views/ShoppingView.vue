@@ -1,14 +1,24 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
+import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
 
 const store = useShoppingStore()
+const family = useFamilyStore()
 const { isParent } = useUserRole()
 
 const hasLists = computed(() => store.lists.length > 0)
+
+const storageKey = `shoppingHeadersVisible_${family.currentUser?.uid}`
+const showHeaders = ref(localStorage.getItem(storageKey) !== 'false')
+
+function toggleHeaders() {
+  showHeaders.value = !showHeaders.value
+  localStorage.setItem(storageKey, String(showHeaders.value))
+}
 
 const sheet = ref(false)
 const newName = ref('')
@@ -152,6 +162,17 @@ function submitEdit() {
           </v-chip>
         </div>
         <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="flex-0-0"
+          :color="showHeaders ? undefined : 'primary'"
+          :aria-label="showHeaders ? 'Hide aisle headers' : 'Show aisle headers'"
+          @click="toggleHeaders"
+        >
+          <v-icon>{{ showHeaders ? 'mdi-label-outline' : 'mdi-label-off-outline' }}</v-icon>
+        </v-btn>
+        <v-btn
           v-if="isParent"
           icon
           variant="text"
@@ -185,7 +206,7 @@ function submitEdit() {
       </div>
 
       <!-- List -->
-      <ShoppingList @edit="openEdit" />
+      <ShoppingList :show-headers="showHeaders" @edit="openEdit" />
 
       <!-- Add item FAB -->
       <v-btn

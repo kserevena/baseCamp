@@ -17,7 +17,7 @@ vi.mock('@/stores/family.js', () => ({
 }))
 
 vi.mock('@/components/ShoppingList.vue', () => ({
-  default: { emits: ['edit'], template: '<div class="shopping-list-stub" />' },
+  default: { props: ['showHeaders'], emits: ['edit'], template: '<div class="shopping-list-stub" />' },
 }))
 
 vi.mock('@/components/AisleManager.vue', () => ({
@@ -194,7 +194,9 @@ describe('ShoppingView', () => {
       familyStore.currentUser = { uid: 'child-uid', role: 'child' }
       const wrapper = mountView()
       const selector = wrapper.find('.list-selector')
-      expect(selector.findComponent({ name: 'VBtn' }).exists()).toBe(false)
+      const newListBtn = selector.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-plus'))
+      expect(newListBtn).toBeUndefined()
     })
   })
 
@@ -597,6 +599,91 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.vm.selectedDoneItem).toBeNull()
+    })
+  })
+
+  describe('toggle aisle headers (issue #65)', () => {
+    const STORAGE_KEY = 'shoppingHeadersVisible_parent-uid'
+
+    beforeEach(() => {
+      localStorage.removeItem(STORAGE_KEY)
+    })
+
+    afterEach(() => {
+      localStorage.removeItem(STORAGE_KEY)
+    })
+
+    it('shows the toggle header button when lists exist', () => {
+      const wrapper = mountView()
+      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-outline'))
+      expect(toggleBtn).toBeDefined()
+    })
+
+    it('headers are shown by default (mdi-label-outline icon)', () => {
+      const wrapper = mountView()
+      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-outline'))
+      expect(toggleBtn).toBeDefined()
+    })
+
+    it('passes showHeaders=true to ShoppingList by default', () => {
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      expect(list.props('showHeaders')).toBe(true)
+    })
+
+    it('clicking the toggle hides headers and updates icon to mdi-label-off-outline', async () => {
+      const wrapper = mountView()
+      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-outline'))
+      await toggleBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const updatedBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-off-outline'))
+      expect(updatedBtn).toBeDefined()
+    })
+
+    it('passes showHeaders=false to ShoppingList after toggling off', async () => {
+      const wrapper = mountView()
+      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-outline'))
+      await toggleBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      expect(list.props('showHeaders')).toBe(false)
+    })
+
+    it('toggling twice restores showHeaders=true', async () => {
+      const wrapper = mountView()
+      const findToggle = () => wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-outline') || b.html().includes('mdi-label-off-outline'))
+
+      await findToggle().trigger('click')
+      await wrapper.vm.$nextTick()
+      await findToggle().trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      expect(list.props('showHeaders')).toBe(true)
+    })
+
+    it('persists hidden state to localStorage with a per-user key', async () => {
+      const wrapper = mountView()
+      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-outline'))
+      await toggleBtn.trigger('click')
+
+      expect(localStorage.getItem(STORAGE_KEY)).toBe('false')
+    })
+
+    it('restores hidden state from localStorage on mount', () => {
+      localStorage.setItem(STORAGE_KEY, 'false')
+      const wrapper = mountView()
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      expect(list.props('showHeaders')).toBe(false)
     })
   })
 

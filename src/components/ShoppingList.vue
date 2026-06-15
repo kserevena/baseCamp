@@ -5,6 +5,10 @@ import { useShoppingStore } from '@/stores/shopping.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingItem from './ShoppingItem.vue'
 
+const props = defineProps({
+  showHeaders: { type: Boolean, default: true },
+})
+
 const store = useShoppingStore()
 const { isParent } = useUserRole()
 const emit = defineEmits(['edit'])
@@ -69,7 +73,7 @@ function onDragEnd() {
 <template>
   <v-list lines="two" class="py-0">
     <template v-for="group in groups" :key="group.aisle">
-      <v-list-subheader class="aisle-header text-uppercase font-weight-bold">
+      <v-list-subheader v-if="showHeaders" class="aisle-header text-uppercase font-weight-bold">
         {{ group.aisle }}
       </v-list-subheader>
 
@@ -106,7 +110,7 @@ function onDragEnd() {
     </template>
 
     <template v-if="doneItems.length > 0">
-      <v-list-subheader class="aisle-header text-uppercase font-weight-bold done-header">
+      <v-list-subheader v-if="showHeaders" class="aisle-header text-uppercase font-weight-bold done-header">
         Done ({{ doneItems.length }})
       </v-list-subheader>
       <div class="done-section">

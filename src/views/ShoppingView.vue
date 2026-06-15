@@ -10,6 +10,13 @@ const { isParent } = useUserRole()
 
 const hasLists = computed(() => store.lists.length > 0)
 
+const showHeaders = ref(sessionStorage.getItem('shoppingHeadersVisible') !== 'false')
+
+function toggleHeaders() {
+  showHeaders.value = !showHeaders.value
+  sessionStorage.setItem('shoppingHeadersVisible', String(showHeaders.value))
+}
+
 const sheet = ref(false)
 const newName = ref('')
 const newQty = ref('')
@@ -152,6 +159,17 @@ function submitEdit() {
           </v-chip>
         </div>
         <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="flex-0-0"
+          :color="showHeaders ? undefined : 'primary'"
+          :aria-label="showHeaders ? 'Hide aisle headers' : 'Show aisle headers'"
+          @click="toggleHeaders"
+        >
+          <v-icon>{{ showHeaders ? 'mdi-label-outline' : 'mdi-label-off-outline' }}</v-icon>
+        </v-btn>
+        <v-btn
           v-if="isParent"
           icon
           variant="text"
@@ -185,7 +203,7 @@ function submitEdit() {
       </div>
 
       <!-- List -->
-      <ShoppingList @edit="openEdit" />
+      <ShoppingList :show-headers="showHeaders" @edit="openEdit" />
 
       <!-- Add item FAB -->
       <v-btn

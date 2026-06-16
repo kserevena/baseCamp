@@ -28,7 +28,8 @@ vi.mock('@/components/ShoppingItem.vue', () => ({
   default: {
     name: 'ShoppingItem',
     props: ['item', 'showDragHandle', 'showDelete', 'showEdit'],
-    template: '<div class="shopping-item-stub">{{ item.name }}</div>',
+    emits: ['toggle'],
+    template: '<div class="shopping-item-stub" @click="$emit(\'toggle\', item)">{{ item.name }}</div>',
   },
 }))
 
@@ -60,6 +61,7 @@ describe('ShoppingList', () => {
       activeAisles: [...DEFAULT_AISLES],
       reorderItems: vi.fn(),
       deleteItem: vi.fn(),
+      toggleDone: vi.fn(),
     })
     familyStore = reactive({
       currentUser: { uid: 'parent-uid', role: 'parent' },
@@ -296,6 +298,31 @@ describe('ShoppingList', () => {
       const wrapper = mountList({ showHeaders: false })
       expect(wrapper.find('.done-section').exists()).toBe(true)
       expect(wrapper.text()).toContain('Eggs')
+    })
+  })
+
+  describe('undo toggle', () => {
+    it('shows an undo snackbar when an item is toggled', async () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList()
+      await wrapper.find('.shopping-item-stub').trigger('click')
+      expect(wrapper.findComponent({ name: 'VSnackbar' }).props('modelValue')).toBe(true)
+    })
+
+    it('calls toggleDone again when Undo is clicked', async () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList()
+      await wrapper.find('.shopping-item-stub').trigger('click')
+
+      const undoBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Undo')
+      await undoBtn.trigger('click')
+
+      expect(shoppingStore.toggleDone).toHaveBeenCalledWith('i1')
     })
   })
 })

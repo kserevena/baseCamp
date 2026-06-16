@@ -10,9 +10,14 @@ const props = defineProps({
   showEdit: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['delete', 'edit'])
+const emit = defineEmits(['delete', 'edit', 'toggle'])
 const store = useShoppingStore()
 const { isParent } = useUserRole()
+
+function onToggle() {
+  store.toggleDone(props.item.id)
+  emit('toggle', props.item)
+}
 </script>
 
 <template>
@@ -31,7 +36,7 @@ const { isParent } = useUserRole()
         class="mr-1"
         style="min-width: 44px;"
         @click.stop
-        @update:model-value="store.toggleDone(item.id)"
+        @update:model-value="onToggle"
       />
     </template>
 

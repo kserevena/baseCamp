@@ -138,6 +138,16 @@ describe('ShoppingItem', () => {
       await wrapper.vm.$nextTick()
       expect(shoppingStore.toggleDone).toHaveBeenCalledWith('item-99')
     })
+
+    it('emits toggle with the item when checkbox value changes', async () => {
+      const item = makeItem({ id: 'item-99' })
+      const wrapper = mountItem(item)
+      const checkbox = wrapper.findComponent({ name: 'VCheckboxBtn' })
+      await checkbox.vm.$emit('update:modelValue', true)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.emitted('toggle')).toHaveLength(1)
+      expect(wrapper.emitted('toggle')[0][0]).toEqual(item)
+    })
   })
 
   describe('fromMeal chip', () => {

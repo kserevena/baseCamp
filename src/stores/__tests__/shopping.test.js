@@ -394,6 +394,43 @@ describe('shopping store', () => {
     })
   })
 
+  describe('restoreToggleState', () => {
+    it('does nothing when activeListId is null', () => {
+      const store = useShoppingStore()
+      store.restoreToggleState('item-1', { done: false, addedBy: 'uid' })
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when the item id is not found in the local list', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1')] })
+
+      store.restoreToggleState('nonexistent', { done: false, addedBy: 'uid' })
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('writes back the exact done and addedBy, without reassigning addedBy', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, addedBy: 'current-uid' })] })
+
+      // Undo an accidental tick: restore to the original (not-done, original adder).
+      store.restoreToggleState('item-1', { done: false, addedBy: 'original-uid' })
+
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: false, addedBy: 'original-uid' })
+      expect(store.items[0].done).toBe(false)
+      expect(store.items[0].addedBy).toBe('original-uid')
+    })
+  })
+
   describe('updateItem', () => {
     it('does nothing when activeListId is null', () => {
       const store = useShoppingStore()

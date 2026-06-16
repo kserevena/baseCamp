@@ -10,9 +10,17 @@ const props = defineProps({
   showEdit: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['delete', 'edit'])
+const emit = defineEmits(['delete', 'edit', 'toggle'])
 const store = useShoppingStore()
 const { isParent } = useUserRole()
+
+function onToggle() {
+  // Capture the pre-toggle state so the list can offer a faithful undo —
+  // toggleDone may reassign addedBy, so re-toggling is not a clean inverse.
+  const previous = { done: props.item.done, addedBy: props.item.addedBy }
+  store.toggleDone(props.item.id)
+  emit('toggle', { id: props.item.id, name: props.item.name, done: props.item.done, previous })
+}
 </script>
 
 <template>
@@ -31,7 +39,7 @@ const { isParent } = useUserRole()
         class="mr-1"
         style="min-width: 44px;"
         @click.stop
-        @update:model-value="store.toggleDone(item.id)"
+        @update:model-value="onToggle"
       />
     </template>
 

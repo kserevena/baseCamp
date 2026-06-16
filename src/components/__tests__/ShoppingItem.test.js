@@ -138,6 +138,23 @@ describe('ShoppingItem', () => {
       await wrapper.vm.$nextTick()
       expect(shoppingStore.toggleDone).toHaveBeenCalledWith('item-99')
     })
+
+    it('emits toggle with the pre-toggle state when checkbox value changes', async () => {
+      const item = makeItem({ id: 'item-99', name: 'Milk', done: false, addedBy: 'uid-original' })
+      const wrapper = mountItem(item)
+      const checkbox = wrapper.findComponent({ name: 'VCheckboxBtn' })
+      await checkbox.vm.$emit('update:modelValue', true)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.emitted('toggle')).toHaveLength(1)
+      // Payload carries the item id/name plus the captured previous state so the
+      // list can offer a faithful undo (restoring done AND addedBy).
+      expect(wrapper.emitted('toggle')[0][0]).toEqual({
+        id: 'item-99',
+        name: 'Milk',
+        done: false,
+        previous: { done: false, addedBy: 'uid-original' },
+      })
+    })
   })
 
   describe('fromMeal chip', () => {

@@ -53,6 +53,21 @@ function onDragStart() {
   pendingReorder = true
 }
 
+const undoSnackbar = ref(false)
+const lastToggle = ref(null)
+
+function onToggle(payload) {
+  lastToggle.value = payload
+  undoSnackbar.value = true
+}
+
+function undoToggle() {
+  if (lastToggle.value) {
+    store.restoreToggleState(lastToggle.value.id, lastToggle.value.previous)
+  }
+  undoSnackbar.value = false
+}
+
 function onDragEnd() {
   const updates = []
   groups.value.forEach((group) => {
@@ -95,6 +110,7 @@ function onDragEnd() {
           :show-edit="true"
           @delete="store.deleteItem(item.id)"
           @edit="emit('edit', item)"
+          @toggle="onToggle"
         />
       </VueDraggable>
 
@@ -103,6 +119,7 @@ function onDragEnd() {
           v-for="item in group.items"
           :key="item.id"
           :item="item"
+          @toggle="onToggle"
         />
       </template>
 
@@ -122,11 +139,19 @@ function onDragEnd() {
           :show-edit="isParent"
           @delete="store.deleteItem(item.id)"
           @edit="emit('edit', item)"
+          @toggle="onToggle"
         />
       </div>
       <v-divider />
     </template>
   </v-list>
+
+  <v-snackbar v-model="undoSnackbar" timeout="4000">
+    {{ lastToggle?.done ? `"${lastToggle.name}" ticked` : `"${lastToggle?.name}" unticked` }}
+    <template #actions>
+      <v-btn color="primary" variant="text" @click="undoToggle">Undo</v-btn>
+    </template>
+  </v-snackbar>
 </template>
 
 <style scoped>

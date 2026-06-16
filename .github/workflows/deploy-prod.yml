@@ -16,7 +16,6 @@ jobs:
       contents: read
     env:
       TZ: UTC
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Verify branch is main
@@ -25,9 +24,9 @@ jobs:
           echo "Production deployments must run from the main branch (got ${{ github.ref }})."
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'

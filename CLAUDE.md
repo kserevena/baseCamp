@@ -29,7 +29,6 @@ baseCamp/
 │   ├── components/
 │   │   ├── FamilyAvatar.vue         # Coloured avatar circle with member initials
 │   │   ├── AisleManager.vue         # Parent-only drag-and-drop aisle CRUD; shown in a bottom sheet in ShoppingView
-│   │   ├── AislePicker.vue          # Aisle chip selector; shared by ShoppingView's add/edit item sheet
 │   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
 │   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
 │   │   ├── MealVoting.vue           # Meal cards with vote button and voter avatars

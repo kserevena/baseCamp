@@ -5,7 +5,6 @@ import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
-import AislePicker from '@/components/AislePicker.vue'
 
 const store = useShoppingStore()
 const family = useFamilyStore()
@@ -282,7 +281,18 @@ watch(sheet, (open) => {
         />
         <div class="mb-3">
           <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-          <AislePicker v-model="itemAisle" />
+          <div class="aisle-chips d-flex flex-wrap gap-1">
+            <v-chip
+              v-for="aisle in store.activeAisles"
+              :key="aisle.name"
+              :color="itemAisle === aisle.name ? 'primary' : undefined"
+              :variant="itemAisle === aisle.name ? 'flat' : 'tonal'"
+              size="small"
+              @click="itemAisle = aisle.name"
+            >
+              {{ aisle.name }}
+            </v-chip>
+          </div>
         </div>
         <div class="d-flex gap-2">
           <v-btn variant="text" @click="sheet = false">Cancel</v-btn>

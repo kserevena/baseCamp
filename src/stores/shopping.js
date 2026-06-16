@@ -132,6 +132,18 @@ export const useShoppingStore = defineStore('shopping', () => {
     updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), update)
   }
 
+  // Restores an item's exact done/addedBy state. Used to undo a toggleDone:
+  // toggleDone reassigns addedBy on the uncheck path, so re-toggling is not a
+  // faithful inverse — undo must write back the captured pre-toggle values.
+  function restoreToggleState(id, { done, addedBy }) {
+    if (!activeListId.value) return
+    const item = items.value.find(i => i.id === id)
+    if (!item) return
+    item.done = done
+    item.addedBy = addedBy
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { done, addedBy })
+  }
+
   function updateItem(id, { name, qty, aisle }) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
@@ -210,5 +222,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle }
+  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle }
 })

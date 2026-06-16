@@ -15,8 +15,11 @@ const store = useShoppingStore()
 const { isParent } = useUserRole()
 
 function onToggle() {
+  // Capture the pre-toggle state so the list can offer a faithful undo —
+  // toggleDone may reassign addedBy, so re-toggling is not a clean inverse.
+  const previous = { done: props.item.done, addedBy: props.item.addedBy }
   store.toggleDone(props.item.id)
-  emit('toggle', props.item)
+  emit('toggle', { id: props.item.id, name: props.item.name, done: props.item.done, previous })
 }
 </script>
 

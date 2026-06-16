@@ -54,15 +54,17 @@ function onDragStart() {
 }
 
 const undoSnackbar = ref(false)
-const lastToggledItem = ref(null)
+const lastToggle = ref(null)
 
-function onToggle(item) {
-  lastToggledItem.value = item
+function onToggle(payload) {
+  lastToggle.value = payload
   undoSnackbar.value = true
 }
 
 function undoToggle() {
-  if (lastToggledItem.value) store.toggleDone(lastToggledItem.value.id)
+  if (lastToggle.value) {
+    store.restoreToggleState(lastToggle.value.id, lastToggle.value.previous)
+  }
   undoSnackbar.value = false
 }
 
@@ -145,7 +147,7 @@ function onDragEnd() {
   </v-list>
 
   <v-snackbar v-model="undoSnackbar" timeout="4000">
-    {{ lastToggledItem?.done ? `"${lastToggledItem.name}" ticked` : `"${lastToggledItem?.name}" unticked` }}
+    {{ lastToggle?.done ? `"${lastToggle.name}" ticked` : `"${lastToggle?.name}" unticked` }}
     <template #actions>
       <v-btn color="primary" variant="text" @click="undoToggle">Undo</v-btn>
     </template>

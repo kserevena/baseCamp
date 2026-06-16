@@ -29,7 +29,7 @@ vi.mock('@/components/ShoppingItem.vue', () => ({
     name: 'ShoppingItem',
     props: ['item', 'showDragHandle', 'showDelete', 'showEdit'],
     emits: ['toggle'],
-    template: '<div class="shopping-item-stub" @click="$emit(\'toggle\', item)">{{ item.name }}</div>',
+    template: '<div class="shopping-item-stub" @click="$emit(\'toggle\', { id: item.id, name: item.name, done: item.done, previous: { done: item.done, addedBy: item.addedBy } })">{{ item.name }}</div>',
   },
 }))
 
@@ -62,6 +62,7 @@ describe('ShoppingList', () => {
       reorderItems: vi.fn(),
       deleteItem: vi.fn(),
       toggleDone: vi.fn(),
+      restoreToggleState: vi.fn(),
     })
     familyStore = reactive({
       currentUser: { uid: 'parent-uid', role: 'parent' },
@@ -311,9 +312,9 @@ describe('ShoppingList', () => {
       expect(wrapper.findComponent({ name: 'VSnackbar' }).props('modelValue')).toBe(true)
     })
 
-    it('calls toggleDone again when Undo is clicked', async () => {
+    it('restores the captured pre-toggle state when Undo is clicked', async () => {
       shoppingStore.items = [
-        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: true },
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: true, addedBy: 'uid-original' },
       ]
       const wrapper = mountList()
       await wrapper.find('.shopping-item-stub').trigger('click')
@@ -322,7 +323,13 @@ describe('ShoppingList', () => {
         .find(b => b.text() === 'Undo')
       await undoBtn.trigger('click')
 
-      expect(shoppingStore.toggleDone).toHaveBeenCalledWith('i1')
+      // Undo must restore both done and addedBy, not re-toggle (which would
+      // reassign addedBy to the current user on the uncheck path).
+      expect(shoppingStore.restoreToggleState).toHaveBeenCalledWith('i1', {
+        done: true,
+        addedBy: 'uid-original',
+      })
+      expect(shoppingStore.toggleDone).not.toHaveBeenCalled()
     })
   })
 })

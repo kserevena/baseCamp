@@ -1,12 +1,16 @@
 name: Deploy to Prod
 
-# Manual trigger only. Must be run from the main branch.
+# Runs automatically on every push to main (i.e. every merged PR), and can
+# also be triggered manually from the Actions UI. Either way it must run
+# from the main branch.
 #
 # Required GitHub secrets:
 #   PROD_ENV_FILE    — full contents of the local .env.prod file for the prod project
 #   FIREBASE_TOKEN   — CI token from `firebase login:ci`
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -44,6 +48,23 @@ jobs:
 
       - name: Preflight env check
         run: node scripts/check-prod-env.mjs
+
+      - name: Unit tests
+        run: npm test
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Cache Firebase emulator binaries
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('firebase.json') }}
+
+      - name: Integration tests
+        run: npm run test:integration
 
       - name: Build
         run: npm run build:prod

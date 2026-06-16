@@ -192,7 +192,7 @@ Because every deploy includes `firestore.rules` and `firestore.indexes.json`, ru
 
 #### Deploying via GitHub Actions
 
-Manual deploy workflows are available in the GitHub Actions UI (Actions tab → **Deploy to Dev** or **Deploy to Prod** → Run workflow). They run the same checks as the local scripts. The prod workflow only runs from `main`. Three repository secrets must be configured in Settings → Secrets and variables → Actions:
+**Deploy to Prod** runs automatically on every push to `main` — in practice, every merged pull request deploys to prod, with no manual step required. It can also be run manually from the Actions UI (Actions tab → **Deploy to Prod** → Run workflow) and only runs from `main`. **Deploy to Dev** is manual-only — trigger it from the Actions UI (Actions tab → **Deploy to Dev** → Run workflow). Both workflows run the same checks as the local scripts. Three repository secrets must be configured in Settings → Secrets and variables → Actions:
 
 | Secret | Value |
 |---|---|

@@ -454,6 +454,41 @@ describe('shopping store', () => {
       expect(item.name).toBe('Skimmed milk')
       expect(item.qty).toBe('1 pint')
     })
+
+    it('writes aisle and the matching aisleOrder when aisle is provided', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { aisle: 'Dairy', aisleOrder: 1 })] })
+
+      store.updateItem('item-1', { name: 'Milk', qty: '2 pints', aisle: 'Bakery' })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        { name: 'Milk', qty: '2 pints', aisle: 'Bakery', aisleOrder: 4 }
+      )
+      const item = store.items.find(i => i.id === 'item-1')
+      expect(item.aisle).toBe('Bakery')
+      expect(item.aisleOrder).toBe(4)
+    })
+
+    it('falls back to aisleOrder 99 when the given aisle is not found', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1')] })
+
+      store.updateItem('item-1', { name: 'Milk', qty: '2 pints', aisle: 'Nonexistent' })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        { name: 'Milk', qty: '2 pints', aisle: 'Nonexistent', aisleOrder: 99 }
+      )
+    })
   })
 
   describe('deleteList', () => {

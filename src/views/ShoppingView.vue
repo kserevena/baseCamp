@@ -5,6 +5,7 @@ import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
+import AislePicker from '@/components/AislePicker.vue'
 
 const store = useShoppingStore()
 const family = useFamilyStore()
@@ -20,13 +21,19 @@ function toggleHeaders() {
   localStorage.setItem(storageKey, String(showHeaders.value))
 }
 
+// Single bottom sheet shared between "Add item" and "Edit item" — itemMode
+// distinguishes the two; only the fields and submit behaviour differ.
 const sheet = ref(false)
-const newName = ref('')
-const newQty = ref('')
+const itemMode = ref('add') // 'add' | 'edit'
+const editItem = ref(null)
+const itemName = ref('')
+const itemQty = ref('')
+const itemAisle = ref('')
 const selectedDoneItem = ref(null)
 
 const doneSuggestions = computed(() => {
-  const q = newName.value.trim().toLowerCase()
+  if (itemMode.value !== 'add') return []
+  const q = itemName.value.trim().toLowerCase()
   if (!q) return []
   const seen = new Set()
   return store.items
@@ -40,7 +47,7 @@ const doneSuggestions = computed(() => {
     .slice(0, 5)
 })
 
-watch(newName, (val) => {
+watch(itemName, (val) => {
   if (selectedDoneItem.value && val.trim() !== selectedDoneItem.value.name) {
     selectedDoneItem.value = null
   }
@@ -48,22 +55,46 @@ watch(newName, (val) => {
 
 function selectSuggestion(item) {
   selectedDoneItem.value = item
-  newName.value = item.name
-  newQty.value = item.qty ?? ''
-  newAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+  itemName.value = item.name
+  itemQty.value = item.qty ?? ''
+  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+}
+
+function openAdd() {
+  itemMode.value = 'add'
+  itemName.value = ''
+  itemQty.value = ''
+  itemAisle.value = store.activeAisles[0]?.name ?? ''
+  selectedDoneItem.value = null
+  sheet.value = true
+}
+
+function openEdit(item) {
+  itemMode.value = 'edit'
+  editItem.value = item
+  itemName.value = item.name
+  itemQty.value = item.qty ?? ''
+  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+  sheet.value = true
 }
 
 function submit() {
-  const name = newName.value.trim()
+  const name = itemName.value.trim()
   if (!name) return
-  if (selectedDoneItem.value) {
-    const restored = store.restoreItem(selectedDoneItem.value.id, newQty.value.trim(), newAisle.value || null)
-    if (!restored) store.addItem(name, newQty.value.trim(), newAisle.value || null)
+  if (itemMode.value === 'edit') {
+    store.updateItem(editItem.value.id, {
+      name,
+      qty: itemQty.value.trim(),
+      aisle: itemAisle.value,
+    })
+  } else if (selectedDoneItem.value) {
+    const restored = store.restoreItem(selectedDoneItem.value.id, itemQty.value.trim(), itemAisle.value || null)
+    if (!restored) store.addItem(name, itemQty.value.trim(), itemAisle.value || null)
   } else {
-    store.addItem(name, newQty.value.trim(), newAisle.value || null)
+    store.addItem(name, itemQty.value.trim(), itemAisle.value || null)
   }
-  newName.value = ''
-  newQty.value = ''
+  itemName.value = ''
+  itemQty.value = ''
   selectedDoneItem.value = null
   sheet.value = false
 }
@@ -88,8 +119,6 @@ function confirmDelete() {
 
 const aisleSheet = ref(false)
 
-const newAisle = ref('')
-
 // On Android, tapping an aisle chip dismisses the keyboard and the visual
 // viewport snaps back to full height. Without intervention the Vuetify overlay
 // content (aligned via align-self:flex-end inside a fixed full-screen container)
@@ -108,7 +137,6 @@ function syncKbd() {
 
 watch(sheet, (open) => {
   if (open) {
-    newAisle.value = store.activeAisles[0]?.name ?? ''
     syncKbd()
     window.visualViewport?.addEventListener('resize', syncKbd)
   } else {
@@ -117,27 +145,6 @@ watch(sheet, (open) => {
     document.documentElement.style.setProperty('--add-item-sheet-bottom', '0px')
   }
 })
-
-const editSheet = ref(false)
-const editItem = ref(null)
-const editName = ref('')
-const editQty = ref('')
-
-function openEdit(item) {
-  editItem.value = item
-  editName.value = item.name
-  editQty.value = item.qty ?? ''
-  editSheet.value = true
-}
-
-function submitEdit() {
-  if (!editName.value.trim()) return
-  store.updateItem(editItem.value.id, {
-    name: editName.value.trim(),
-    qty: editQty.value.trim(),
-  })
-  editSheet.value = false
-}
 </script>
 
 <template>
@@ -216,7 +223,7 @@ function submitEdit() {
         size="56"
         elevation="4"
         class="fab"
-        @click="sheet = true"
+        @click="openAdd"
       >
         <v-icon>mdi-plus</v-icon>
       </v-btn>
@@ -237,12 +244,14 @@ function submitEdit() {
       </v-btn>
     </div>
 
-    <!-- Add item bottom sheet -->
+    <!-- Add/edit item bottom sheet (shared between both flows) -->
     <v-bottom-sheet v-model="sheet" max-width="600" content-class="add-item-overlay">
       <v-card rounded="t-xl" class="pa-4 add-item-card">
-        <div class="text-subtitle-1 font-weight-medium mb-3">Add item</div>
+        <div class="text-subtitle-1 font-weight-medium mb-3">
+          {{ itemMode === 'edit' ? 'Edit item' : 'Add item' }}
+        </div>
         <v-text-field
-          v-model="newName"
+          v-model="itemName"
           label="Item name"
           variant="outlined"
           autofocus
@@ -265,7 +274,7 @@ function submitEdit() {
           </div>
         </div>
         <v-text-field
-          v-model="newQty"
+          v-model="itemQty"
           label="Quantity (optional)"
           variant="outlined"
           class="mb-2"
@@ -273,23 +282,14 @@ function submitEdit() {
         />
         <div class="mb-3">
           <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-          <div class="aisle-chips d-flex flex-wrap gap-1">
-            <v-chip
-              v-for="aisle in store.activeAisles"
-              :key="aisle.name"
-              :color="newAisle === aisle.name ? 'primary' : undefined"
-              :variant="newAisle === aisle.name ? 'flat' : 'tonal'"
-              size="small"
-              @click="newAisle = aisle.name"
-            >
-              {{ aisle.name }}
-            </v-chip>
-          </div>
+          <AislePicker v-model="itemAisle" />
         </div>
         <div class="d-flex gap-2">
           <v-btn variant="text" @click="sheet = false">Cancel</v-btn>
           <v-spacer />
-          <v-btn color="primary" variant="flat" @click="submit">Add</v-btn>
+          <v-btn color="primary" variant="flat" @click="submit">
+            {{ itemMode === 'edit' ? 'Save' : 'Add' }}
+          </v-btn>
         </div>
       </v-card>
     </v-bottom-sheet>
@@ -310,33 +310,6 @@ function submitEdit() {
           <v-btn variant="text" @click="listSheet = false">Cancel</v-btn>
           <v-spacer />
           <v-btn color="primary" variant="flat" @click="submitList">Create</v-btn>
-        </div>
-      </v-card>
-    </v-bottom-sheet>
-
-    <!-- Edit item bottom sheet -->
-    <v-bottom-sheet v-model="editSheet" max-width="600">
-      <v-card rounded="t-xl" class="pa-4">
-        <div class="text-subtitle-1 font-weight-medium mb-3">Edit item</div>
-        <v-text-field
-          v-model="editName"
-          label="Item name"
-          variant="outlined"
-          autofocus
-          class="mb-2"
-          @keyup.enter="submitEdit"
-        />
-        <v-text-field
-          v-model="editQty"
-          label="Quantity (optional)"
-          variant="outlined"
-          class="mb-3"
-          @keyup.enter="submitEdit"
-        />
-        <div class="d-flex gap-2">
-          <v-btn variant="text" @click="editSheet = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="primary" variant="flat" @click="submitEdit">Save</v-btn>
         </div>
       </v-card>
     </v-bottom-sheet>

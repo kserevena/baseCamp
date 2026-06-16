@@ -293,7 +293,7 @@ describe('ShoppingView', () => {
       await aisleBtn.trigger('click')
       await wrapper.vm.$nextTick()
       const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[3].props('modelValue')).toBe(true)
+      expect(sheets[2].props('modelValue')).toBe(true)
     })
   })
 
@@ -320,7 +320,7 @@ describe('ShoppingView', () => {
       if (nameInput) await nameInput.focus()
 
       // Directly set via component state and call submit
-      wrapper.vm.newName = 'Eggs'
+      wrapper.vm.itemName = 'Eggs'
       const addBtn = [...document.body.querySelectorAll('button')]
         .find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
@@ -464,7 +464,7 @@ describe('ShoppingView', () => {
       shoppingStore.items = [doneItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'xyz'
+      wrapper.vm.itemName = 'xyz'
       await wrapper.vm.$nextTick()
       expect(document.body.textContent).not.toContain('Re-add')
     })
@@ -473,7 +473,7 @@ describe('ShoppingView', () => {
       shoppingStore.items = [doneItem, activeItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'mil'
+      wrapper.vm.itemName = 'mil'
       await wrapper.vm.$nextTick()
       expect(document.body.textContent).toContain('Re-add')
       expect(document.body.textContent).toContain('Milk')
@@ -483,7 +483,7 @@ describe('ShoppingView', () => {
       shoppingStore.items = [activeItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'Bread'
+      wrapper.vm.itemName = 'Bread'
       await wrapper.vm.$nextTick()
       expect(document.body.textContent).not.toContain('Re-add')
     })
@@ -492,7 +492,7 @@ describe('ShoppingView', () => {
       shoppingStore.items = [doneItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'MIL'
+      wrapper.vm.itemName = 'MIL'
       await wrapper.vm.$nextTick()
       expect(document.body.textContent).toContain('Milk')
     })
@@ -501,7 +501,7 @@ describe('ShoppingView', () => {
       shoppingStore.items = [doneItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'mil'
+      wrapper.vm.itemName = 'mil'
       await wrapper.vm.$nextTick()
 
       const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
@@ -510,16 +510,16 @@ describe('ShoppingView', () => {
       await suggestionChips[0].click()
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.vm.newName).toBe('Milk')
-      expect(wrapper.vm.newQty).toBe('2 pints')
-      expect(wrapper.vm.newAisle).toBe('Dairy')
+      expect(wrapper.vm.itemName).toBe('Milk')
+      expect(wrapper.vm.itemQty).toBe('2 pints')
+      expect(wrapper.vm.itemAisle).toBe('Dairy')
     })
 
     it('submitting after selecting a suggestion calls restoreItem, not addItem', async () => {
       shoppingStore.items = [doneItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'mil'
+      wrapper.vm.itemName = 'mil'
       await wrapper.vm.$nextTick()
 
       const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
@@ -540,7 +540,7 @@ describe('ShoppingView', () => {
       shoppingStore.restoreItem.mockReturnValue(false)
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'mil'
+      wrapper.vm.itemName = 'mil'
       await wrapper.vm.$nextTick()
 
       const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
@@ -559,7 +559,7 @@ describe('ShoppingView', () => {
       shoppingStore.items = [doneItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'mil'
+      wrapper.vm.itemName = 'mil'
       await wrapper.vm.$nextTick()
 
       const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
@@ -568,7 +568,7 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
 
       // User edits the name away from the suggestion
-      wrapper.vm.newName = 'Milk full fat'
+      wrapper.vm.itemName = 'Milk full fat'
       await wrapper.vm.$nextTick()
 
       const addBtn = [...document.body.querySelectorAll('button')]
@@ -583,7 +583,7 @@ describe('ShoppingView', () => {
       shoppingStore.items = [doneItem]
       const wrapper = mountView()
       await openSheet(wrapper)
-      wrapper.vm.newName = 'mil'
+      wrapper.vm.itemName = 'mil'
       await wrapper.vm.$nextTick()
 
       const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
@@ -725,6 +725,7 @@ describe('ShoppingView', () => {
       expect(shoppingStore.updateItem).toHaveBeenCalledWith('item-1', {
         name: 'Milk',
         qty: '2 pints',
+        aisle: 'Dairy',
       })
     })
 
@@ -739,10 +740,10 @@ describe('ShoppingView', () => {
       await saveBtn.click()
       await wrapper.vm.$nextTick()
 
-      // Sheet order in template: 0=add-item, 1=edit-item, 2=new-list
+      // Sheet order in template: 0=item (add/edit shared), 1=new-list
       // Vuetify unmounts slot content when closed, so find by index and check modelValue
       const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[1].props('modelValue')).toBe(false)
+      expect(sheets[0].props('modelValue')).toBe(false)
     })
 
     it('does not call updateItem when name is blank', async () => {
@@ -770,9 +771,9 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
 
       expect(shoppingStore.updateItem).not.toHaveBeenCalled()
-      // Sheet order in template: 0=add-item, 1=edit-item, 2=new-list
+      // Sheet order in template: 0=item (add/edit shared), 1=new-list
       const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[1].props('modelValue')).toBe(false)
+      expect(sheets[0].props('modelValue')).toBe(false)
     })
   })
 })

@@ -132,13 +132,21 @@ export const useShoppingStore = defineStore('shopping', () => {
     updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), update)
   }
 
-  function updateItem(id, { name, qty }) {
+  function updateItem(id, { name, qty, aisle }) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
     if (!item) return
     item.name = name
     item.qty = qty
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { name, qty })
+    const update = { name, qty }
+    if (aisle != null) {
+      const aisleObj = activeAisles.value.find(a => a.name === aisle)
+      item.aisle = aisle
+      item.aisleOrder = aisleObj?.order ?? 99
+      update.aisle = aisle
+      update.aisleOrder = aisleObj?.order ?? 99
+    }
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), update)
   }
 
   async function reorderItems(updates) {

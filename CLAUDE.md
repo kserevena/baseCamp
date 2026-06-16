@@ -10,7 +10,7 @@ Firebase Hosting. Family devices install it via the browser's "Add to Home Scree
 - **Stack:** Vue 3 (`<script setup>` only), Vite, Vuetify 3, Pinia, Firebase (Firestore + Auth + Hosting)
 - **Users:** Parents (Android), children (Fire tablets via Google Family Link), Chromebook
 - **Run:** `npm test` then `npm run test:integration` before every commit
-- **Deploy:** Always ask first. `npm run deploy:dev` / `npm run deploy:prod` (from `main` for prod)
+- **Deploy:** Dev is manual — always ask first, then `npm run deploy:dev`. Prod auto-deploys on every merge to `main` via `.github/workflows/deploy-prod.yml` (also runnable manually with `npm run deploy:prod` from `main`)
 - **Key complexity:** `src/stores/pocketMoney.js` uses UTC-based date math — read `src/stores/CLAUDE.md` before touching
 - **Schema changes:** Follow expand–migrate–cut in "Firestore schema evolution" below
 - **Offline:** Update Pinia state immediately, fire Firestore write in background, never await write in UI
@@ -88,7 +88,7 @@ baseCamp/
 │   ├── workflows/
 │   │   ├── ci.yml                   # Runs unit + integration tests on every PR
 │   │   ├── deploy-dev.yml           # Manual workflow_dispatch deploy to basecamp-app-dev
-│   │   └── deploy-prod.yml          # Manual workflow_dispatch deploy to basecamp-app-prod (main only)
+│   │   └── deploy-prod.yml          # Auto-deploys to basecamp-app-prod on push to main; also workflow_dispatch
 │   └── dependabot.yml
 ├── .env                             # Dev Firebase credentials — never commit
 ├── .env.prod                        # Prod Firebase credentials — never commit
@@ -349,13 +349,15 @@ Documentation is part of the code. Update it in the same commit as the change th
 
 ## Development workflow
 
-**Git workflow.** All changes to the app must go through pull requests — never commit or push directly to `main`. The `main` branch has GitHub branch protection enabled: direct pushes are blocked and CI must pass before a PR can be merged. Work on a feature branch, open a PR, wait for CI to go green, then merge manually. Never merge a PR without explicit decision to do so.
+**Git workflow.** All changes to the app must go through pull requests — never commit or push directly to `main`. The `main` branch has GitHub branch protection enabled: direct pushes are blocked and CI must pass before a PR can be merged. Work on a feature branch, open a PR, wait for CI to go green, then merge manually. Never merge a PR without explicit decision to do so. **Merging to `main` automatically deploys to prod** (see `deploy-prod.yml` below) — there is no separate manual deploy step afterward, so merging is itself a production deploy decision.
 
 **Branch naming.** Name branches after the work being done, not after the session. Use kebab-case prefixed with a short type: `feature/`, `fix/`, or `chore/`. Examples: `feature/parent-only-shopping-items`, `fix/pocket-money-utc-rounding`, `chore/update-firestore-indexes`. Never use auto-generated session names like `claude/dreamy-davinci-*`. **Before pushing to GitHub or opening a PR**, always confirm the working branch has an appropriate name — if it doesn't, create a correctly-named branch from the current HEAD and push that instead.
 
 **CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
 
-**Manual deploy workflows.** `.github/workflows/deploy-dev.yml` and `deploy-prod.yml` provide `workflow_dispatch` triggers for deploying from the GitHub Actions UI (Actions tab → select workflow → Run workflow). They mirror the local `deploy:dev` / `deploy:prod` scripts exactly. The prod workflow refuses to run on any branch other than `main`. Both require three repository secrets: `DEV_ENV_FILE` / `PROD_ENV_FILE` (full contents of `.env` / `.env.prod`) and `FIREBASE_TOKEN` (from `firebase login:ci`).
+**Deploy workflows.** `.github/workflows/deploy-dev.yml` is manual-only: a `workflow_dispatch` trigger for deploying from the GitHub Actions UI (Actions tab → select workflow → Run workflow). `.github/workflows/deploy-prod.yml` runs automatically on every push to `main` (i.e. every merged PR) and can also be triggered manually via `workflow_dispatch`. **Merging a PR to `main` deploys to production — there is no separate approval step.** Both workflows mirror their local `deploy:dev` / `deploy:prod` script counterparts: env preflight check, `npm test`, `npm run test:integration`, build, then `firebase deploy --only hosting,firestore:rules,firestore:indexes`. The prod workflow refuses to run on any branch other than `main`. Both require three repository secrets: `DEV_ENV_FILE` / `PROD_ENV_FILE` (full contents of `.env` / `.env.prod`) and `FIREBASE_TOKEN` (from `firebase login:ci`).
+
+Because prod deploys are no longer a separate manual step, the safety net for production is entirely upstream of the merge: CI (`npm test` + `npm run test:integration`) must pass on the PR, branch protection requires that check, and the **backward-compatibility checklist** below must be satisfied before merging. Treat "merge to `main`" with the same care you'd give a manual prod deploy — there is no second chance to back out before it goes live.
 
 **Working in a git worktree?** The `.env` file is gitignored (never committed), so a freshly created worktree will not have it — the dev server will fail without the Firebase credentials. After creating a worktree, copy `.env` over from the main checkout so the dev environment can run (note the `.env` file may not exist in the main checkout — if it's missing, the credentials must be obtained separately):
 
@@ -498,11 +500,11 @@ npm run deploy:rules:prod
 
 **Deploy guardrails.** Both `deploy:dev` and `deploy:prod` run an env preflight check before anything else (`scripts/check-dev-env.mjs` and `scripts/check-prod-env.mjs` respectively), then run `npm run deploy:checks` (`npm ci && npm test && npm run test:integration`) before building, and deploy `hosting,firestore:rules,firestore:indexes` in a single command. This guarantees the env file is present and points at the correct Firebase project, dependencies match the lockfile, all tests pass, and rules can never drift out of sync with the deployed app. Do not bypass these by calling `vite build` + `firebase deploy` directly.
 
-**Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. This includes `deploy:dev`, `deploy:prod`, `deploy:rules:dev`, `deploy:rules:prod`, and any `firebase deploy` invocation — deployments affect live devices and shared infrastructure.
+**Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. This includes `deploy:dev`, `deploy:prod`, `deploy:rules:dev`, `deploy:rules:prod`, and any `firebase deploy` invocation — deployments affect live devices and shared infrastructure. **Merging a PR to `main` now triggers an automatic prod deploy** (see `deploy-prod.yml` above) — treat "merge this PR" as equivalent to "deploy to prod" and get explicit confirmation before merging, the same as you would before running `npm run deploy:prod` directly.
 
 **Production deployments (`deploy:prod` and `deploy:rules:prod`) must only be run from the `main` branch.** Always verify with `git branch --show-current` before deploying to production.
 
-**Before every deploy**, run this backward-compatibility checklist. If the answer to any question is "yes", follow the **Firestore schema evolution** section before proceeding — do not deploy until the check passes.
+**Before every deploy — including merging a PR to `main`, since that now deploys to prod automatically — run this backward-compatibility checklist.** If the answer to any question is "yes", follow the **Firestore schema evolution** section before proceeding — do not deploy (or merge) until the check passes.
 
 1. Does this change remove, rename, or re-type any field in an existing Firestore document?
 2. Does this change add a field that existing code reads without a `?? defaultValue` fallback?

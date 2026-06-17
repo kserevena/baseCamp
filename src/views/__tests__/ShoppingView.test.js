@@ -63,6 +63,7 @@ describe('ShoppingView', () => {
       restoreItem: vi.fn().mockReturnValue(true),
       createList: vi.fn(),
       updateItem: vi.fn(),
+      moveOrCopyItem: vi.fn(),
       saveAisles: vi.fn(),
       deleteAisle: vi.fn(),
     })
@@ -599,6 +600,158 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.vm.selectedDoneItem).toBeNull()
+    })
+  })
+
+  describe('move or copy item (issue #77)', () => {
+    async function openEditSheet(wrapper, item = { id: 'item-1', name: 'Milk', qty: '2 pints', aisle: 'Dairy' }) {
+      const list = wrapper.findComponent({ name: 'ShoppingList' })
+      await list.vm.$emit('edit', item)
+      await wrapper.vm.$nextTick()
+    }
+
+    // The "Party supplies" chip appears twice: once in the list selector and
+    // once inside the move/copy section in the bottom sheet overlay. Scope the
+    // lookup to the overlay content so we click the right one.
+    function getDestChipInSheet() {
+      const overlay = document.body.querySelector('.v-overlay__content')
+      if (!overlay) return undefined
+      return [...overlay.querySelectorAll('.v-chip')]
+        .find(c => c.textContent.trim() === 'Party supplies')
+    }
+
+    it('does not show the move/copy section when in add mode', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Move or copy to list')
+    })
+
+    it('does not show the move/copy section when only one list exists', async () => {
+      shoppingStore.lists = [{ id: 'list-1', name: 'Weekly shop' }]
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      expect(document.body.textContent).not.toContain('Move or copy to list')
+    })
+
+    it('shows the move/copy section in edit mode when more than one list exists', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      expect(document.body.textContent).toContain('Move or copy to list')
+    })
+
+    it('shows a chip for the other list inside the sheet', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      expect(getDestChipInSheet()).toBeDefined()
+    })
+
+    it('Move and Copy buttons are not visible before a destination chip is selected', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      const btns = [...document.body.querySelectorAll('button')].map(b => b.textContent.trim())
+      expect(btns).not.toContain('Move')
+      expect(btns).not.toContain('Copy')
+    })
+
+    it('selecting a destination chip shows Move and Copy buttons', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+
+      await getDestChipInSheet().click()
+      await wrapper.vm.$nextTick()
+
+      const btns = [...document.body.querySelectorAll('button')].map(b => b.textContent.trim())
+      expect(btns).toContain('Move')
+      expect(btns).toContain('Copy')
+    })
+
+    it('clicking a selected destination chip deselects it and hides the buttons', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+
+      await getDestChipInSheet().click()
+      await wrapper.vm.$nextTick()
+      await getDestChipInSheet().click()
+      await wrapper.vm.$nextTick()
+
+      const btns = [...document.body.querySelectorAll('button')].map(b => b.textContent.trim())
+      expect(btns).not.toContain('Move')
+      expect(btns).not.toContain('Copy')
+    })
+
+    it('clicking Copy calls moveOrCopyItem with action=copy and the destination list id', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      // Set destination directly — chip-click behaviour is covered separately
+      wrapper.vm.destListId = 'list-2'
+      await wrapper.vm.$nextTick()
+
+      const copyBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Copy')
+      await copyBtn.click()
+
+      expect(shoppingStore.moveOrCopyItem).toHaveBeenCalledWith('item-1', 'list-2', 'copy')
+    })
+
+    it('clicking Move calls moveOrCopyItem with action=move and the destination list id', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      wrapper.vm.destListId = 'list-2'
+      await wrapper.vm.$nextTick()
+
+      const moveBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Move')
+      await moveBtn.click()
+
+      expect(shoppingStore.moveOrCopyItem).toHaveBeenCalledWith('item-1', 'list-2', 'move')
+    })
+
+    it('clicking Copy closes the sheet immediately', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      wrapper.vm.destListId = 'list-2'
+      await wrapper.vm.$nextTick()
+
+      const copyBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Copy')
+      await copyBtn.click()
+      await wrapper.vm.$nextTick()
+
+      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
+      expect(sheets[0].props('modelValue')).toBe(false)
+    })
+
+    it('clicking Move closes the sheet immediately', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+      wrapper.vm.destListId = 'list-2'
+      await wrapper.vm.$nextTick()
+
+      const moveBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Move')
+      await moveBtn.click()
+      await wrapper.vm.$nextTick()
+
+      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
+      expect(sheets[0].props('modelValue')).toBe(false)
+    })
+
+    it('destListId resets to null when the edit sheet is reopened', async () => {
+      const wrapper = mountView()
+      await openEditSheet(wrapper)
+
+      wrapper.vm.destListId = 'list-2'
+      expect(wrapper.vm.destListId).toBe('list-2')
+
+      const cancelBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Cancel')
+      await cancelBtn.click()
+      await wrapper.vm.$nextTick()
+
+      await openEditSheet(wrapper, { id: 'item-2', name: 'Bread', qty: '', aisle: 'Bakery' })
+      expect(wrapper.vm.destListId).toBeNull()
     })
   })
 

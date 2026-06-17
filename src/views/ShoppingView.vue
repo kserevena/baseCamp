@@ -1,95 +1,45 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
+import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
+import ShoppingAddItem from '@/components/ShoppingAddItem.vue'
+import ShoppingEditItem from '@/components/ShoppingEditItem.vue'
+import ShoppingNewList from '@/components/ShoppingNewList.vue'
 
 const store = useShoppingStore()
+const family = useFamilyStore()
 const { isParent } = useUserRole()
 
 const hasLists = computed(() => store.lists.length > 0)
 
-const sheet = ref(false)
-const newName = ref('')
-const newQty = ref('')
+const storageKey = `shoppingHeadersVisible_${family.currentUser?.uid}`
+const showHeaders = ref(localStorage.getItem(storageKey) !== 'false')
 
-function submit() {
-  if (!newName.value.trim()) return
-  store.addItem(newName.value.trim(), newQty.value.trim(), newAisle.value || null)
-  newName.value = ''
-  newQty.value = ''
-  sheet.value = false
+function toggleHeaders() {
+  showHeaders.value = !showHeaders.value
+  localStorage.setItem(storageKey, String(showHeaders.value))
 }
 
-const listSheet = ref(false)
-const newListName = ref('')
-
-function submitList() {
-  if (!newListName.value.trim()) return
-  store.createList(newListName.value.trim())
-  newListName.value = ''
-  listSheet.value = false
-}
-
+const addItemSheet = ref(false)
+const editItemSheet = ref(false)
+const editingItem = ref(null)
+const newListSheet = ref(false)
+const aisleSheet = ref(false)
 const deleteDialog = ref(false)
+
 const listToDelete = computed(() => store.lists.find(l => l.id === store.activeListId) ?? null)
+
+function openEdit(item) {
+  editingItem.value = item
+  editItemSheet.value = true
+}
 
 function confirmDelete() {
   store.deleteList()
   deleteDialog.value = false
-}
-
-const aisleSheet = ref(false)
-
-const newAisle = ref('')
-
-// On Android, tapping an aisle chip dismisses the keyboard and the visual
-// viewport snaps back to full height. Without intervention the Vuetify overlay
-// content (aligned via align-self:flex-end inside a fixed full-screen container)
-// can end up partially below the screen edge during that snap.
-//
-// Fix: while the sheet is open, track the keyboard height via the Visual
-// Viewport API and store it as --add-item-sheet-bottom on :root. The
-// .add-item-overlay CSS rule uses this to apply a margin-bottom that lifts
-// the sheet above the keyboard smoothly as it appears and drops it back to
-// the screen bottom just as smoothly when the keyboard dismisses (#49).
-function syncKbd() {
-  const vv = window.visualViewport
-  const h = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0
-  document.documentElement.style.setProperty('--add-item-sheet-bottom', `${h}px`)
-}
-
-watch(sheet, (open) => {
-  if (open) {
-    newAisle.value = store.activeAisles[0]?.name ?? ''
-    syncKbd()
-    window.visualViewport?.addEventListener('resize', syncKbd)
-  } else {
-    window.visualViewport?.removeEventListener('resize', syncKbd)
-    document.documentElement.style.setProperty('--add-item-sheet-bottom', '0px')
-  }
-})
-
-const editSheet = ref(false)
-const editItem = ref(null)
-const editName = ref('')
-const editQty = ref('')
-
-function openEdit(item) {
-  editItem.value = item
-  editName.value = item.name
-  editQty.value = item.qty ?? ''
-  editSheet.value = true
-}
-
-function submitEdit() {
-  if (!editName.value.trim()) return
-  store.updateItem(editItem.value.id, {
-    name: editName.value.trim(),
-    qty: editQty.value.trim(),
-  })
-  editSheet.value = false
 }
 </script>
 
@@ -114,6 +64,17 @@ function submitEdit() {
             {{ list.name }}
           </v-chip>
         </div>
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="flex-0-0"
+          :color="showHeaders ? undefined : 'primary'"
+          :aria-label="showHeaders ? 'Hide aisle headers' : 'Show aisle headers'"
+          @click="toggleHeaders"
+        >
+          <v-icon>{{ showHeaders ? 'mdi-label-outline' : 'mdi-label-off-outline' }}</v-icon>
+        </v-btn>
         <v-btn
           v-if="isParent"
           icon
@@ -141,23 +102,24 @@ function submitEdit() {
           variant="text"
           size="small"
           class="flex-0-0 ml-1"
-          @click="listSheet = true"
+          @click="newListSheet = true"
         >
           <v-icon>mdi-plus</v-icon>
         </v-btn>
       </div>
 
       <!-- List -->
-      <ShoppingList @edit="openEdit" />
+      <ShoppingList :show-headers="showHeaders" @edit="openEdit" />
 
-      <!-- Add item FAB -->
+      <!-- Add item FAB (parent only) -->
       <v-btn
+        v-if="isParent"
         icon
         color="primary"
         size="56"
         elevation="4"
         class="fab"
-        @click="sheet = true"
+        @click="addItemSheet = true"
       >
         <v-icon>mdi-plus</v-icon>
       </v-btn>
@@ -172,100 +134,15 @@ function submitEdit() {
         color="primary"
         variant="flat"
         class="mt-4"
-        @click="listSheet = true"
+        @click="newListSheet = true"
       >
         New list
       </v-btn>
     </div>
 
-    <!-- Add item bottom sheet -->
-    <v-bottom-sheet v-model="sheet" max-width="600" content-class="add-item-overlay">
-      <v-card rounded="t-xl" class="pa-4 add-item-card">
-        <div class="text-subtitle-1 font-weight-medium mb-3">Add item</div>
-        <v-text-field
-          v-model="newName"
-          label="Item name"
-          variant="outlined"
-          autofocus
-          class="mb-2"
-          @keyup.enter="submit"
-        />
-        <v-text-field
-          v-model="newQty"
-          label="Quantity (optional)"
-          variant="outlined"
-          class="mb-2"
-          @keyup.enter="submit"
-        />
-        <div class="mb-3">
-          <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-          <div class="aisle-chips d-flex flex-wrap gap-1">
-            <v-chip
-              v-for="aisle in store.activeAisles"
-              :key="aisle.name"
-              :color="newAisle === aisle.name ? 'primary' : undefined"
-              :variant="newAisle === aisle.name ? 'flat' : 'tonal'"
-              size="small"
-              @click="newAisle = aisle.name"
-            >
-              {{ aisle.name }}
-            </v-chip>
-          </div>
-        </div>
-        <div class="d-flex gap-2">
-          <v-btn variant="text" @click="sheet = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="primary" variant="flat" @click="submit">Add</v-btn>
-        </div>
-      </v-card>
-    </v-bottom-sheet>
-
-    <!-- New list bottom sheet -->
-    <v-bottom-sheet v-model="listSheet" max-width="600">
-      <v-card rounded="t-xl" class="pa-4">
-        <div class="text-subtitle-1 font-weight-medium mb-3">New list</div>
-        <v-text-field
-          v-model="newListName"
-          label="List name"
-          variant="outlined"
-          autofocus
-          class="mb-3"
-          @keyup.enter="submitList"
-        />
-        <div class="d-flex gap-2">
-          <v-btn variant="text" @click="listSheet = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="primary" variant="flat" @click="submitList">Create</v-btn>
-        </div>
-      </v-card>
-    </v-bottom-sheet>
-
-    <!-- Edit item bottom sheet -->
-    <v-bottom-sheet v-model="editSheet" max-width="600">
-      <v-card rounded="t-xl" class="pa-4">
-        <div class="text-subtitle-1 font-weight-medium mb-3">Edit item</div>
-        <v-text-field
-          v-model="editName"
-          label="Item name"
-          variant="outlined"
-          autofocus
-          class="mb-2"
-          @keyup.enter="submitEdit"
-        />
-        <v-text-field
-          v-model="editQty"
-          label="Quantity (optional)"
-          variant="outlined"
-          class="mb-3"
-          @keyup.enter="submitEdit"
-        />
-        <div class="d-flex gap-2">
-          <v-btn variant="text" @click="editSheet = false">Cancel</v-btn>
-          <v-spacer />
-          <v-btn color="primary" variant="flat" @click="submitEdit">Save</v-btn>
-        </div>
-      </v-card>
-    </v-bottom-sheet>
+    <ShoppingAddItem v-model="addItemSheet" />
+    <ShoppingEditItem v-model="editItemSheet" :item="editingItem" />
+    <ShoppingNewList v-model="newListSheet" />
 
     <!-- Manage aisles bottom sheet (parent only) -->
     <v-bottom-sheet v-model="aisleSheet" max-width="600">
@@ -289,18 +166,6 @@ function submitEdit() {
 
   </div>
 </template>
-
-<!-- Unscoped: targets the Vuetify overlay content element which is teleported
-     to <body> and therefore outside this component's scoped CSS reach. -->
-<style>
-/* Lift the add-item sheet above the Android virtual keyboard.
-   --add-item-sheet-bottom is set dynamically by the visualViewport resize
-   listener in the script; it equals the keyboard height in pixels (#49). */
-.add-item-overlay {
-  margin-bottom: var(--add-item-sheet-bottom, 0px);
-  transition: margin-bottom 0.15s ease;
-}
-</style>
 
 <style scoped>
 .shopping-view {
@@ -340,12 +205,5 @@ function submitEdit() {
   align-items: center;
   justify-content: center;
   padding-top: 100px;
-}
-/* dvh (dynamic viewport height) shrinks automatically when the Android virtual
-   keyboard is shown, keeping the card fully visible above the keyboard (#49). */
-.add-item-card {
-  max-height: 90vh; /* fallback for browsers without dvh support */
-  max-height: 90dvh;
-  overflow-y: auto;
 }
 </style>

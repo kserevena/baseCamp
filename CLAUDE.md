@@ -71,9 +71,15 @@ baseCamp/
 │   │   ├── AisleManager.vue         # Parent-only drag-and-drop aisle CRUD; shown in a bottom sheet in ShoppingView
 │   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
 │   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
+│   │   ├── ShoppingAddItem.vue      # Bottom sheet for adding a new shopping item (includes keyboard-aware positioning #49)
+│   │   ├── ShoppingEditItem.vue     # Bottom sheet for editing an existing item (name, qty, aisle; move/copy to list)
+│   │   ├── ShoppingNewList.vue      # Bottom sheet for creating a new shopping list
 │   │   ├── MealVoting.vue           # Meal cards with vote button and voter avatars
 │   │   └── __tests__/
 │   │       ├── AisleManager.test.js
+│   │       ├── ShoppingAddItem.test.js
+│   │       ├── ShoppingEditItem.test.js
+│   │       ├── ShoppingNewList.test.js
 │   │       └── ShoppingList.test.js
 │   ├── views/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top meal, family avatars
@@ -93,7 +99,8 @@ baseCamp/
 │   │   └── __tests__/
 │   │       └── useServiceWorkerUpdate.test.js
 │   ├── constants/
-│   │   └── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
+│   │   ├── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
+│   │   └── shopping.js               # ITEM_NAME_MAX_LENGTH — max chars for item name (kept in sync with firestore.rules)
 │   ├── utils/
 │   │   ├── currency.js               # formatGBP() — formats a number as "£x.xx"
 │   │   ├── date.js                   # formatDate() — formats a Timestamp/Date as "9 Jun 2026"

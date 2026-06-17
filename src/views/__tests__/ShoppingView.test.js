@@ -687,6 +687,34 @@ describe('ShoppingView', () => {
     })
   })
 
+  describe('item name max length (issue #91)', () => {
+    async function openSheet(wrapper) {
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+    }
+
+    it('truncates names longer than 80 chars to 80 chars on submit', async () => {
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.itemName = 'A'.repeat(81)
+      const addBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('A'.repeat(80), expect.any(String), expect.anything())
+    })
+
+    it('does not truncate names of exactly 80 chars', async () => {
+      const wrapper = mountView()
+      await openSheet(wrapper)
+      wrapper.vm.itemName = 'B'.repeat(80)
+      const addBtn = [...document.body.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('B'.repeat(80), expect.any(String), expect.anything())
+    })
+  })
+
   describe('edit item sheet', () => {
     it('does not show the edit sheet initially', () => {
       mountView()

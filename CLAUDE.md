@@ -71,6 +71,8 @@ baseCamp/
 │       ├── config.js                # Firebase init, App Check, emulator wiring, IndexedDB persistence
 │       ├── seed.js                  # seedIfEmpty() — populates emulator with mock data
 │       └── CLAUDE.md                # App Check rollout; emulator ports and connection
+├── docs/
+│   └── cloud-screenshots.md         # Playwright setup guide for cloud/remote sessions
 ├── scripts/
 │   ├── check-dev-env.mjs            # Preflight guard run by deploy:dev (validates .env)
 │   ├── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
@@ -128,7 +130,7 @@ The data stores (`family`, `shopping`, `meals`, `pocketMoney`) all follow the sa
 
 **`pocketMoney` store exception:** `pocketMoney.setup(familyId, currentUser)` requires the user's `role` to decide whether to subscribe to the whole collection (parent) or a single document (child). `role` is only available after the `families/{familyId}/members` snapshot fires — which happens asynchronously after `familyId` becomes non-null. `App.vue` therefore watches `family.currentUser` (not `familyId`) to set up the pocketMoney store.
 
-**`pocketMoney` write semantics and UTC date math** — `flushPendingPayments` is a connectivity-only `runTransaction` (concurrent-safe, idempotent via deterministic `payment-YYYY-MM-DD` IDs); `recordWithdrawal` is an offline-safe `increment(-amount)` that never touches `lastUpdated`; payment accrual is anchored to a UTC timeline so a timezone change can never double-count or skip a week (a deliberate choice — do not change it to local time; non-UTC family timezones are tracked in **GitHub issue #15**). Dialog writes are optimistic per the offline convention. Full detail in `src/stores/CLAUDE.md`.
+**`pocketMoney` write semantics and UTC date math** — payment accrual is UTC-anchored (do not change to local time; tracked in GitHub issue #15). Full detail in `src/stores/CLAUDE.md`.
 
 **`shopping` store internals** — see `src/stores/CLAUDE.md`.
 
@@ -320,28 +322,18 @@ An Android WebView APK was considered for Fire tablets but skipped in favour of 
 
 ## Keeping documentation current
 
-Documentation is part of the code. Update it in the same commit as the change that makes it stale.
+Update documentation in the same commit as the change that makes it stale.
 
-**When files are added, removed, or moved** — update the **Project structure** section in `CLAUDE.md`. Include new test files, stores, views, components, and config files.
+| Trigger | What to update |
+|---|---|
+| File added/removed/moved | **Project structure** in this file |
+| Firestore data model changed | **Firebase data structure** here + **Data model** in `README.md`; follow expand–migrate–cut for breaking changes |
+| Security rules changed | **Firestore security rules** access table here; deploy to both environments |
+| Auth or store lifecycle changed | Relevant section here + subdirectory `CLAUDE.md` |
+| Env vars changed | `.env` block in `README.md` steps 3 & 6 |
+| npm scripts changed | **Development workflow** here + `README.md` |
 
-**When the Firestore data model changes** (new collection, new field, renamed field, removed field) — update the **Firebase data structure** section in `CLAUDE.md` and the **Data model** table in `README.md`. If the change is not purely additive, document the migration plan in the PR description and follow the expand–migrate–cut pattern in the **Firestore schema evolution** section.
-
-**When security rules change** — update the access summary table in the **Firestore security rules** section of `CLAUDE.md`. Always deploy rules after changing them: `firebase deploy --only firestore:rules`.
-
-**When new tests are added** — no change needed to `CLAUDE.md`; tests are self-documenting by file name.
-
-**When environment variables change** — update the `.env` block in `README.md` step 3 and the `VITE_USE_EMULATOR` explanation in step 6.
-
-**When npm scripts change** — update the **Development workflow** section in `CLAUDE.md` and the **Running tests** / **Production build** sections in `README.md`.
-
-**When the authentication or store lifecycle changes** — update the **Authentication flow** and **Store lifecycle** sections in `CLAUDE.md`. If store internals change, update the relevant `src/stores/CLAUDE.md` or `src/views/CLAUDE.md` subdirectory file.
-
-**What goes where:**
-- `README.md` — developer setup guide: prerequisites, env vars, how to run locally, how to test, how to deploy. No implementation detail.
-- `CLAUDE.md` (root) — architecture, data model, conventions, security rules, workflow. No per-file implementation detail.
-- `src/stores/CLAUDE.md` — pocketMoney write semantics, UTC math, shopping store internals.
-- `src/views/CLAUDE.md` — UI design principles, view-specific complexity notes.
-- `src/firebase/CLAUDE.md` — App Check rollout, emulator ports.
+**What goes where:** `README.md` — setup guide only · `CLAUDE.md` (root) — architecture, data model, conventions · `src/stores/CLAUDE.md` — store internals · `src/views/CLAUDE.md` — UI principles · `src/firebase/CLAUDE.md` — App Check, emulator · `docs/cloud-screenshots.md` — cloud session screenshot guide
 
 ---
 
@@ -370,97 +362,12 @@ npm install -g firebase-tools
 npm run test:integration
 ```
 
-**Taking screenshots in a cloud/remote session.** There is no display server and `cdn.playwright.dev` is blocked, but Playwright and a pre-cached Chromium binary are available. Puppeteer is **not** installed — use Playwright. Steps:
-
-1. **Environment.** If `.env` is missing, create a minimal one pointing at the emulator (no real credentials needed):
-   ```bash
-   cat > .env << 'EOF'
-   VITE_FIREBASE_API_KEY=fake-api-key
-   VITE_FIREBASE_AUTH_DOMAIN=demo-test.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=demo-test
-   VITE_FIREBASE_STORAGE_BUCKET=demo-test.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
-   VITE_FIREBASE_APP_ID=1:000000000000:web:0000000000000000
-   VITE_USE_EMULATOR=true
-   EOF
-   ```
-
-2. **Start services** (emulators + dev server) in the background:
-   ```bash
-   firebase emulators:start --project demo-test --only firestore,auth > /tmp/emulator.log 2>&1 &
-   sleep 6
-   npm run dev -- --port 5173 > /tmp/vite.log 2>&1 &
-   sleep 4
-   ```
-
-3. **Seed users** via the emulator admin API. Always sign in with the password flow afterwards to get real tokens — never fabricate token values:
-   ```bash
-   curl -s -X DELETE http://localhost:9099/emulator/v1/projects/demo-test/accounts \
-     -H "Authorization: Bearer owner"
-   curl -s -X POST \
-     "http://localhost:9099/identitytoolkit.googleapis.com/v1/projects/demo-test/accounts:batchCreate" \
-     -H "Content-Type: application/json" -H "Authorization: Bearer owner" \
-     -d '{"users":[{"localId":"<uid>","email":"<email>","rawPassword":"password123","emailVerified":true}]}'
-   ```
-
-4. **Seed Firestore** using `Authorization: Bearer owner` to bypass security rules:
-   ```bash
-   BASE="http://localhost:8080/v1/projects/demo-test/databases/(default)/documents"
-   curl -s -X PATCH "$BASE/<collection>/<docId>" \
-     -H "Authorization: Bearer owner" -H "Content-Type: application/json" \
-     -d '{"fields":{"<field>":{"stringValue":"<value>"}}}'
-   ```
-
-5. **Write the script** as a `.cjs` file and run it with `node`. Key points:
-   - Import Playwright from `/opt/node22/lib/node_modules/playwright`
-   - Use Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
-   - Use `domcontentloaded` (not `networkidle0`) — the Firestore WebSocket keeps the connection open
-   - Sign in via the emulator REST API to get a real `idToken`/`refreshToken`, then inject into `localStorage` with `addInitScript` before navigating
-   - Use `waitForFunction` to confirm the page has loaded the expected data before taking the screenshot
-
-   ```js
-   const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-
-   async function signIn(email, password) {
-     const res = await fetch(
-       'http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-api-key',
-       { method: 'POST', headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ email, password, returnSecureToken: true }) }
-     );
-     return res.json(); // { localId, idToken, refreshToken, email, ... }
-   }
-
-   const browser = await chromium.launch({
-     executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-     headless: true,
-     args: ['--no-sandbox', '--disable-gpu'],
-   });
-   const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
-
-   const auth = await signIn('<email>', 'password123');
-   await page.addInitScript((a) => {
-     localStorage.setItem('firebase:authUser:fake-api-key:[DEFAULT]', JSON.stringify({
-       uid: a.localId, email: a.email, emailVerified: true, isAnonymous: false,
-       providerData: [{ providerId: 'password', uid: a.email, email: a.email }],
-       stsTokenManager: { refreshToken: a.refreshToken, accessToken: a.idToken,
-                          expirationTime: Date.now() + 3600000 },
-       createdAt: String(Date.now()), lastLoginAt: String(Date.now()),
-       apiKey: 'fake-api-key', appName: '[DEFAULT]',
-     }));
-     localStorage.setItem('isMinor', 'false');
-   }, auth);
-
-   await page.goto('http://localhost:5173/<route>', { waitUntil: 'domcontentloaded' });
-   await page.waitForFunction(() => document.body.innerText.includes('<expected text>'), { timeout: 15000 });
-   await page.screenshot({ path: '/tmp/screenshot.png' });
-   await browser.close();
-   ```
-
-6. **Adding screenshots to a PR.** Screenshots belong in the PR, not in the repository. The GitHub MCP tools do not support binary asset uploads. Instead:
-   - Use `SendUserFile` to send the PNG files to the user's chat.
-   - In the PR description, write a clear prose description of what each screenshot shows and leave a labelled placeholder comment (`<!-- attach screenshot-name.png here -->`) at each insertion point.
-   - The user can then drag-and-drop the images from chat into the PR on GitHub.com.
-   - Never fabricate `github.com/user-attachments/assets/…` URLs — they are only valid after a real upload.
+**Taking screenshots in a cloud/remote session.** There is no display server; use Playwright (Puppeteer is **not** installed). Key environment facts:
+- Playwright module: `/opt/node22/lib/node_modules/playwright`
+- Chromium binary: `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+- Use `domcontentloaded` (not `networkidle0`) — the Firestore WebSocket keeps the connection open
+- Sign in via the emulator REST API to get a real `idToken`, inject via `addInitScript` into `localStorage` before navigating
+- Full boilerplate (env setup, seeding, script template, PR upload steps): `docs/cloud-screenshots.md`
 
 ```bash
 # Install dependencies

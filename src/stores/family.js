@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp,
+  collection, doc, getDoc, setDoc, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { ROLE_PARENT, ROLE_CHILD } from '@/constants/roles.js'
+import { useFirestoreListener } from '@/composables/useFirestoreListener.js'
 
 const COLOUR_PALETTE = ['#378ADD', '#1D9E75', '#D4537E', '#EF9F27', '#7C5CBF', '#E06C4E']
 
@@ -31,11 +32,11 @@ export const useFamilyStore = defineStore('family', () => {
     members.value.find(m => m.uid === authStore.user?.uid) ?? null
   )
 
-  let unsubscribe = null
+  const listener = useFirestoreListener()
 
   function setup(id) {
-    if (unsubscribe) unsubscribe()
-    unsubscribe = onSnapshot(
+    listener.unsubscribeAll()
+    listener.subscribe(
       collection(db, 'families', id, 'members'),
       (snap) => {
         members.value = snap.docs.map(d => ({ uid: d.id, ...d.data() }))
@@ -44,8 +45,7 @@ export const useFamilyStore = defineStore('family', () => {
   }
 
   function teardown() {
-    if (unsubscribe) unsubscribe()
-    unsubscribe = null
+    listener.unsubscribeAll()
     familyId.value = null
     members.value = []
   }

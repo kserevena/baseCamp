@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, query, where, writeBatch,
+  collection, doc, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, query, where, writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useFamilyStore } from './family.js'
+import { useFirestoreListener } from '@/composables/useFirestoreListener.js'
 
 const DEFAULT_AISLES = [
   { name: 'Dairy', order: 1 },
@@ -24,7 +25,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     return list?.aisles ?? DEFAULT_AISLES
   })
   let currentFamilyId = null
-  let unsubscribeLists = null
+  const listener = useFirestoreListener()
   let unsubscribeItems = null
 
   function storageKey(familyId) {
@@ -37,7 +38,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     if (currentFamilyId) {
       localStorage.setItem(storageKey(currentFamilyId), listId)
     }
-    unsubscribeItems = onSnapshot(
+    unsubscribeItems = listener.subscribe(
       collection(db, 'shoppingLists', listId, 'items'),
       (snap) => {
         items.value = snap.docs
@@ -54,8 +55,10 @@ export const useShoppingStore = defineStore('shopping', () => {
   }
 
   function setup(familyId) {
+    listener.unsubscribeAll()
+    unsubscribeItems = null
     currentFamilyId = familyId
-    unsubscribeLists = onSnapshot(
+    listener.subscribe(
       query(collection(db, 'shoppingLists'), where('familyId', '==', familyId)),
       (snap) => {
         lists.value = snap.docs
@@ -69,8 +72,7 @@ export const useShoppingStore = defineStore('shopping', () => {
             const savedValid = savedId !== null && lists.value.some(l => l.id === savedId)
             activateList(savedValid ? savedId : lists.value[0].id)
           } else {
-            unsubscribeItems?.()
-            unsubscribeItems = null
+            if (unsubscribeItems) { unsubscribeItems(); unsubscribeItems = null }
             items.value = []
             activeListId.value = null
           }
@@ -80,9 +82,7 @@ export const useShoppingStore = defineStore('shopping', () => {
   }
 
   function teardown() {
-    if (unsubscribeLists) unsubscribeLists()
-    if (unsubscribeItems) unsubscribeItems()
-    unsubscribeLists = null
+    listener.unsubscribeAll()
     unsubscribeItems = null
     lists.value = []
     items.value = []

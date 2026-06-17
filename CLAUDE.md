@@ -43,6 +43,7 @@ baseCamp/
 │   │   ├── CLAUDE.md                # UI design principles; PocketMoneyView complexity notes
 │   │   └── __tests__/
 │   ├── composables/
+│   │   ├── useFirestoreListener.js    # subscribe(ref, handler) / unsubscribeAll() — used by every data store
 │   │   ├── useServiceWorkerUpdate.js  # SW update polling: controllerchange reload, visibilitychange + hourly check
 │   │   ├── useUserRole.js             # isParent/isChild computed derived from family.currentUser
 │   │   └── __tests__/
@@ -125,6 +126,8 @@ The data stores (`family`, `shopping`, `meals`, `pocketMoney`) all follow the sa
 
 - `setup(...)` — subscribes to Firestore via `onSnapshot`, populates reactive state
 - `teardown()` — unsubscribes the listener, clears state
+
+Listener lifecycle is managed by `useFirestoreListener()` (`src/composables/useFirestoreListener.js`), which each store creates once at the module level. `subscribe(ref, handler)` starts a listener and returns an individual unsubscribe function; `unsubscribeAll()` stops all active listeners at once. Every `setup()` calls `unsubscribeAll()` first (safe re-entry), and every `teardown()` calls `unsubscribeAll()`. When adding a new store, use the same composable rather than hand-rolling `let unsubscribe = null`.
 
 `App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping` and `meals` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
 

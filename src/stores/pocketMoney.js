@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  collection, doc, setDoc, onSnapshot, runTransaction, increment,
+  collection, doc, setDoc, runTransaction, increment,
   writeBatch, query, where, orderBy, getDocs, Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { ROLE_PARENT } from '@/constants/roles.js'
 import { pendingPaymentDates } from '@/utils/paymentSchedule.js'
+import { useFirestoreListener } from '@/composables/useFirestoreListener.js'
 
 export const usePocketMoneyStore = defineStore('pocketMoney', () => {
   const familyStore = useFamilyStore()
@@ -18,7 +19,7 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
   const loading = ref(false)
 
   let currentFamilyId = null
-  let unsubscribe = null
+  const listener = useFirestoreListener()
 
   // Locally-computed balance including any payments not yet flushed to Firestore.
   // Returns null when the child has no pocket money document.
@@ -33,18 +34,18 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
   })
 
   function setup(familyId, currentUser) {
-    if (unsubscribe) unsubscribe()
+    listener.unsubscribeAll()
     currentFamilyId = familyId
 
     if (currentUser.role === ROLE_PARENT) {
-      unsubscribe = onSnapshot(
+      listener.subscribe(
         collection(db, 'families', familyId, 'pocketMoney'),
         (snap) => {
           snapshots.value = snap.docs.map(d => ({ uid: d.id, ...d.data() }))
         },
       )
     } else {
-      unsubscribe = onSnapshot(
+      listener.subscribe(
         doc(db, 'families', familyId, 'pocketMoney', currentUser.uid),
         (d) => {
           snapshots.value = d.exists() ? [{ uid: d.id, ...d.data() }] : []
@@ -54,8 +55,7 @@ export const usePocketMoneyStore = defineStore('pocketMoney', () => {
   }
 
   function teardown() {
-    if (unsubscribe) unsubscribe()
-    unsubscribe = null
+    listener.unsubscribeAll()
     currentFamilyId = null
     snapshots.value = []
     transactions.value = []

@@ -1,17 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
-  collection, doc, onSnapshot, updateDoc, query, where, arrayUnion, arrayRemove,
+  collection, doc, updateDoc, query, where, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
+import { useFirestoreListener } from '@/composables/useFirestoreListener.js'
 
 export const useMealsStore = defineStore('meals', () => {
   const meals = ref([])
-  let unsubscribe = null
+  const listener = useFirestoreListener()
 
   function setup(familyId) {
-    if (unsubscribe) unsubscribe()
-    unsubscribe = onSnapshot(
+    listener.unsubscribeAll()
+    listener.subscribe(
       query(collection(db, 'meals'), where('familyId', '==', familyId)),
       (snap) => {
         meals.value = snap.docs.map(d => ({ votes: [], ...d.data(), id: d.id }))
@@ -20,8 +21,7 @@ export const useMealsStore = defineStore('meals', () => {
   }
 
   function teardown() {
-    if (unsubscribe) unsubscribe()
-    unsubscribe = null
+    listener.unsubscribeAll()
     meals.value = []
   }
 

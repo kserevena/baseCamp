@@ -30,6 +30,11 @@ const itemName = ref('')
 const itemQty = ref('')
 const itemAisle = ref('')
 const selectedDoneItem = ref(null)
+const destListId = ref(null)
+
+const otherLists = computed(() =>
+  store.lists.filter(l => l.id !== store.activeListId)
+)
 
 const doneSuggestions = computed(() => {
   if (itemMode.value !== 'add') return []
@@ -66,7 +71,14 @@ function openAdd() {
   itemQty.value = ''
   itemAisle.value = store.activeAisles[0]?.name ?? ''
   selectedDoneItem.value = null
+  destListId.value = null
   sheet.value = true
+}
+
+function moveOrCopy(action) {
+  if (!destListId.value || !editItem.value) return
+  store.moveOrCopyItem(editItem.value.id, destListId.value, action)
+  sheet.value = false
 }
 
 function openEdit(item) {
@@ -75,6 +87,7 @@ function openEdit(item) {
   itemName.value = item.name
   itemQty.value = item.qty ?? ''
   itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+  destListId.value = null
   sheet.value = true
 }
 
@@ -297,6 +310,42 @@ watch(sheet, (open) => {
             </v-chip>
           </div>
         </div>
+        <!-- Move / copy to another list — only in edit mode when >1 list exists -->
+        <template v-if="itemMode === 'edit' && otherLists.length > 0">
+          <v-divider class="my-3" />
+          <div class="text-caption text-medium-emphasis mb-2">Move or copy to list</div>
+          <div class="d-flex flex-wrap gap-1 mb-3">
+            <v-chip
+              v-for="list in otherLists"
+              :key="list.id"
+              :color="destListId === list.id ? 'secondary' : undefined"
+              :variant="destListId === list.id ? 'flat' : 'tonal'"
+              size="small"
+              @click="destListId = destListId === list.id ? null : list.id"
+            >
+              {{ list.name }}
+            </v-chip>
+          </div>
+          <div v-if="destListId" class="d-flex gap-2 mb-3">
+            <v-btn
+              variant="tonal"
+              color="secondary"
+              size="small"
+              @click="moveOrCopy('copy')"
+            >
+              Copy
+            </v-btn>
+            <v-btn
+              variant="tonal"
+              color="secondary"
+              size="small"
+              @click="moveOrCopy('move')"
+            >
+              Move
+            </v-btn>
+          </div>
+        </template>
+
         <div class="d-flex gap-2">
           <v-btn variant="text" @click="sheet = false">Cancel</v-btn>
           <v-spacer />

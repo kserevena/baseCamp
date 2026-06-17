@@ -908,6 +908,154 @@ describe('shopping store', () => {
     })
   })
 
+  describe('moveOrCopyItem', () => {
+    function setupTwoLists(store) {
+      let listsCallback, itemsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+      store.setup('fam-1')
+      listsCallback({ docs: [
+        mockList('list-1', 'Weekly shop', 2000, DEFAULT_AISLES),
+        mockList('list-2', 'Party supplies', 1000, [
+          { name: 'Drinks', order: 1 },
+          { name: 'Snacks', order: 2 },
+        ]),
+      ] })
+      itemsCallback({ docs: [
+        mockItem('item-1', { name: 'Milk', qty: '2 pints', aisle: 'Dairy', aisleOrder: 1, addedBy: 'parent-uid', sortOrder: 3 }),
+      ] })
+    }
+
+    it('does nothing when activeListId is null', () => {
+      const store = useShoppingStore()
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when destListId equals activeListId', () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      store.moveOrCopyItem('item-1', 'list-1', 'copy')
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when the item is not found in local state', () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      store.moveOrCopyItem('nonexistent', 'list-2', 'copy')
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
+
+    it('copy — calls addDoc on the destination list items subcollection', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+
+      expect(mockAddDoc).toHaveBeenCalledOnce()
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-2', 'items')
+    })
+
+    it('copy — writes correct item fields to the destination', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+
+      const payload = mockAddDoc.mock.calls[0][1]
+      expect(payload.name).toBe('Milk')
+      expect(payload.qty).toBe('2 pints')
+      expect(payload.done).toBe(false)
+      expect(payload.fromMeal).toBeNull()
+      expect(payload.sortOrder).toBeNull()
+      expect(payload.addedBy).toBe('parent-uid')
+    })
+
+    it('copy — falls back to Unknown/99 when the source aisle is not in the destination list', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      // 'Dairy' is not in list-2's aisles ([Drinks, Snacks])
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+
+      const payload = mockAddDoc.mock.calls[0][1]
+      expect(payload.aisle).toBe('Unknown')
+      expect(payload.aisleOrder).toBe(99)
+    })
+
+    it('copy — uses the destination aisle order when the aisle name matches', () => {
+      let listsCallback, itemsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [
+        mockList('list-1', 'Weekly shop', 2000, DEFAULT_AISLES),
+        mockList('list-2', 'Party supplies', 1000, [
+          { name: 'Dairy', order: 3 }, // same aisle name, different order
+        ]),
+      ] })
+      itemsCallback({ docs: [
+        mockItem('item-1', { name: 'Milk', qty: '2 pints', aisle: 'Dairy', aisleOrder: 1 }),
+      ] })
+
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+
+      const payload = mockAddDoc.mock.calls[0][1]
+      expect(payload.aisle).toBe('Dairy')
+      expect(payload.aisleOrder).toBe(3)
+    })
+
+    it('copy — does not call deleteDoc (item stays in source list)', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+
+      expect(mockDeleteDoc).not.toHaveBeenCalled()
+    })
+
+    it('copy — does not remove the item from local Pinia state', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+
+      expect(store.items.some(i => i.id === 'item-1')).toBe(true)
+    })
+
+    it('move — calls addDoc on the destination list items subcollection', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      store.moveOrCopyItem('item-1', 'list-2', 'move')
+
+      expect(mockAddDoc).toHaveBeenCalledOnce()
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-2', 'items')
+    })
+
+    it('move — calls deleteDoc on the source item', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      store.moveOrCopyItem('item-1', 'list-2', 'move')
+
+      expect(mockDeleteDoc).toHaveBeenCalledOnce()
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+    })
+
+    it('move — removes the item from local Pinia state immediately', () => {
+      const store = useShoppingStore()
+      setupTwoLists(store)
+
+      store.moveOrCopyItem('item-1', 'list-2', 'move')
+
+      expect(store.items.some(i => i.id === 'item-1')).toBe(false)
+    })
+  })
+
   describe('teardown', () => {
     it('clears lists, items, and activeListId', () => {
       let listsCallback, itemsCallback

@@ -202,6 +202,31 @@ export const useShoppingStore = defineStore('shopping', () => {
     return true
   }
 
+  function moveOrCopyItem(itemId, destListId, action) {
+    if (!activeListId.value || destListId === activeListId.value) return
+    const item = items.value.find(i => i.id === itemId)
+    if (!item) return
+    const destList = lists.value.find(l => l.id === destListId)
+    const destAisles = destList?.aisles ?? DEFAULT_AISLES
+    const aisleObj = destAisles.find(a => a.name === item.aisle)
+    const familyStore = useFamilyStore()
+    addDoc(collection(db, 'shoppingLists', destListId, 'items'), {
+      name: item.name,
+      qty: item.qty ?? '',
+      aisle: aisleObj ? item.aisle : 'Unknown',
+      aisleOrder: aisleObj?.order ?? 99,
+      done: false,
+      addedBy: familyStore.currentUser?.uid ?? '',
+      fromMeal: null,
+      sortOrder: null,
+      createdAt: serverTimestamp(),
+    })
+    if (action === 'move') {
+      items.value = items.value.filter(i => i.id !== itemId)
+      deleteDoc(doc(db, 'shoppingLists', activeListId.value, 'items', itemId))
+    }
+  }
+
   async function saveAisles(aisles) {
     if (!activeListId.value) return
     await updateDoc(doc(db, 'shoppingLists', activeListId.value), { aisles })
@@ -222,5 +247,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle }
+  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle, moveOrCopyItem }
 })

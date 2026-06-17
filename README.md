@@ -188,7 +188,7 @@ npm run deploy:dev
 npm run deploy:prod
 ```
 
-Because every deploy includes `firestore.rules` and `firestore.indexes.json`, rules can no longer drift out of sync with the deployed code. To deploy to prod you must first create a `.env.prod` file — see the **Environments** section below.
+Because every deploy includes `firestore.rules` and `firestore.indexes.json`, rules can no longer drift out of sync with the deployed code. To deploy to prod you must first create a `.env.prod` file — see the **Environments** section above.
 
 #### Deploying via GitHub Actions
 

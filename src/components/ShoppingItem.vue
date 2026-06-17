@@ -43,7 +43,7 @@ function onToggle() {
       />
     </template>
 
-    <v-list-item-title :class="{ 'text-decoration-line-through text-medium-emphasis': item.done }">
+    <v-list-item-title class="text-wrap" :class="{ 'text-decoration-line-through text-medium-emphasis': item.done }">
       {{ item.name }}
     </v-list-item-title>
     <v-list-item-subtitle v-if="item.qty">{{ item.qty }}</v-list-item-subtitle>

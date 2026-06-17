@@ -108,7 +108,11 @@ service cloud.firestore {
       match /items/{itemId} {
         allow read: if isFamilyMember(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
-        allow create, update, delete: if isParent(
+        // name capped at 80 chars — keep in sync with ITEM_NAME_MAX_LENGTH in src/constants/shopping.js
+        allow create, update: if isParent(
+          get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId)
+          && request.resource.data.name.size() <= 80;
+        allow delete: if isParent(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
       }
     }

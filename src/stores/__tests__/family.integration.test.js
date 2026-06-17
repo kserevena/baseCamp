@@ -425,6 +425,37 @@ describe('Firestore security rules', () => {
         deleteDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'))
       )
     })
+
+    it('allows a parent to add an item with a name of exactly 80 characters', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(
+        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+          name: 'A'.repeat(80), qty: '', aisle: 'Dairy',
+          aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
+        })
+      )
+    })
+
+    it('denies a parent adding an item with a name longer than 80 characters', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertFails(
+        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+          name: 'A'.repeat(81), qty: '', aisle: 'Dairy',
+          aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
+        })
+      )
+    })
+
+    it('allows a parent to delete an item regardless of name length', async () => {
+      let itemRef
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+          name: 'A'.repeat(81), qty: '', aisle: 'Dairy', aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
+        })
+      })
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(deleteDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id)))
+    })
   })
 
   describe('meals collection', () => {

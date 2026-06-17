@@ -199,6 +199,14 @@ describe('ShoppingItem', () => {
     })
   })
 
+  describe('item name text wrapping', () => {
+    it('has text-wrap class on the title element', () => {
+      const wrapper = mountItem(makeItem({ name: 'A very long item name that would normally be truncated with an ellipsis' }))
+      const title = wrapper.find('.v-list-item-title')
+      expect(title.classes()).toContain('text-wrap')
+    })
+  })
+
   describe('edit interaction', () => {
     it('emits edit when the list item is clicked and showEdit is true', async () => {
       const wrapper = mountItem(makeItem(), { showEdit: true })

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
+import { ITEM_NAME_MAX_LENGTH } from '@/constants/shopping.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
 
@@ -78,7 +79,7 @@ function openEdit(item) {
 }
 
 function submit() {
-  const name = itemName.value.trim()
+  const name = itemName.value.trim().slice(0, ITEM_NAME_MAX_LENGTH)
   if (!name) return
   if (itemMode.value === 'edit') {
     store.updateItem(editItem.value.id, {
@@ -255,6 +256,8 @@ watch(sheet, (open) => {
           variant="outlined"
           autofocus
           class="mb-2"
+          :maxlength="ITEM_NAME_MAX_LENGTH"
+          :counter="ITEM_NAME_MAX_LENGTH"
           @keyup.enter="submit"
         />
         <div v-if="doneSuggestions.length" class="mb-2">

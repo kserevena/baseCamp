@@ -5,18 +5,19 @@
  * family (members, a shopping list, meals, household jobs + subtasks) so the app
  * shows populated data during local development and screenshots.
  *
- *  - Invoked MANUALLY only: from the browser console, or the Playwright screenshot
- *    flow (see docs/cloud-screenshots.md). It is never imported by main.js or run
- *    on app startup.
+ *  - Invoked MANUALLY only: from the browser console during local development
+ *    (run the dev server against the emulator, then
+ *    `import('/src/devtools/seed.js').then(m => m.seedIfEmpty())`). It is never
+ *    imported by main.js or run on app startup.
  *  - Idempotent: returns early if the demo family already has members.
  *  - Guarded to the emulator: does nothing unless VITE_USE_EMULATOR === 'true',
  *    so it can never seed a real dev/prod project.
  *  - The automated test suites do NOT use this file (unit tests mock Firestore;
  *    integration tests seed their own data directly via withSecurityRulesDisabled).
- *
- * Relocating this file out of src/firebase/ is tracked in issue #102.
+ *    The cloud screenshot flow (docs/cloud-screenshots.md) also does NOT use this
+ *    file — it seeds the emulator independently via the REST API.
  */
-import { db } from './config.js'
+import { db } from '../firebase/config.js'
 import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 
 const FAMILY_ID = 'family_1'

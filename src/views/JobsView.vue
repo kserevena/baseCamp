@@ -213,14 +213,7 @@ function submitAdd() {
   padding: 12px;
   /* Clear the fixed FAB (bottom: 80px + 56px tall) so the last job cards and
      their edit controls stay visible and tappable above it. Mirrors the
-     ShoppingView pattern (#19). */
+     ShoppingView pattern (#19). The .fab rule itself lives in utilities.css. */
   padding-bottom: calc(152px + env(safe-area-inset-bottom));
-}
-.fab {
-  position: fixed;
-  bottom: 80px;
-  right: 20px;
-  /* Sit above any sticky section headers so the button is never covered (#35). */
-  z-index: 5;
 }
 </style>

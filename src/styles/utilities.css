@@ -3,3 +3,15 @@
 .gap-2 { gap: 8px; }
 .gap-3 { gap: 12px; }
 .gap-4 { gap: 16px; }
+
+/* Floating action button, fixed to the bottom-right above the bottom nav.
+   Shared by ShoppingView and JobsView. Views that use it must add bottom
+   padding to their scroll container (see .shopping-view / .jobs-view) so the
+   last list items clear the FAB (#19). z-index 5 keeps it above sticky
+   section headers (z-index 1) while scrolling (#35). */
+.fab {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 5;
+}

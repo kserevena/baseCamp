@@ -4,6 +4,16 @@ import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp, Timestamp } 
 const FAMILY_ID = 'family_1'
 
 export async function seedIfEmpty() {
+  // Safety guard: only ever seed the local emulator. seedIfEmpty() writes to
+  // whatever `db` points at, so refuse to run unless the app is wired to the
+  // emulator (VITE_USE_EMULATOR=true — the same flag config.js uses to connect
+  // to it). This makes it impossible to accidentally seed a real project, even
+  // if the function is called by hand from the console against prod/dev.
+  if (import.meta.env.VITE_USE_EMULATOR !== 'true') {
+    console.warn('[BaseCamp] seedIfEmpty() skipped — not connected to the emulator (set VITE_USE_EMULATOR=true to seed).')
+    return
+  }
+
   const membersSnap = await getDocs(collection(db, 'families', FAMILY_ID, 'members'))
   if (!membersSnap.empty) return
 

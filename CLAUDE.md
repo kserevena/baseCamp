@@ -203,6 +203,8 @@ families/{familyId}/pocketMoney/{uid}/transactions/{txnId}
   note: string | null                   ← optional; used for withdrawals
 ```
 
+**New family-scoped collections must be subcollections of `families/{familyId}/`.** Do not create new root-level collections that carry a `familyId` field for access control — nesting under the family document makes security rules simpler and avoids cross-family data leakage by construction. (`shoppingLists` and `meals` predate this convention and use the root-level pattern; do not follow that pattern for any new data.)
+
 ---
 
 ## Firestore schema evolution

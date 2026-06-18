@@ -32,6 +32,8 @@ baseCamp/
 │   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
 │   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
 │   │   ├── MealVoting.vue           # Meal cards with vote button and voter avatars
+│   │   ├── JobCard.vue              # Single job card — collapsed summary + expanded controls; parent-gated actions
+│   │   ├── JobSubtasks.vue          # Subtask checklist per job; checkbox available to all; drag/add/delete parent-only
 │   │   └── __tests__/
 │   ├── views/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top meal, family avatars
@@ -40,6 +42,7 @@ baseCamp/
 │   │   ├── ShoppingView.vue         # Shopping list — list, add-item FAB, manage aisles
 │   │   ├── MealsView.vue            # Meal voting wrapper
 │   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
+│   │   ├── JobsView.vue             # Household jobs — status sections, category filter, FAB add dialog
 │   │   ├── CLAUDE.md                # UI design principles; PocketMoneyView complexity notes
 │   │   └── __tests__/
 │   ├── composables/
@@ -47,7 +50,8 @@ baseCamp/
 │   │   ├── useUserRole.js             # isParent/isChild computed derived from family.currentUser
 │   │   └── __tests__/
 │   ├── constants/
-│   │   └── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
+│   │   ├── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
+│   │   └── jobs.js                   # JOB_STATUSES / JOB_STATUS_LABELS / JOB_PRIORITIES — Firestore string contract
 │   ├── utils/
 │   │   ├── currency.js               # formatGBP() — formats a number as "£x.xx"
 │   │   ├── date.js                   # formatDate() — formats a Timestamp/Date as "9 Jun 2026"
@@ -62,7 +66,8 @@ baseCamp/
 │   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort, aisle management)
 │   │   ├── meals.js                 # Meal suggestions and votes
 │   │   ├── pocketMoney.js           # Pocket money snapshots, auto-payment calc, withdrawal recording
-│   │   ├── CLAUDE.md                # pocketMoney UTC math + transaction safety; shopping store internals
+│   │   ├── jobs.js                  # Household jobs + subtasks; two onSnapshot listeners (jobs + collectionGroup subtasks)
+│   │   ├── CLAUDE.md                # pocketMoney UTC math + transaction safety; shopping store internals; jobs store internals
 │   │   └── __tests__/
 │   ├── router/
 │   │   ├── index.js                 # Vue Router — routes and auth guard
@@ -126,7 +131,7 @@ The data stores (`family`, `shopping`, `meals`, `pocketMoney`) all follow the sa
 - `setup(...)` — subscribes to Firestore via `onSnapshot`, populates reactive state
 - `teardown()` — unsubscribes the listener, clears state
 
-`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping` and `meals` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
+`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping`, `meals`, and `jobs` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
 
 **`pocketMoney` store exception:** `pocketMoney.setup(familyId, currentUser)` requires the user's `role` to decide whether to subscribe to the whole collection (parent) or a single document (child). `role` is only available after the `families/{familyId}/members` snapshot fires — which happens asynchronously after `familyId` becomes non-null. `App.vue` therefore watches `family.currentUser` (not `familyId`) to set up the pocketMoney store.
 
@@ -201,6 +206,28 @@ families/{familyId}/pocketMoney/{uid}/transactions/{txnId}
   date: timestamp                       ← payment: the actual weekday date; withdrawal: when recorded
   recordedBy: uid | null                ← null for auto-payments; parent uid for withdrawals
   note: string | null                   ← optional; used for withdrawals
+
+families/{familyId}/householdJobs/{jobId}
+  title: string
+  description: string | null
+  category: string
+  status: "suggested" | "planned" | "in_progress" | "done"
+  priority: "high" | "medium" | "low" | null
+  costEstimate: number | null           ← GBP cost estimate; null when unset
+  suggestedBy: uid                      ← stamped on create; immutable; used by security rules
+  assignedTo: uid | null
+  createdAt: timestamp
+  updatedAt: timestamp
+
+families/{familyId}/householdJobs/{jobId}/subtasks/{subtaskId}
+  familyId: string                      ← stamped for the collection-group listener and security rule
+  jobId: string                         ← stamped for the collection-group listener and security rule
+  title: string
+  done: boolean
+  assignedTo: uid | null
+  order: number                         ← sort order within the job; parents can reorder
+  createdAt: timestamp
+  updatedAt: timestamp
 ```
 
 **New family-scoped collections must be subcollections of `families/{familyId}/`.** Do not create new root-level collections that carry a `familyId` field for access control — nesting under the family document makes security rules simpler and avoids cross-family data leakage by construction. (`shoppingLists` and `meals` predate this convention and use the root-level pattern; do not follow that pattern for any new data.)
@@ -263,6 +290,8 @@ Access summary:
 | `meals/{mealId}` | Family members | Family members (create/update); parents (delete) |
 | `families/{familyId}/pocketMoney/{uid}` | Parents (any child); child (own only) | Parents only |
 | `families/{familyId}/pocketMoney/{uid}/transactions/{txnId}` | Parents (any child); child (own only) | Parents only |
+| `families/{familyId}/householdJobs/{jobId}` | Family members | Family members (create — must stamp own uid as suggestedBy, status=suggested, children cannot set priority/assignedTo); parents (update/delete); child who suggested it may update title/description only while status=suggested |
+| `families/{familyId}/householdJobs/{jobId}/subtasks/{subtaskId}` | Family members (also via collection-group wildcard rule) | Parents (create/delete/full update); any family member (update done+updatedAt only) |
 
 Two helper functions drive most rules:
 - `isFamilyMember(familyId)` — checks `families/{familyId}/members/{uid}` exists

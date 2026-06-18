@@ -3,6 +3,7 @@ import HomeView from '@/views/HomeView.vue'
 import ShoppingView from '@/views/ShoppingView.vue'
 import MealsView from '@/views/MealsView.vue'
 import PocketMoneyView from '@/views/PocketMoneyView.vue'
+import JobsView from '@/views/JobsView.vue'
 import LoginView from '@/views/LoginView.vue'
 import SetupView from '@/views/SetupView.vue'
 import { useAuthStore } from '@/stores/auth.js'
@@ -15,6 +16,7 @@ const router = createRouter({
     { path: '/shopping',     component: ShoppingView },
     { path: '/meals',        component: MealsView },
     { path: '/pocket-money', component: PocketMoneyView },
+    { path: '/jobs',         component: JobsView },
     { path: '/login',        component: LoginView,  meta: { public: true, hideNav: true } },
     { path: '/setup',        component: SetupView,  meta: { public: true, hideNav: true } },
   ],

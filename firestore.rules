@@ -2,6 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Collection-group read rule for subtasks.
+    // Path-nested rules (inside match /families/{familyId}/...) do NOT apply to
+    // collection-group queries, so this top-level wildcard rule is required to
+    // allow the collectionGroup('subtasks') listener in the jobs store.
+    // Access is gated on the familyId field stamped on every subtask document.
+    match /{path=**}/subtasks/{subtaskId} {
+      allow read: if resource.data.familyId != null &&
+        isFamilyMember(resource.data.familyId);
+    }
+
     // Returns true if the requesting user is logged in AND has a member document
     // inside the given family. Used to gate all read/write access to family data.
     function isFamilyMember(familyId) {
@@ -70,6 +80,38 @@ service cloud.firestore {
         // A user may edit their own member doc (e.g. name/colour) but cannot change their role.
         allow update: if request.auth != null && request.auth.uid == uid
           && request.resource.data.role == resource.data.role;
+      }
+
+      // Household jobs — per-family job tracker.
+      // Any member can suggest and read jobs. Parents have full control.
+      // A child may edit only the title/description of their own still-suggested job.
+      match /householdJobs/{jobId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.suggestedBy == request.auth.uid
+          && request.resource.data.status == 'suggested'
+          && (isParent(familyId)
+              || (request.resource.data.priority == null
+                  && request.resource.data.assignedTo == null));
+        allow delete: if isParent(familyId);
+        allow update: if isParent(familyId)
+          || (isFamilyMember(familyId)
+              && resource.data.suggestedBy == request.auth.uid
+              && resource.data.status == 'suggested'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'updatedAt']));
+
+        // Subtasks live under each job document.
+        // Parents have full CRUD. Any member can toggle done (+updatedAt only).
+        match /subtasks/{subtaskId} {
+          allow read: if isFamilyMember(familyId);
+          allow create: if isParent(familyId)
+            && request.resource.data.familyId == familyId
+            && request.resource.data.jobId == jobId;
+          allow delete: if isParent(familyId);
+          allow update: if isParent(familyId)
+            || (isFamilyMember(familyId)
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'updatedAt']));
+        }
       }
 
       // Pocket money config and running balance snapshot per child.

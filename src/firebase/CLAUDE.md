@@ -13,7 +13,7 @@ Emulator ports (defined in `firebase.json`):
 
 Set `VITE_USE_EMULATOR=true` in `.env` to connect the app to the local emulator. The connection is wired in `config.js` using `connectFirestoreEmulator` and `connectAuthEmulator`.
 
-`seed.js` exports `seedIfEmpty()` — checks whether the emulator already has data and, if not, writes mock family members, shopping items, and meals. Call from the browser console or from test setup.
+`seed.js` exports `seedIfEmpty()` — checks whether the emulator already has data and, if not, writes mock family members, shopping items, meals, and household jobs. Call from the browser console or from test setup. It is **guarded to the emulator**: the function returns immediately (with a console warning) unless `VITE_USE_EMULATOR === 'true'`, so it can never accidentally seed a real dev/prod project even if called by hand.
 
 ---
 

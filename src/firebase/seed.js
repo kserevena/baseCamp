@@ -1,9 +1,37 @@
+/**
+ * Local emulator demo/seed data — NOT test code and NOT part of the app runtime.
+ *
+ * `seedIfEmpty()` populates the local Firestore emulator with a realistic mock
+ * family (members, a shopping list, meals, household jobs + subtasks) so the app
+ * shows populated data during local development and screenshots.
+ *
+ *  - Invoked MANUALLY only: from the browser console, or the Playwright screenshot
+ *    flow (see docs/cloud-screenshots.md). It is never imported by main.js or run
+ *    on app startup.
+ *  - Idempotent: returns early if the demo family already has members.
+ *  - Guarded to the emulator: does nothing unless VITE_USE_EMULATOR === 'true',
+ *    so it can never seed a real dev/prod project.
+ *  - The automated test suites do NOT use this file (unit tests mock Firestore;
+ *    integration tests seed their own data directly via withSecurityRulesDisabled).
+ *
+ * Relocating this file out of src/firebase/ is tracked in issue #102.
+ */
 import { db } from './config.js'
-import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 
 const FAMILY_ID = 'family_1'
 
 export async function seedIfEmpty() {
+  // Safety guard: only ever seed the local emulator. seedIfEmpty() writes to
+  // whatever `db` points at, so refuse to run unless the app is wired to the
+  // emulator (VITE_USE_EMULATOR=true — the same flag config.js uses to connect
+  // to it). This makes it impossible to accidentally seed a real project, even
+  // if the function is called by hand from the console against prod/dev.
+  if (import.meta.env.VITE_USE_EMULATOR !== 'true') {
+    console.warn('[BaseCamp] seedIfEmpty() skipped — not connected to the emulator (set VITE_USE_EMULATOR=true to seed).')
+    return
+  }
+
   const membersSnap = await getDocs(collection(db, 'families', FAMILY_ID, 'members'))
   if (!membersSnap.empty) return
 
@@ -52,6 +80,99 @@ export async function seedIfEmpty() {
   ]
   for (const meal of meals) {
     await addDoc(collection(db, 'meals'), meal)
+  }
+
+  // ── householdJobs ───────────────────────────────────────────────────────────
+
+  const jobsData = [
+    {
+      id: 'job_gutters',
+      data: {
+        title: 'Clean gutters',
+        description: 'Front and back of the house — last done 2 years ago.',
+        category: 'Maintenance',
+        status: 'planned',
+        priority: 'medium',
+        costEstimate: 80,
+        suggestedBy: 'mock_dad',
+        assignedTo: 'mock_dad',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    },
+    {
+      id: 'job_garden_tidy',
+      data: {
+        title: 'Garden tidy-up',
+        description: null,
+        category: 'Garden',
+        status: 'suggested',
+        priority: 'low',
+        costEstimate: null,
+        suggestedBy: 'mock_ella',
+        assignedTo: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    },
+    {
+      id: 'job_shed_clear',
+      data: {
+        title: 'Clear out the shed',
+        description: 'Sort tools, donate anything unused.',
+        category: 'Maintenance',
+        status: 'done',
+        priority: null,
+        costEstimate: null,
+        suggestedBy: 'mock_mum',
+        assignedTo: 'mock_mum',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    },
+    {
+      id: 'job_holiday',
+      data: {
+        title: 'Plan summer holiday',
+        description: 'Budget £2 000. Two weeks, somewhere sunny.',
+        category: 'Planning',
+        status: 'in_progress',
+        priority: 'high',
+        costEstimate: 2000,
+        suggestedBy: 'mock_mum',
+        assignedTo: 'mock_mum',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    },
+  ]
+
+  for (const job of jobsData) {
+    await setDoc(doc(db, 'families', FAMILY_ID, 'householdJobs', job.id), job.data)
+  }
+
+  // Subtasks for the summer holiday job
+  const holidaySubtasks = [
+    { id: 'st_flights',        title: 'Book flights',       done: true,  order: 1 },
+    { id: 'st_insurance',      title: 'Travel insurance',   done: true,  order: 2 },
+    { id: 'st_accommodation',  title: 'Book accommodation', done: false, order: 3 },
+    { id: 'st_parking',        title: 'Airport parking',    done: false, order: 4 },
+    { id: 'st_pack',           title: 'Pack bags',          done: false, order: 5 },
+  ]
+  for (const st of holidaySubtasks) {
+    await setDoc(
+      doc(db, 'families', FAMILY_ID, 'householdJobs', 'job_holiday', 'subtasks', st.id),
+      {
+        familyId:   FAMILY_ID,
+        jobId:      'job_holiday',
+        title:      st.title,
+        done:       st.done,
+        assignedTo: st.id === 'st_flights' ? 'mock_mum' : null,
+        order:      st.order,
+        createdAt:  serverTimestamp(),
+        updatedAt:  serverTimestamp(),
+      },
+    )
   }
 
   console.log('[BaseCamp] Seed complete.')

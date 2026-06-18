@@ -158,52 +158,52 @@ families/{familyId}
     colour: string            ← hex, used for avatars throughout the app
     inviteCode: string        ← only on child members who joined; the code they used,
                                 so the security rule can verify it maps to this family
-  shoppingLists/{listId}      ← auto-generated ID; nested under family for security simplicity
-    name: string              ← user-provided name; set by a parent when creating the list
-    createdAt: timestamp
-    createdBy: uid
-    aisles: Array<{ name: string, order: number }> | absent
+
+shoppingLists/{listId}        ← auto-generated ID
+  familyId: string
+  name: string                ← user-provided name; set by a parent when creating the list
+  createdAt: timestamp
+  createdBy: uid
+  aisles: Array<{ name: string, order: number }> | absent
                               ← per-list aisle config; absent on old docs → store falls back
                                 to DEFAULT_AISLES. Written on list creation and by saveAisles().
-    items/{itemId}
-      name: string
-      qty: string
-      aisle: string
-      aisleOrder: number      ← for sorting by store layout; 99 = Unknown (items from deleted aisles)
-      done: boolean
-      addedBy: uid
-      fromMeal: string | null ← meal document ID if auto-added
-      sortOrder: number | null ← custom drag-drop position within aisle; absent = sort by name
-      createdAt: timestamp
-  meals/{mealId}              ← nested under family for security simplicity
+  items/{itemId}
     name: string
-    votes: string[]           ← array of uids who voted
-    ingredients: string[]     ← auto-added to list when enough votes
-  pocketMoney/{uid}           ← config + running balance snapshot per child
-    weeklyAmount: number                ← amount added each payment day
-    paymentDay: number                  ← 0 = Sunday … 6 = Saturday
-    balance: number                     ← last persisted total (does not include pending payments);
+    qty: string
+    aisle: string
+    aisleOrder: number        ← for sorting by store layout; 99 = Unknown (items from deleted aisles)
+    done: boolean
+    addedBy: uid
+    fromMeal: string | null   ← meal document ID if auto-added
+    sortOrder: number | null  ← custom drag-drop position within aisle; absent = sort by name
+    createdAt: timestamp
+
+meals/{mealId}
+  familyId: string
+  name: string
+  votes: string[]             ← array of uids who voted
+  ingredients: string[]       ← auto-added to list when enough votes
+
+families/{familyId}/pocketMoney/{uid}   ← config + running balance snapshot per child
+  weeklyAmount: number                  ← amount added each payment day
+  paymentDay: number                    ← 0 = Sunday … 6 = Saturday
+  balance: number                       ← last persisted total (does not include pending payments);
                                           written as increment() deltas, never absolute values
-    lastUpdated: timestamp              ← payments accrued through this date; written only by
+  lastUpdated: timestamp                ← payments accrued through this date; written only by
                                           flushPendingPayments and first-time saveConfig —
                                           withdrawals do NOT touch it
-    transactions/{txnId}               ← txnId is payment-YYYY-MM-DD for payments (deterministic,
+
+families/{familyId}/pocketMoney/{uid}/transactions/{txnId}
+                                        ← txnId is payment-YYYY-MM-DD for payments (deterministic,
                                           idempotent re-flush); auto-generated for withdrawals
-      type: "payment" | "withdrawal"
-      amount: number                    ← always positive; type gives direction
-      date: timestamp                   ← payment: the actual weekday date; withdrawal: when recorded
-      recordedBy: uid | null            ← null for auto-payments; parent uid for withdrawals
-      note: string | null               ← optional; used for withdrawals
+  type: "payment" | "withdrawal"
+  amount: number                        ← always positive; type gives direction
+  date: timestamp                       ← payment: the actual weekday date; withdrawal: when recorded
+  recordedBy: uid | null                ← null for auto-payments; parent uid for withdrawals
+  note: string | null                   ← optional; used for withdrawals
 ```
 
-**Schema migration in progress — `shoppingLists` and `meals`.** The schema above shows the
-target structure. The existing code (`src/stores/shopping.js`, `src/stores/meals.js`) and
-`firestore.rules` still use the old root-level paths (`shoppingLists/{listId}`,
-`meals/{mealId}`) with a `familyId` field for access control. These must be migrated to
-`families/{familyId}/shoppingLists/{listId}` and `families/{familyId}/meals/{mealId}` following
-the expand–migrate–cut process described below. **Do not read or write the new paths in new
-code until the migration is complete** — devices with offline-cached documents in the old shape
-may be present for days after a deploy.
+**New family-scoped collections must be subcollections of `families/{familyId}/`.** Do not create new root-level collections that carry a `familyId` field for access control — nesting under the family document makes security rules simpler and avoids cross-family data leakage by construction. (`shoppingLists` and `meals` predate this convention and use the root-level pattern; do not follow that pattern for any new data.)
 
 ---
 
@@ -258,9 +258,9 @@ Access summary:
 | `inviteCodes/{code}` | Any signed-in user (single `get` only — no listing/enumeration) | Existing family member |
 | `families/{familyId}` | Family members | Anyone signed-in who stamps `createdBy` as themselves (create); parents (update) |
 | `families/{familyId}/members/{uid}` | Family members | Parents (any member); the family `createdBy` user seating themselves as parent; a user seating themselves as `child` with a valid invite code; self-updates that don't change `role` |
-| `families/{familyId}/shoppingLists/{listId}` | Family members | Parents (create/update/delete) |
-| `families/{familyId}/shoppingLists/{listId}/items/{itemId}` | Family members | Parents only (create/update/delete); `name` capped at 80 chars (enforced in rules — keep in sync with `ITEM_NAME_MAX_LENGTH` in `src/constants/shopping.js`) |
-| `families/{familyId}/meals/{mealId}` | Family members | Family members (create/update); parents (delete) |
+| `shoppingLists/{listId}` | Family members | Parents (create/update/delete) |
+| `shoppingLists/{listId}/items/{itemId}` | Family members | Parents only (create/update/delete); `name` capped at 80 chars (enforced in rules — keep in sync with `ITEM_NAME_MAX_LENGTH` in `src/constants/shopping.js`) |
+| `meals/{mealId}` | Family members | Family members (create/update); parents (delete) |
 | `families/{familyId}/pocketMoney/{uid}` | Parents (any child); child (own only) | Parents only |
 | `families/{familyId}/pocketMoney/{uid}/transactions/{txnId}` | Parents (any child); child (own only) | Parents only |
 

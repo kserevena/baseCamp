@@ -79,7 +79,7 @@ function submitAdd() {
 </script>
 
 <template>
-  <div class="pa-3">
+  <div class="jobs-view">
     <!-- ── header + category filter ── -->
     <div class="d-flex align-center mb-3">
       <span class="text-h6 font-weight-bold flex-grow-1">Household Jobs</span>
@@ -151,15 +151,18 @@ function submitAdd() {
       </div>
     </div>
 
-    <!-- ── FAB ── -->
-    <v-fab
-      icon="mdi-plus"
+    <!-- ── Add job FAB — same positioning/styling as ShoppingView; visible to
+         all family members since anyone can suggest a job ── -->
+    <v-btn
+      icon
       color="primary"
-      location="bottom end"
-      fixed
-      style="bottom: 72px"
+      size="56"
+      elevation="4"
+      class="fab"
       @click="openAdd"
-    />
+    >
+      <v-icon>mdi-plus</v-icon>
+    </v-btn>
 
     <!-- ── Add job dialog ── -->
     <v-dialog v-model="addDialog" max-width="480">
@@ -202,3 +205,22 @@ function submitAdd() {
     </v-dialog>
   </div>
 </template>
+
+<style scoped>
+.jobs-view {
+  position: relative;
+  min-height: calc(100vh - 64px);
+  padding: 12px;
+  /* Clear the fixed FAB (bottom: 80px + 56px tall) so the last job cards and
+     their edit controls stay visible and tappable above it. Mirrors the
+     ShoppingView pattern (#19). */
+  padding-bottom: calc(152px + env(safe-area-inset-bottom));
+}
+.fab {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  /* Sit above any sticky section headers so the button is never covered (#35). */
+  z-index: 5;
+}
+</style>

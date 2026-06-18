@@ -151,9 +151,8 @@ describe('JobsView', () => {
 
     it('opens the add dialog when FAB is clicked', async () => {
       const wrapper = mountView()
-      // The FAB is a VFab — open dialog programmatically via the component's addDialog ref
-      // by calling openAdd through the FAB click
-      const fab = wrapper.findComponent({ name: 'VFab' })
+      // The FAB is a fixed-position v-btn.fab (same pattern as ShoppingView)
+      const fab = wrapper.find('.fab')
       expect(fab.exists()).toBe(true)
       await fab.trigger('click')
       await wrapper.vm.$nextTick()
@@ -169,7 +168,7 @@ describe('JobsView', () => {
       // Directly call the submitAdd handler with a populated title
       // by setting newTitle via the component's exposed state or by using findComponent
       // We test this by triggering via the suggest button
-      const fab = wrapper.findComponent({ name: 'VFab' })
+      const fab = wrapper.find('.fab')
       await fab.trigger('click')
       await wrapper.vm.$nextTick()
 

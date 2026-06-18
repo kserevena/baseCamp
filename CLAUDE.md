@@ -72,10 +72,11 @@ baseCamp/
 │   ├── router/
 │   │   ├── index.js                 # Vue Router — routes and auth guard
 │   │   └── __tests__/
-│   └── firebase/
-│       ├── config.js                # Firebase init, App Check, emulator wiring, IndexedDB persistence
-│       ├── seed.js                  # seedIfEmpty() — populates emulator with mock data
-│       └── CLAUDE.md                # App Check rollout; emulator ports and connection
+│   ├── firebase/
+│   │   ├── config.js                # Firebase init, App Check, emulator wiring, IndexedDB persistence
+│   │   └── CLAUDE.md                # App Check rollout; emulator ports and connection
+│   └── devtools/
+│       └── seed.js                  # seedIfEmpty() — manual emulator demo seeding (browser console only; not runtime/test)
 ├── docs/
 │   └── cloud-screenshots.md         # Playwright setup guide for cloud/remote sessions
 ├── scripts/

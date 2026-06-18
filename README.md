@@ -232,7 +232,8 @@ src/
 ├── views/               # Full-screen pages (Home, Shopping, Meals, PocketMoney, Login, Setup)
 ├── stores/              # Pinia stores (auth, family, shopping, meals, pocketMoney)
 ├── router/              # Vue Router config and navigation guard
-└── firebase/            # Firebase init (config.js) and emulator seed data (seed.js)
+├── firebase/            # Firebase init (config.js, App Check, emulator wiring)
+└── devtools/            # Dev-only tooling (seed.js — manual emulator demo seeding)
 ```
 
 Tests live alongside the code they test in `__tests__/` subdirectories. See `CLAUDE.md` for the full file map.

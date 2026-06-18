@@ -129,27 +129,26 @@ describe('JobSubtasks', () => {
   // ── checkbox (any role) ──────────────────────────────────────────────────
 
   describe('checkbox — available to any role', () => {
-    it('calls toggleSubtask when checkbox is clicked by a parent', async () => {
+    it('calls toggleSubtask when the checkbox is toggled by a parent', async () => {
       isParentValue = true
       jobsStore.subtasks = [
         { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1 },
       ]
       const wrapper = mountComponent()
       const checkbox = wrapper.findComponent({ name: 'VCheckbox' })
-      await checkbox.trigger('click')
-      // toggleSubtask may be called via update:modelValue or click
-      // We verify the VCheckbox is present and enabled
-      expect(checkbox.exists()).toBe(true)
+      await checkbox.vm.$emit('update:modelValue', true)
+      expect(jobsStore.toggleSubtask).toHaveBeenCalledWith('st-1')
     })
 
-    it('calls toggleSubtask when checkbox is clicked by a child', async () => {
+    it('calls toggleSubtask when the checkbox is toggled by a child', async () => {
       isParentValue = false
       jobsStore.subtasks = [
         { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1 },
       ]
       const wrapper = mountComponent()
       const checkbox = wrapper.findComponent({ name: 'VCheckbox' })
-      expect(checkbox.exists()).toBe(true)
+      await checkbox.vm.$emit('update:modelValue', true)
+      expect(jobsStore.toggleSubtask).toHaveBeenCalledWith('st-1')
     })
 
     it('checkbox emits update:modelValue which calls toggleSubtask', async () => {

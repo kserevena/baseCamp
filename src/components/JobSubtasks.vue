@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useJobsStore } from '@/stores/jobs.js'
 import { useFamilyStore } from '@/stores/family.js'
@@ -15,9 +15,15 @@ const familyStore = useFamilyStore()
 const { isParent } = useUserRole()
 
 const newSubtaskTitle = ref('')
-let pendingReorder = false
 
 const subtasks = computed(() => jobsStore.subtasksFor(props.jobId))
+
+// VueDraggable mutates its v-model array in place during a drag. Bind it to a
+// local copy of THIS job's subtasks — never the store's full `subtasks` array,
+// which spans every job, so a reorder can't scramble another job's items. Kept
+// in sync with the store; onDragEnd persists the new order to Firestore.
+const draggableSubtasks = ref([])
+watch(subtasks, (list) => { draggableSubtasks.value = [...list] }, { immediate: true })
 
 function addSubtask() {
   const title = newSubtaskTitle.value.trim()
@@ -30,13 +36,8 @@ function onToggle(subtaskId) {
   jobsStore.toggleSubtask(subtaskId)
 }
 
-function onDragStart() {
-  pendingReorder = true
-}
-
-function onDragEnd(evt) {
-  pendingReorder = false
-  const orderedIds = subtasks.value.map(s => s.id)
+function onDragEnd() {
+  const orderedIds = draggableSubtasks.value.map(s => s.id)
   jobsStore.reorderSubtasks(props.jobId, orderedIds)
 }
 
@@ -71,14 +72,13 @@ function saveEditSubtask(subtaskId) {
     <!-- Subtask list -->
     <VueDraggable
       v-if="isParent"
-      v-model="jobsStore.subtasks"
+      v-model="draggableSubtasks"
       handle=".subtask-drag-handle"
       :animation="150"
-      @start="onDragStart"
       @end="onDragEnd"
     >
       <div
-        v-for="subtask in subtasks"
+        v-for="subtask in draggableSubtasks"
         :key="subtask.id"
         class="subtask-row d-flex align-center py-1"
       >

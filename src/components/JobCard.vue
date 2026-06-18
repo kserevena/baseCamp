@@ -18,6 +18,7 @@ const { isParent } = useUserRole()
 
 const expanded = ref(false)
 const editDialog = ref(false)
+const deleteDialog = ref(false)
 
 // Can this user edit only title/description (child who suggested it)?
 const canChildEdit = computed(() =>
@@ -90,8 +91,9 @@ function onUnassign() {
   jobsStore.updateJob(props.job.id, { assignedTo: null })
 }
 
-function onDelete() {
+function confirmDelete() {
   jobsStore.deleteJob(props.job.id)
+  deleteDialog.value = false
 }
 </script>
 
@@ -279,7 +281,7 @@ function onDelete() {
               size="small"
               min-height="40"
               prepend-icon="mdi-delete-outline"
-              @click="onDelete"
+              @click="deleteDialog = true"
             >
               Delete
             </v-btn>
@@ -347,6 +349,21 @@ function onDelete() {
         <v-spacer />
         <v-btn variant="text" @click="editDialog = false">Cancel</v-btn>
         <v-btn color="primary" variant="flat" @click="saveEdit">Save</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- ── delete confirmation dialog ── -->
+  <v-dialog v-model="deleteDialog" max-width="400">
+    <v-card>
+      <v-card-title>Delete job?</v-card-title>
+      <v-card-text>
+        "{{ job.title }}" and its subtasks will be permanently deleted.
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
+        <v-btn color="error" variant="flat" @click="confirmDelete">Delete</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

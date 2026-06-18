@@ -202,16 +202,34 @@ describe('JobCard', () => {
       expect(wrapper.text()).toContain('Delete')
     })
 
-    it('calls deleteJob when Delete is clicked', async () => {
+    it('opens a confirmation dialog before deleting (does not delete immediately)', async () => {
       isParentValue = true
       const wrapper = mountCard()
       const expandBtn = wrapper.findComponent({ name: 'VBtn' })
       await expandBtn.trigger('click')
-      // Find the Delete button by text
-      const btns = wrapper.findAllComponents({ name: 'VBtn' })
-      const deleteBtn = btns.find(b => b.text().includes('Delete'))
+      const deleteBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text().includes('Delete'))
       expect(deleteBtn).toBeTruthy()
       await deleteBtn.trigger('click')
+      // Clicking Delete only opens the dialog — deleteJob must NOT have run yet
+      expect(jobsStore.deleteJob).not.toHaveBeenCalled()
+    })
+
+    it('calls deleteJob when the delete is confirmed in the dialog', async () => {
+      isParentValue = true
+      const wrapper = mountCard()
+      const expandBtn = wrapper.findComponent({ name: 'VBtn' })
+      await expandBtn.trigger('click')
+      // Open the confirmation dialog
+      const deleteBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text().includes('Delete'))
+      await deleteBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      // Confirm — the dialog's flat error "Delete" button
+      const confirmBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text().includes('Delete') && b.props('variant') === 'flat')
+      expect(confirmBtn).toBeTruthy()
+      await confirmBtn.trigger('click')
       expect(jobsStore.deleteJob).toHaveBeenCalledWith('job-1')
     })
   })

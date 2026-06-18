@@ -1,12 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useJobsStore } from '@/stores/jobs.js'
-import { useUserRole } from '@/composables/useUserRole.js'
 import { JOB_STATUSES, JOB_STATUS_LABELS } from '@/constants/jobs.js'
 import JobCard from '@/components/JobCard.vue'
 
 const jobsStore = useJobsStore()
-const { isParent } = useUserRole()
 
 // ── category filter ─────────────────────────────────────────────────────────
 

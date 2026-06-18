@@ -26,4 +26,16 @@ See root `CLAUDE.md` for the setup/teardown pattern and pocketMoney write semant
 
 ---
 
+## jobs store
+
+**Two onSnapshot listeners:**
+1. `unsubscribeJobs` — subscribes to `families/{familyId}/householdJobs` (all jobs for the family)
+2. `unsubscribeSubtasks` — subscribes via `collectionGroup('subtasks')` filtered by `familyId`. A collection-group query is required because subtasks live under individual job docs and there is no way to subscribe to all subtasks for a family via a normal collection query. This requires a top-level wildcard read rule in `firestore.rules` (`/{path=**}/subtasks/{subtaskId}`) because path-nested rules do NOT apply to collection-group queries.
+
+**`toggleSubtask` is the ONLY action available to non-parent members.** It touches only `done` and `updatedAt` — the security rule enforces this constraint (a member update that touches any other field is denied). Keep the `updateDoc` call in `toggleSubtask` minimal. All other write actions (addJob, updateJob, deleteJob, addSubtask, updateSubtask, reorderSubtasks, deleteSubtask) are parent-only — the UI gates them.
+
+**`deleteJob`** deletes subtask documents before the parent job, mirroring `deleteList` in the shopping store. The subtask security rule does not reach back to the parent job, but the pattern is established practice for child-before-parent deletion.
+
+---
+
 See root `CLAUDE.md` → **Firebase data structure** for the full Firestore schema, and **Firestore schema evolution** for migration patterns before any database change.

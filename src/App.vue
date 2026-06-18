@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useMealsStore } from '@/stores/meals.js'
 import { usePocketMoneyStore } from '@/stores/pocketMoney.js'
+import { useJobsStore } from '@/stores/jobs.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import { useServiceWorkerUpdate } from '@/composables/useServiceWorkerUpdate.js'
 import { isDev } from '@/utils/env.js'
@@ -18,6 +19,7 @@ const auth = useAuthStore()
 const shopping = useShoppingStore()
 const meals = useMealsStore()
 const pocketMoney = usePocketMoneyStore()
+const jobs = useJobsStore()
 
 const userMenu = ref(false)
 
@@ -25,9 +27,11 @@ watch(() => family.familyId, (id, prevId) => {
   if (id) {
     shopping.setup(id)
     meals.setup(id)
+    jobs.setup(id)
   } else if (prevId) {
     shopping.teardown()
     meals.teardown()
+    jobs.teardown()
   }
 })
 
@@ -54,6 +58,7 @@ onUnmounted(() => {
   shopping.teardown()
   meals.teardown()
   pocketMoney.teardown()
+  jobs.teardown()
 })
 
 async function signOut() {
@@ -64,10 +69,11 @@ async function signOut() {
 }
 
 const navItems = [
-  { label: 'Home',     icon: 'mdi-home',                  path: '/' },
-  { label: 'Shopping', icon: 'mdi-cart',                  path: '/shopping' },
-  { label: 'Meals',    icon: 'mdi-silverware-fork-knife',  path: '/meals' },
-  { label: 'Money',    icon: 'mdi-piggy-bank-outline',     path: '/pocket-money' },
+  { label: 'Home',     icon: 'mdi-home',                    path: '/' },
+  { label: 'Shopping', icon: 'mdi-cart',                    path: '/shopping' },
+  { label: 'Meals',    icon: 'mdi-silverware-fork-knife',   path: '/meals' },
+  { label: 'Money',    icon: 'mdi-piggy-bank-outline',      path: '/pocket-money' },
+  { label: 'Jobs',     icon: 'mdi-clipboard-check-outline', path: '/jobs' },
 ]
 
 const activeTab = ref(route.path)

@@ -8,6 +8,7 @@ vi.mock('@/views/MealsView.vue',    () => ({ default: { template: '<div />' } })
 vi.mock('@/views/LoginView.vue',    () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/SetupView.vue',      () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/PocketMoneyView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('@/views/JobsView.vue',        () => ({ default: { template: '<div />' } }))
 
 // Mutable store state — tests update these to simulate auth scenarios
 const authState = {

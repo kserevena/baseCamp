@@ -22,7 +22,10 @@ import {
   updateDoc,
   deleteDoc,
   collection,
+  collectionGroup,
   addDoc,
+  query,
+  where,
   serverTimestamp,
 } from 'firebase/firestore'
 
@@ -855,6 +858,458 @@ describe('Firestore security rules', () => {
           updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'pocketMoney', 'child-uid'), {
             balance: 9999,
           })
+        )
+      })
+    })
+  })
+
+  describe('householdJobs subcollection', () => {
+    // ── seed helpers ──────────────────────────────────────────────────────────
+
+    async function seedJob(familyId, jobId, data = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), 'families', familyId, 'householdJobs', jobId),
+          {
+            title:        'Fix the fence',
+            description:  null,
+            category:     'Garden',
+            status:       'suggested',
+            priority:     null,
+            costEstimate: null,
+            suggestedBy:  'parent-uid',
+            assignedTo:   null,
+            createdAt:    serverTimestamp(),
+            updatedAt:    serverTimestamp(),
+            ...data,
+          }
+        )
+      })
+    }
+
+    async function seedSubtask(familyId, jobId, subtaskId, data = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), 'families', familyId, 'householdJobs', jobId, 'subtasks', subtaskId),
+          {
+            familyId,
+            jobId,
+            title:      'Do the thing',
+            done:       false,
+            assignedTo: null,
+            order:      1,
+            createdAt:  serverTimestamp(),
+            updatedAt:  serverTimestamp(),
+            ...data,
+          }
+        )
+      })
+    }
+
+    beforeEach(async () => {
+      await seedFamily('fam-1', [
+        { uid: 'parent-uid', name: 'Parent', role: 'parent' },
+        { uid: 'child-uid',  name: 'Child',  role: 'child' },
+      ])
+      await seedJob('fam-1', 'job-1')
+      await seedSubtask('fam-1', 'job-1', 'st-1')
+    })
+
+    // ── householdJobs reads ───────────────────────────────────────────────────
+
+    describe('householdJobs reads', () => {
+      it('allows a family member to read a job', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'))
+        )
+      })
+
+      it('denies a non-member reading a job', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'))
+        )
+      })
+
+      it('denies an unauthenticated user reading a job', async () => {
+        const ctx = testEnv.unauthenticatedContext()
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'))
+        )
+      })
+
+      it('cross-family: member of fam-2 cannot read fam-1 jobs', async () => {
+        await seedFamily('fam-2', [
+          { uid: 'other-uid', name: 'Other', role: 'parent' },
+        ])
+        const ctx = testEnv.authenticatedContext('other-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'))
+        )
+      })
+    })
+
+    // ── householdJobs creates ─────────────────────────────────────────────────
+
+    describe('householdJobs creates', () => {
+      it('allows a member to create a job with status=suggested stamped as themselves', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs'), {
+            title: 'New job', description: null, category: 'Garden',
+            status: 'suggested', priority: null, costEstimate: null,
+            suggestedBy: 'child-uid', assignedTo: null,
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a child creating a job with priority set', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs'), {
+            title: 'Sneaky job', description: null, category: 'Garden',
+            status: 'suggested', priority: 'high', costEstimate: null,
+            suggestedBy: 'child-uid', assignedTo: null,
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a child creating a job with assignedTo set', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs'), {
+            title: 'Assigned job', description: null, category: 'Garden',
+            status: 'suggested', priority: null, costEstimate: null,
+            suggestedBy: 'child-uid', assignedTo: 'parent-uid',
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('allows a parent to create a job with priority and assignedTo set', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs'), {
+            title: 'Parent job', description: null, category: 'Maintenance',
+            status: 'suggested', priority: 'high', costEstimate: 200,
+            suggestedBy: 'parent-uid', assignedTo: 'child-uid',
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a non-member creating a job', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs'), {
+            title: 'Injected', description: null, category: '',
+            status: 'suggested', priority: null, costEstimate: null,
+            suggestedBy: 'outsider-uid', assignedTo: null,
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies stamping suggestedBy as someone else', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs'), {
+            title: 'Fake job', description: null, category: '',
+            status: 'suggested', priority: null, costEstimate: null,
+            suggestedBy: 'parent-uid', assignedTo: null,
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+    })
+
+    // ── householdJobs updates ─────────────────────────────────────────────────
+
+    describe('householdJobs updates', () => {
+      it('allows a parent to fully update a job', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'), {
+            status: 'planned', priority: 'high', assignedTo: 'child-uid',
+            updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('allows a child to edit title/description of their own still-suggested job', async () => {
+        await seedJob('fam-1', 'job-child', { suggestedBy: 'child-uid', status: 'suggested' })
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-child'), {
+            title: 'Updated title', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a child editing the title/description of another user\'s job', async () => {
+        // job-1 is suggestedBy: parent-uid
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'), {
+            title: 'Hacked', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a child changing status on their own suggested job', async () => {
+        await seedJob('fam-1', 'job-child', { suggestedBy: 'child-uid', status: 'suggested' })
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-child'), {
+            status: 'planned', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a child changing priority on their own suggested job', async () => {
+        await seedJob('fam-1', 'job-child', { suggestedBy: 'child-uid', status: 'suggested' })
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-child'), {
+            priority: 'high', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a child editing a job that is no longer in suggested status', async () => {
+        await seedJob('fam-1', 'job-child2', { suggestedBy: 'child-uid', status: 'planned' })
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-child2'), {
+            title: 'Should fail', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a non-member updating a job', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'), {
+            title: 'Outsider edit', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+    })
+
+    // ── householdJobs deletes ─────────────────────────────────────────────────
+
+    describe('householdJobs deletes', () => {
+      it('allows a parent to delete a job', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'))
+        )
+      })
+
+      it('denies a child deleting a job', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1'))
+        )
+      })
+    })
+
+    // ── subtask reads ─────────────────────────────────────────────────────────
+
+    describe('subtask reads', () => {
+      it('allows a family member to read a subtask', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          getDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1')
+          )
+        )
+      })
+
+      it('denies a non-member reading a subtask', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          getDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1')
+          )
+        )
+      })
+
+      it('allows a family member to query subtasks via collectionGroup', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          getDocs(query(collectionGroup(ctx.firestore(), 'subtasks'), where('familyId', '==', 'fam-1')))
+        )
+      })
+
+      it('denies a non-member querying subtasks via collectionGroup', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          getDocs(query(collectionGroup(ctx.firestore(), 'subtasks'), where('familyId', '==', 'fam-1')))
+        )
+      })
+
+      it('cross-family collectionGroup: member of fam-2 cannot query fam-1 subtasks', async () => {
+        await seedFamily('fam-2', [
+          { uid: 'other-uid', name: 'Other', role: 'parent' },
+        ])
+        // Seed a fam-2 subtask so collectionGroup doesn't return empty
+        await seedJob('fam-2', 'job-fam2')
+        await seedSubtask('fam-2', 'job-fam2', 'st-fam2')
+
+        const ctx = testEnv.authenticatedContext('other-uid')
+        // Querying fam-1 subtasks as a member of fam-2 should fail
+        await assertFails(
+          getDocs(query(collectionGroup(ctx.firestore(), 'subtasks'), where('familyId', '==', 'fam-1')))
+        )
+      })
+    })
+
+    // ── subtask creates ───────────────────────────────────────────────────────
+
+    describe('subtask creates', () => {
+      it('allows a parent to create a subtask with correct familyId and jobId', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks'),
+            {
+              familyId: 'fam-1', jobId: 'job-1',
+              title: 'New subtask', done: false, assignedTo: null,
+              order: 2, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            }
+          )
+        )
+      })
+
+      it('denies a member (child) creating a subtask', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks'),
+            {
+              familyId: 'fam-1', jobId: 'job-1',
+              title: 'Sneaky subtask', done: false, assignedTo: null,
+              order: 2, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            }
+          )
+        )
+      })
+
+      it('denies creating a subtask with mismatched familyId', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks'),
+            {
+              familyId: 'fam-WRONG', jobId: 'job-1',
+              title: 'Bad familyId', done: false, assignedTo: null,
+              order: 1, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            }
+          )
+        )
+      })
+
+      it('denies creating a subtask with mismatched jobId', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks'),
+            {
+              familyId: 'fam-1', jobId: 'job-WRONG',
+              title: 'Bad jobId', done: false, assignedTo: null,
+              order: 1, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            }
+          )
+        )
+      })
+    })
+
+    // ── subtask updates ───────────────────────────────────────────────────────
+
+    describe('subtask updates', () => {
+      it('allows a parent to fully update a subtask (title, assignedTo, order)', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          updateDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1'),
+            { title: 'New title', assignedTo: 'child-uid', order: 5, updatedAt: serverTimestamp() }
+          )
+        )
+      })
+
+      it('allows any family member to toggle done (+updatedAt only)', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          updateDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1'),
+            { done: true, updatedAt: serverTimestamp() }
+          )
+        )
+      })
+
+      it('denies a member changing title', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1'),
+            { title: 'Sneaky rename', updatedAt: serverTimestamp() }
+          )
+        )
+      })
+
+      it('denies a member changing assignedTo', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1'),
+            { assignedTo: 'child-uid', updatedAt: serverTimestamp() }
+          )
+        )
+      })
+
+      it('denies a member changing order', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1'),
+            { order: 99, updatedAt: serverTimestamp() }
+          )
+        )
+      })
+
+      it('denies a non-member updating a subtask', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          updateDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1'),
+            { done: true, updatedAt: serverTimestamp() }
+          )
+        )
+      })
+    })
+
+    // ── subtask deletes ───────────────────────────────────────────────────────
+
+    describe('subtask deletes', () => {
+      it('allows a parent to delete a subtask', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          deleteDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1')
+          )
+        )
+      })
+
+      it('denies a member (child) deleting a subtask', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          deleteDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'householdJobs', 'job-1', 'subtasks', 'st-1')
+          )
         )
       })
     })

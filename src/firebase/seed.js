@@ -1,3 +1,21 @@
+/**
+ * Local emulator demo/seed data — NOT test code and NOT part of the app runtime.
+ *
+ * `seedIfEmpty()` populates the local Firestore emulator with a realistic mock
+ * family (members, a shopping list, meals, household jobs + subtasks) so the app
+ * shows populated data during local development and screenshots.
+ *
+ *  - Invoked MANUALLY only: from the browser console, or the Playwright screenshot
+ *    flow (see docs/cloud-screenshots.md). It is never imported by main.js or run
+ *    on app startup.
+ *  - Idempotent: returns early if the demo family already has members.
+ *  - Guarded to the emulator: does nothing unless VITE_USE_EMULATOR === 'true',
+ *    so it can never seed a real dev/prod project.
+ *  - The automated test suites do NOT use this file (unit tests mock Firestore;
+ *    integration tests seed their own data directly via withSecurityRulesDisabled).
+ *
+ * Relocating this file out of src/firebase/ is tracked in issue #102.
+ */
 import { db } from './config.js'
 import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 

@@ -556,6 +556,116 @@ describe('ShoppingView', () => {
     })
   })
 
+  // ── New list sheet: keyboard-aware positioning ──────────────────────────────
+  // The new-list sheet has autofocus on its text field, so the keyboard appears
+  // automatically. If the user back-swipes the keyboard without tapping Create
+  // or Cancel, the viewport snaps and the buttons could end up below the screen.
+  describe('keyboard-aware new-list sheet positioning', () => {
+    let mockVp
+
+    beforeEach(() => {
+      mockVp = {
+        height: 851,
+        offsetTop: 0,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }
+      Object.defineProperty(window, 'visualViewport', {
+        value: mockVp, writable: true, configurable: true,
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        value: 851, writable: true, configurable: true,
+      })
+    })
+
+    afterEach(() => {
+      document.documentElement.style.removeProperty('--list-sheet-bottom')
+    })
+
+    async function openListSheet(wrapper) {
+      // The new-list button is the non-FAB button containing mdi-plus
+      const btn = wrapper.findAllComponents({ name: 'VBtn' })
+        .filter(b => !b.classes('fab'))
+        .find(b => b.find('.mdi-plus').exists())
+      await btn.trigger('click')
+      await wrapper.vm.$nextTick()
+    }
+
+    it('registers a visualViewport resize listener when the new-list sheet opens', async () => {
+      const wrapper = mountView()
+      await openListSheet(wrapper)
+      expect(mockVp.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
+    })
+
+    it('sets --list-sheet-bottom to 0px immediately on open when no keyboard is up', async () => {
+      const wrapper = mountView()
+      await openListSheet(wrapper)
+      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
+    })
+
+    it('updates --list-sheet-bottom to the keyboard height when the viewport shrinks', async () => {
+      const wrapper = mountView()
+      await openListSheet(wrapper)
+
+      mockVp.height = 511
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('340px')
+    })
+
+    it('accounts for visualViewport.offsetTop in the keyboard height calculation', async () => {
+      const wrapper = mountView()
+      await openListSheet(wrapper)
+
+      mockVp.height = 491
+      mockVp.offsetTop = 20
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      // keyboard = 851 - 491 - 20 = 340 px
+      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('340px')
+    })
+
+    it('clamps --list-sheet-bottom to 0px when the visual viewport is larger than the window', async () => {
+      const wrapper = mountView()
+      await openListSheet(wrapper)
+
+      mockVp.height = 900
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
+    })
+
+    it('resets --list-sheet-bottom to 0px and removes the listener when the sheet closes', async () => {
+      const wrapper = mountView()
+      await openListSheet(wrapper)
+
+      mockVp.height = 511
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('340px')
+
+      // Close by updating the VBottomSheet model value (list sheet is index 1)
+      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
+      await sheets[1].vm.$emit('update:modelValue', false)
+      await wrapper.vm.$nextTick()
+
+      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
+      expect(mockVp.removeEventListener).toHaveBeenCalledWith('resize', resizeCb)
+    })
+
+    it('does not throw and defaults to 0px when window.visualViewport is unavailable', async () => {
+      Object.defineProperty(window, 'visualViewport', {
+        value: null, writable: true, configurable: true,
+      })
+      const wrapper = mountView()
+      await expect(openListSheet(wrapper)).resolves.not.toThrow()
+      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
+    })
+  })
+
   describe('done-item suggestions (issue #29)', () => {
     const doneItem = { id: 'done-1', name: 'Milk', qty: '2 pints', aisle: 'Dairy', done: true }
     const activeItem = { id: 'active-1', name: 'Bread', qty: '', aisle: 'Bakery', done: false }

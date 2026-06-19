@@ -66,7 +66,7 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <v-card rounded="t-xl" class="pa-4">
+  <v-card rounded="t-xl" class="pa-4 aisle-manager-card">
     <div class="d-flex align-center mb-3">
       <span class="text-subtitle-1 font-weight-medium flex-grow-1">Manage aisles</span>
       <v-btn icon variant="text" size="small" @click="emit('close')">
@@ -144,5 +144,13 @@ async function confirmDelete() {
 <style scoped>
 .aisle-row {
   background: rgba(var(--v-theme-primary), 0.12);
+}
+
+/* dvh shrinks when the Android keyboard is shown, keeping the card fully
+   visible above the keyboard (#109). */
+.aisle-manager-card {
+  max-height: 90vh; /* fallback for browsers without dvh support */
+  max-height: 90dvh;
+  overflow-y: auto;
 }
 </style>

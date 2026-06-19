@@ -132,6 +132,22 @@ function confirmDelete() {
 
 const aisleSheet = ref(false)
 
+function syncAisleKbd() {
+  const vv = window.visualViewport
+  const h = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0
+  document.documentElement.style.setProperty('--aisle-manager-sheet-bottom', `${h}px`)
+}
+
+watch(aisleSheet, (open) => {
+  if (open) {
+    syncAisleKbd()
+    window.visualViewport?.addEventListener('resize', syncAisleKbd)
+  } else {
+    window.visualViewport?.removeEventListener('resize', syncAisleKbd)
+    document.documentElement.style.setProperty('--aisle-manager-sheet-bottom', '0px')
+  }
+})
+
 // On Android, tapping an aisle chip dismisses the keyboard and the visual
 // viewport snaps back to full height. Without intervention the Vuetify overlay
 // content (aligned via align-self:flex-end inside a fixed full-screen container)
@@ -377,7 +393,7 @@ watch(sheet, (open) => {
     </v-bottom-sheet>
 
     <!-- Manage aisles bottom sheet (parent only) -->
-    <v-bottom-sheet v-model="aisleSheet" max-width="600">
+    <v-bottom-sheet v-model="aisleSheet" max-width="600" content-class="aisle-manager-overlay">
       <AisleManager @close="aisleSheet = false" />
     </v-bottom-sheet>
 
@@ -407,6 +423,12 @@ watch(sheet, (open) => {
    listener in the script; it equals the keyboard height in pixels (#49). */
 .add-item-overlay {
   margin-bottom: var(--add-item-sheet-bottom, 0px);
+  transition: margin-bottom 0.15s ease;
+}
+
+/* Same fix for the manage-aisles sheet (#109). */
+.aisle-manager-overlay {
+  margin-bottom: var(--aisle-manager-sheet-bottom, 0px);
   transition: margin-bottom 0.15s ease;
 }
 </style>

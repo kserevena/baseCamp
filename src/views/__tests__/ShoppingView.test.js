@@ -444,6 +444,118 @@ describe('ShoppingView', () => {
     })
   })
 
+  // ── Issue #109: keyboard-aware sheet positioning for Manage Aisles ─────────
+  // The manage-aisles sheet mirrors the fix from #49: window.visualViewport
+  // tracks keyboard height and stores it as --aisle-manager-sheet-bottom on
+  // :root. The .aisle-manager-overlay CSS rule lifts the sheet above the
+  // keyboard while it is visible, and drops it back when the keyboard closes.
+  describe('keyboard-aware aisle-manager sheet positioning (issue #109)', () => {
+    let mockVp
+
+    beforeEach(() => {
+      mockVp = {
+        height: 851,
+        offsetTop: 0,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }
+      Object.defineProperty(window, 'visualViewport', {
+        value: mockVp, writable: true, configurable: true,
+      })
+      Object.defineProperty(window, 'innerHeight', {
+        value: 851, writable: true, configurable: true,
+      })
+    })
+
+    afterEach(() => {
+      document.documentElement.style.removeProperty('--aisle-manager-sheet-bottom')
+    })
+
+    async function openAisleSheet(wrapper) {
+      const btn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.find('.mdi-view-list-outline').exists())
+      await btn.trigger('click')
+      await wrapper.vm.$nextTick()
+    }
+
+    it('registers a visualViewport resize listener when the aisle sheet opens', async () => {
+      const wrapper = mountView()
+      await openAisleSheet(wrapper)
+      expect(mockVp.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
+    })
+
+    it('sets --aisle-manager-sheet-bottom to 0px immediately on open when no keyboard is up', async () => {
+      const wrapper = mountView()
+      await openAisleSheet(wrapper)
+      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
+    })
+
+    it('updates --aisle-manager-sheet-bottom to the keyboard height when the viewport shrinks', async () => {
+      const wrapper = mountView()
+      await openAisleSheet(wrapper)
+
+      mockVp.height = 511
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('340px')
+    })
+
+    it('accounts for visualViewport.offsetTop in the keyboard height calculation', async () => {
+      const wrapper = mountView()
+      await openAisleSheet(wrapper)
+
+      mockVp.height = 491
+      mockVp.offsetTop = 20
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      // keyboard = 851 - 491 - 20 = 340 px
+      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('340px')
+    })
+
+    it('clamps --aisle-manager-sheet-bottom to 0px when the visual viewport is larger than the window', async () => {
+      const wrapper = mountView()
+      await openAisleSheet(wrapper)
+
+      mockVp.height = 900
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+
+      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
+    })
+
+    it('resets --aisle-manager-sheet-bottom to 0px and removes the listener when the sheet closes', async () => {
+      const wrapper = mountView()
+      await openAisleSheet(wrapper)
+
+      mockVp.height = 511
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('340px')
+
+      // Close by emitting update:modelValue from the VBottomSheet (the aisle
+      // sheet is the third VBottomSheet in the component tree). This mirrors
+      // how Vuetify closes a sheet internally (e.g. backdrop click), and
+      // triggers the v-model binding that sets aisleSheet to false.
+      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
+      await sheets[2].vm.$emit('update:modelValue', false)
+      await wrapper.vm.$nextTick()
+
+      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
+      expect(mockVp.removeEventListener).toHaveBeenCalledWith('resize', resizeCb)
+    })
+
+    it('does not throw and defaults to 0px when window.visualViewport is unavailable', async () => {
+      Object.defineProperty(window, 'visualViewport', {
+        value: null, writable: true, configurable: true,
+      })
+      const wrapper = mountView()
+      await expect(openAisleSheet(wrapper)).resolves.not.toThrow()
+      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
+    })
+  })
+
   describe('done-item suggestions (issue #29)', () => {
     const doneItem = { id: 'done-1', name: 'Milk', qty: '2 pints', aisle: 'Dairy', done: true }
     const activeItem = { id: 'active-1', name: 'Bread', qty: '', aisle: 'Bakery', done: false }

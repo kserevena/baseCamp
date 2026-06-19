@@ -10,7 +10,7 @@ Firebase Hosting. Family devices install it via the browser's "Add to Home Scree
 - **Stack:** Vue 3 (`<script setup>` only), Vite, Vuetify 3, Pinia, Firebase (Firestore + Auth + Hosting)
 - **Users:** Parents (Android), children (Fire tablets via Google Family Link), Chromebook
 - **Run:** `npm test` then `npm run test:integration` before every commit
-- **Deploy:** Dev is manual — always ask first, then `npm run deploy:dev`. Prod auto-deploys on every merge to `main` via `.github/workflows/deploy-prod.yml` (also runnable manually with `npm run deploy:prod` from `main`)
+- **Deploy:** Dev deploys via PR label — add `deploy-to-dev` to a PR to deploy that branch to dev (`deploy-to-dev` is removed on success; `on-dev` is added and persists to show what is live). Dev can also be triggered manually via the Actions UI. Always ask before deploying. Prod auto-deploys on every merge to `main` via `.github/workflows/deploy-prod.yml` (also runnable manually with `npm run deploy:prod` from `main`)
 - **Key complexity:** `src/stores/pocketMoney.js` uses UTC-based date math — read `src/stores/CLAUDE.md` before touching
 - **Schema changes:** Follow expand–migrate–cut in "Firestore schema evolution" below
 - **Offline:** Update Pinia state immediately, fire Firestore write in background, never await write in UI
@@ -95,7 +95,7 @@ baseCamp/
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml                   # Runs unit + integration tests on every PR
-│   │   ├── deploy-dev.yml           # Manual workflow_dispatch deploy to basecamp-app-dev
+│   │   ├── deploy-dev.yml           # Label-triggered (deploy-to-dev) + workflow_dispatch deploy to dev
 │   │   └── deploy-prod.yml          # Auto-deploys to basecamp-app-prod on push to main; also workflow_dispatch
 │   └── dependabot.yml
 ├── .env                             # Dev Firebase credentials — never commit
@@ -377,7 +377,15 @@ Update documentation in the same commit as the change that makes it stale.
 
 **CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
 
-**Deploy workflows.** `.github/workflows/deploy-dev.yml` is manual-only: a `workflow_dispatch` trigger for deploying from the GitHub Actions UI (Actions tab → select workflow → Run workflow). `.github/workflows/deploy-prod.yml` runs automatically on every push to `main` (i.e. every merged PR) and can also be triggered manually via `workflow_dispatch`. **Merging a PR to `main` deploys to production — there is no separate approval step.** Both workflows mirror their local `deploy:dev` / `deploy:prod` script counterparts: env preflight check, `npm test`, `npm run test:integration`, build, then `firebase deploy --only hosting,firestore:rules,firestore:indexes`. The prod workflow refuses to run on any branch other than `main`. Both require three repository secrets: `DEV_ENV_FILE` / `PROD_ENV_FILE` (full contents of `.env` / `.env.prod`) and `FIREBASE_TOKEN` (from `firebase login:ci`).
+**Deploy workflows.** `.github/workflows/deploy-dev.yml` supports two triggers:
+
+1. **Label trigger (`pull_request: labeled`)** — add the `deploy-to-dev` label to any open PR. The workflow fires (a job-level `if:` guard ignores all other label events), clears `on-dev` from all other open PRs, checks out the PR branch's HEAD SHA (not `main`), runs the deploy steps (env check → build → `firebase deploy`), then removes `deploy-to-dev` and adds `on-dev` to the PR. The `on-dev` label persists as a visual indicator of what is currently live on dev. A `concurrency` group (`deploy-dev`, `cancel-in-progress: true`) prevents simultaneous deploys from racing. Claude can trigger a deployment by applying `deploy-to-dev` via MCP tools.
+
+2. **Manual trigger (`workflow_dispatch`)** — available from the GitHub Actions UI when there is no PR context. Select the branch in the UI; no label management is performed.
+
+Both labels are created automatically by the workflow on first run if they do not already exist: `deploy-to-dev` (blue `#0075ca`, transient trigger) and `on-dev` (yellow `#e4e669`, persistent state indicator).
+
+`.github/workflows/deploy-prod.yml` runs automatically on every push to `main` (i.e. every merged PR) and can also be triggered manually via `workflow_dispatch`. **Merging a PR to `main` deploys to production — there is no separate approval step.** Both workflows run: env preflight check, build, then `firebase deploy --only hosting,firestore:rules,firestore:indexes`. The prod workflow refuses to run on any branch other than `main`. Both require repository secrets: `DEV_ENV_FILE` / `PROD_ENV_FILE` (full contents of `.env` / `.env.prod`) and `FIREBASE_TOKEN` (from `firebase login:ci`). No additional secrets are needed for label management — `GITHUB_TOKEN` with `issues: write` and `pull-requests: write` is automatically available.
 
 Because prod deploys are no longer a separate manual step, the safety net for production is entirely upstream of the merge: CI (`npm test` + `npm run test:integration`) must pass on the PR, branch protection requires that check, and the **backward-compatibility checklist** below must be satisfied before merging. Treat "merge to `main`" with the same care you'd give a manual prod deploy — there is no second chance to back out before it goes live.
 

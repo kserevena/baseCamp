@@ -1,24 +1,69 @@
 name: Deploy to Dev
 
-# Manual trigger only.
+# Label-triggered: add "deploy-to-dev" to a PR to deploy that PR's branch to dev.
+# Manual trigger: workflow_dispatch (no label management — no PR context).
+#
+# Labels used:
+#   deploy-to-dev   — trigger label; added by user/Claude, removed automatically on success
+#   on-dev          — state label; marks which PR is currently live on dev
 #
 # Required GitHub secrets:
 #   DEV_ENV_FILE     — full contents of the local .env file for the dev project
 #   FIREBASE_TOKEN   — CI token from `firebase login:ci`
 
 on:
+  pull_request:
+    types: [labeled]
   workflow_dispatch:
 
 jobs:
   deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'deploy-to-dev'
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write
+      pull-requests: write
     env:
       TZ: UTC
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: true
 
     steps:
+      - name: Clear on-dev from all other open PRs
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const currentPR = context.payload.pull_request.number;
+            const { data: openPRs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            for (const pr of openPRs) {
+              if (pr.number === currentPR) continue;
+              if (!pr.labels.some(l => l.name === 'on-dev')) continue;
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name: 'on-dev',
+                });
+                console.log(`Removed on-dev from PR #${pr.number}`);
+              } catch (e) {
+                if (e.status !== 404) throw e;
+              }
+            }
+
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
 
       - uses: actions/setup-node@v6
         with:
@@ -46,3 +91,28 @@ jobs:
         run: firebase deploy --only hosting,firestore:rules,firestore:indexes --project dev
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Update PR labels after successful deploy
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                name: 'deploy-to-dev',
+              });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              console.log('deploy-to-dev already removed, continuing');
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+              labels: ['on-dev'],
+            });
+            console.log(`PR #${pr}: removed deploy-to-dev, added on-dev`);

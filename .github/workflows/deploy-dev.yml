@@ -33,29 +33,31 @@ jobs:
       cancel-in-progress: true
 
     steps:
-      - name: Clear on-dev from all other open PRs
+      - name: Clear on-dev from all other PRs
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const currentPR = context.payload.pull_request.number;
-            const { data: openPRs } = await github.rest.pulls.list({
+            // Search all issues (open + closed) carrying the on-dev label so we
+            // clean up PRs that were closed/merged while still tagged on-dev.
+            const { data: labeled } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: 'open',
+              labels: 'on-dev',
+              state: 'all',
               per_page: 100,
             });
-            for (const pr of openPRs) {
-              if (pr.number === currentPR) continue;
-              if (!pr.labels.some(l => l.name === 'on-dev')) continue;
+            for (const issue of labeled) {
+              if (issue.number === currentPR) continue;
               try {
                 await github.rest.issues.removeLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: pr.number,
+                  issue_number: issue.number,
                   name: 'on-dev',
                 });
-                console.log(`Removed on-dev from PR #${pr.number}`);
+                console.log(`Removed on-dev from PR #${issue.number}`);
               } catch (e) {
                 if (e.status !== 404) throw e;
               }

@@ -48,6 +48,7 @@ baseCamp/
 │   ├── composables/
 │   │   ├── useServiceWorkerUpdate.js  # SW update polling: controllerchange reload, visibilitychange + hourly check
 │   │   ├── useUserRole.js             # isParent/isChild computed derived from family.currentUser
+│   │   ├── useKeyboardAwareSheet.js   # Lifts v-bottom-sheet content above the Android virtual keyboard (#49, #109)
 │   │   └── __tests__/
 │   ├── constants/
 │   │   ├── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
@@ -470,6 +471,7 @@ If all four answers are "no", the change is safe to deploy as-is. Document the c
 - **Firestore listeners** — use `onSnapshot` for real-time data; always unsubscribe in `onUnmounted` to prevent memory leaks
 - **Family colour system** — every member has a `colour` hex; use it consistently for avatars, badges, and vote indicators everywhere in the UI
 - **Aisle ordering** — items sort by `aisleOrder` ascending, then `sortOrder`, then name. Deleted-aisle items go to `{ aisle: 'Unknown', aisleOrder: 99 }`. Store falls back to `DEFAULT_AISLES` when `aisles` field absent on old documents.
+- **Bottom sheets with text inputs** — on Android, dismissing the virtual keyboard leaves `v-bottom-sheet` content (bottom-anchored) below the visible screen edge. Apply `useKeyboardAwareSheet(sheetRef, '--css-var-name')` from `src/composables/useKeyboardAwareSheet.js` to every `v-bottom-sheet` that contains a text input. Add `content-class="your-overlay-class"` to the `v-bottom-sheet` and an **unscoped** CSS rule `.your-overlay-class { margin-bottom: var(--css-var-name, 0px); transition: margin-bottom 0.15s ease; }`. Also add `max-height: 90dvh; overflow-y: auto` to the card inside the sheet. `v-dialog` is **not** affected — it uses centred positioning. See `ShoppingView.vue` for three worked examples and issues #49 / #109.
 - **Offline writes** — update Pinia state immediately, fire Firestore write in background, do not await in a way that blocks the UI
 - **Firestore security rules** — whenever application logic changes who can read or write data, update `firestore.rules` in the same change. Deploy to both environments after updating rules.
 - **Defensive Firestore reads** — always read document fields with a fallback (`data.field ?? defaultValue`). Devices with offline-cached documents may have an older schema shape; never assume a field is present even if it is "required" in the data model.

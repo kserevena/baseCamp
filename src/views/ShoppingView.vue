@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
+import { useKeyboardAwareSheet } from '@/composables/useKeyboardAwareSheet.js'
 import { ITEM_NAME_MAX_LENGTH } from '@/constants/shopping.js'
 import ShoppingList from '@/components/ShoppingList.vue'
 import AisleManager from '@/components/AisleManager.vue'
@@ -132,32 +133,13 @@ function confirmDelete() {
 
 const aisleSheet = ref(false)
 
-// On Android, tapping an aisle chip dismisses the keyboard and the visual
-// viewport snaps back to full height. Without intervention the Vuetify overlay
-// content (aligned via align-self:flex-end inside a fixed full-screen container)
-// can end up partially below the screen edge during that snap.
-//
-// Fix: while the sheet is open, track the keyboard height via the Visual
-// Viewport API and store it as --add-item-sheet-bottom on :root. The
-// .add-item-overlay CSS rule uses this to apply a margin-bottom that lifts
-// the sheet above the keyboard smoothly as it appears and drops it back to
-// the screen bottom just as smoothly when the keyboard dismisses (#49).
-function syncKbd() {
-  const vv = window.visualViewport
-  const h = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0
-  document.documentElement.style.setProperty('--add-item-sheet-bottom', `${h}px`)
-}
+// Keep all three bottom sheets that contain text inputs above the Android
+// virtual keyboard. See useKeyboardAwareSheet for the full explanation.
+useKeyboardAwareSheet(sheet, '--add-item-sheet-bottom')
+useKeyboardAwareSheet(listSheet, '--list-sheet-bottom')
+useKeyboardAwareSheet(aisleSheet, '--aisle-manager-sheet-bottom')
 
-watch(sheet, (open) => {
-  if (open) {
-    syncKbd()
-    window.visualViewport?.addEventListener('resize', syncKbd)
-  } else {
-    selectedDoneItem.value = null
-    window.visualViewport?.removeEventListener('resize', syncKbd)
-    document.documentElement.style.setProperty('--add-item-sheet-bottom', '0px')
-  }
-})
+watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
 </script>
 
 <template>
@@ -357,8 +339,8 @@ watch(sheet, (open) => {
     </v-bottom-sheet>
 
     <!-- New list bottom sheet -->
-    <v-bottom-sheet v-model="listSheet" max-width="600">
-      <v-card rounded="t-xl" class="pa-4">
+    <v-bottom-sheet v-model="listSheet" max-width="600" content-class="list-sheet-overlay">
+      <v-card rounded="t-xl" class="pa-4 new-list-card">
         <div class="text-subtitle-1 font-weight-medium mb-3">New list</div>
         <v-text-field
           v-model="newListName"
@@ -377,7 +359,7 @@ watch(sheet, (open) => {
     </v-bottom-sheet>
 
     <!-- Manage aisles bottom sheet (parent only) -->
-    <v-bottom-sheet v-model="aisleSheet" max-width="600">
+    <v-bottom-sheet v-model="aisleSheet" max-width="600" content-class="aisle-manager-overlay">
       <AisleManager @close="aisleSheet = false" />
     </v-bottom-sheet>
 
@@ -399,14 +381,20 @@ watch(sheet, (open) => {
   </div>
 </template>
 
-<!-- Unscoped: targets the Vuetify overlay content element which is teleported
-     to <body> and therefore outside this component's scoped CSS reach. -->
+<!-- Unscoped: targets Vuetify overlay content elements which are teleported
+     to <body> and therefore outside this component's scoped CSS reach.
+     Each CSS var is driven by useKeyboardAwareSheet (#49, #109). -->
 <style>
-/* Lift the add-item sheet above the Android virtual keyboard.
-   --add-item-sheet-bottom is set dynamically by the visualViewport resize
-   listener in the script; it equals the keyboard height in pixels (#49). */
 .add-item-overlay {
   margin-bottom: var(--add-item-sheet-bottom, 0px);
+  transition: margin-bottom 0.15s ease;
+}
+.list-sheet-overlay {
+  margin-bottom: var(--list-sheet-bottom, 0px);
+  transition: margin-bottom 0.15s ease;
+}
+.aisle-manager-overlay {
+  margin-bottom: var(--aisle-manager-sheet-bottom, 0px);
   transition: margin-bottom 0.15s ease;
 }
 </style>
@@ -443,9 +431,10 @@ watch(sheet, (open) => {
   justify-content: center;
   padding-top: 100px;
 }
-/* dvh (dynamic viewport height) shrinks automatically when the Android virtual
-   keyboard is shown, keeping the card fully visible above the keyboard (#49). */
-.add-item-card {
+/* dvh shrinks when the Android keyboard is shown, keeping the cards visible
+   above the keyboard. Both sheets that contain text inputs need this guard. */
+.add-item-card,
+.new-list-card {
   max-height: 90vh; /* fallback for browsers without dvh support */
   max-height: 90dvh;
   overflow-y: auto;

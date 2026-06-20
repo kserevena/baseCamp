@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp,
+  collection, doc, getDoc, getDocFromCache, setDoc, onSnapshot, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -52,11 +52,20 @@ export const useFamilyStore = defineStore('family', () => {
 
   async function resolveFamily(uid) {
     if (familyId.value !== null) return
-    const userDoc = await getDoc(doc(db, 'users', uid))
-    if (userDoc.exists()) {
-      const id = userDoc.data().familyId ?? null
-      familyId.value = id
-      if (id) setup(id)
+    try {
+      let userDoc
+      try {
+        userDoc = await getDocFromCache(doc(db, 'users', uid))
+      } catch {
+        userDoc = await getDoc(doc(db, 'users', uid))
+      }
+      if (userDoc.exists()) {
+        const id = userDoc.data().familyId ?? null
+        familyId.value = id
+        if (id) setup(id)
+      }
+    } catch {
+      // offline and not in cache — familyId stays null, router redirects to /setup
     }
   }
 

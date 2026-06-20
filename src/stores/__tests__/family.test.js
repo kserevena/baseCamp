@@ -3,20 +3,21 @@ import { setActivePinia, createPinia } from 'pinia'
 
 // vi.hoisted ensures these are initialized before vi.mock factories run
 const {
-  mockGetDoc, mockSetDoc, mockGetDocs, mockOnSnapshot,
+  mockGetDoc, mockGetDocFromCache, mockSetDoc, mockGetDocs, mockOnSnapshot,
   mockDoc, mockCollection, mockQuery, mockWhere, mockServerTimestamp,
   mockUseAuthStore,
 } = vi.hoisted(() => ({
-  mockGetDoc:        vi.fn(),
-  mockSetDoc:        vi.fn().mockResolvedValue(undefined),
-  mockGetDocs:       vi.fn(),
-  mockOnSnapshot:    vi.fn(() => vi.fn()),
-  mockDoc:           vi.fn(() => ({ id: 'mock-doc-id' })),
-  mockCollection:    vi.fn(() => ({})),
-  mockQuery:         vi.fn(() => ({})),
-  mockWhere:         vi.fn(() => ({})),
-  mockServerTimestamp: vi.fn(() => new Date()),
-  mockUseAuthStore:  vi.fn(() => ({ user: { uid: 'parent-uid', displayName: 'Test Parent' } })),
+  mockGetDoc:           vi.fn(),
+  mockGetDocFromCache:  vi.fn().mockRejectedValue(new Error('not in cache')),
+  mockSetDoc:           vi.fn().mockResolvedValue(undefined),
+  mockGetDocs:          vi.fn(),
+  mockOnSnapshot:       vi.fn(() => vi.fn()),
+  mockDoc:              vi.fn(() => ({ id: 'mock-doc-id' })),
+  mockCollection:       vi.fn(() => ({})),
+  mockQuery:            vi.fn(() => ({})),
+  mockWhere:            vi.fn(() => ({})),
+  mockServerTimestamp:  vi.fn(() => new Date()),
+  mockUseAuthStore:     vi.fn(() => ({ user: { uid: 'parent-uid', displayName: 'Test Parent' } })),
 }))
 
 vi.mock('@/stores/auth.js', () => ({
@@ -30,6 +31,7 @@ vi.mock('@/firebase/config.js', () => ({
 
 vi.mock('firebase/firestore', () => ({
   getDoc: mockGetDoc,
+  getDocFromCache: mockGetDocFromCache,
   setDoc: mockSetDoc,
   getDocs: mockGetDocs,
   onSnapshot: mockOnSnapshot,
@@ -46,6 +48,7 @@ describe('family store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    mockGetDocFromCache.mockRejectedValue(new Error('not in cache'))
     mockSetDoc.mockResolvedValue(undefined)
     mockOnSnapshot.mockReturnValue(vi.fn())
     mockDoc.mockReturnValue({ id: 'mock-doc-id' })
@@ -91,6 +94,41 @@ describe('family store', () => {
       await store.resolveFamily('parent-uid')
 
       expect(mockGetDoc).toHaveBeenCalledOnce()
+    })
+
+    it('resolves familyId from cache without a network read', async () => {
+      mockGetDocFromCache.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ familyId: 'fam-cache' }),
+      })
+
+      const store = useFamilyStore()
+      await store.resolveFamily('parent-uid')
+
+      expect(store.familyId).toBe('fam-cache')
+      expect(mockGetDocFromCache).toHaveBeenCalledOnce()
+      expect(mockGetDoc).not.toHaveBeenCalled()
+    })
+
+    it('falls back to a network read when the document is not in cache', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ familyId: 'fam-network' }),
+      })
+
+      const store = useFamilyStore()
+      await store.resolveFamily('parent-uid')
+
+      expect(store.familyId).toBe('fam-network')
+      expect(mockGetDoc).toHaveBeenCalledOnce()
+    })
+
+    it('leaves familyId null and does not throw when offline and uncached', async () => {
+      mockGetDoc.mockRejectedValue(new Error('client is offline'))
+
+      const store = useFamilyStore()
+      await expect(store.resolveFamily('parent-uid')).resolves.toBeUndefined()
+      expect(store.familyId).toBeNull()
     })
   })
 

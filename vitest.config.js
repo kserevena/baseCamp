@@ -16,5 +16,17 @@ export default defineConfig({
     // Pocket money date math is UTC-based; pin the test clock to UTC so date parsing
     // and any incidental local-Date use stays deterministic across machines and CI.
     env: { TZ: 'UTC' },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'json'],
+      include: ['src/**', 'scripts/**'],
+      exclude: ['src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js'],
+      thresholds: {
+        statements: 83,
+        branches: 78,
+        functions: 78,
+        lines: 84,
+      },
+    },
   },
 })

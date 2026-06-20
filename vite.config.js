@@ -24,6 +24,14 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         clientsClaim: true,
+        runtimeCaching: [{
+          urlPattern: /\.woff2$/,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'fonts',
+            expiration: { maxEntries: 5, maxAgeSeconds: 365 * 24 * 60 * 60 },
+          },
+        }],
       },
     }),
   ],

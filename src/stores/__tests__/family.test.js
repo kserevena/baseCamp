@@ -111,7 +111,6 @@ describe('family store', () => {
     })
 
     it('falls back to a network read when the document is not in cache', async () => {
-      mockGetDocFromCache.mockRejectedValue(new Error('not in cache'))
       mockGetDoc.mockResolvedValue({
         exists: () => true,
         data: () => ({ familyId: 'fam-network' }),
@@ -125,7 +124,6 @@ describe('family store', () => {
     })
 
     it('leaves familyId null and does not throw when offline and uncached', async () => {
-      mockGetDocFromCache.mockRejectedValue(new Error('not in cache'))
       mockGetDoc.mockRejectedValue(new Error('client is offline'))
 
       const store = useFamilyStore()

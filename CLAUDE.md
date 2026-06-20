@@ -142,6 +142,8 @@ Update documentation in the same commit as the change that makes it stale.
 
 **CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
 
+**Issue linking.** If a PR fixes a GitHub issue, include `Closes #NNN` in the PR body. This auto-closes the issue on merge and makes the relationship visible in the GitHub UI. Never open a PR that addresses an issue without this link.
+
 **Deploy workflows.** Dev: add `deploy-to-dev` label to any open PR (removed on success; `on-dev` added and persists). Prod: auto-deploys on every push to `main` (i.e. every merged PR). Both workflows run: env preflight check → `npm run deploy:checks` (ci + unit + integration tests) → `firebase deploy --only hosting,firestore:rules,firestore:indexes`. See `.github/workflows/` for full implementation detail.
 
 **Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. **Merging a PR to `main` triggers an automatic prod deploy** — treat "merge this PR" as equivalent to "deploy to prod" and get explicit confirmation before merging.

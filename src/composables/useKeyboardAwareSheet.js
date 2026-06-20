@@ -1,4 +1,4 @@
-import { watch } from 'vue'
+import { watch, onUnmounted } from 'vue'
 
 // On Android, dismissing the virtual keyboard causes the visual viewport to
 // snap back to full height, but a Vuetify v-bottom-sheet's overlay content
@@ -23,5 +23,12 @@ export function useKeyboardAwareSheet(sheetOpen, cssVar) {
       window.visualViewport?.removeEventListener('resize', sync)
       document.documentElement.style.setProperty(cssVar, '0px')
     }
+  })
+
+  // Guard against navigating away while a sheet is open: Vue stops the watch
+  // but does not fire the else-branch, leaving the raw DOM listener alive.
+  onUnmounted(() => {
+    window.visualViewport?.removeEventListener('resize', sync)
+    document.documentElement.style.setProperty(cssVar, '0px')
   })
 }

@@ -121,4 +121,31 @@ describe('useKeyboardAwareSheet', () => {
     await nextTick()
     expect(document.documentElement.style.getPropertyValue(CSS_VAR)).toBe('0px')
   })
+
+  it('removes the listener and resets the CSS var when the host component unmounts while the sheet is open', async () => {
+    const sheetOpen = ref(false)
+    const wrapper = mount({
+      setup() {
+        useKeyboardAwareSheet(sheetOpen, CSS_VAR)
+        return { sheetOpen }
+      },
+      template: '<div />',
+    })
+
+    sheetOpen.value = true
+    await nextTick()
+
+    // Keyboard up
+    mockVp.height = 511
+    const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+    resizeCb()
+    expect(document.documentElement.style.getPropertyValue(CSS_VAR)).toBe('340px')
+
+    // Navigate away — component unmounts while sheet is still open
+    wrapper.unmount()
+    await nextTick()
+
+    expect(mockVp.removeEventListener).toHaveBeenCalledWith('resize', resizeCb)
+    expect(document.documentElement.style.getPropertyValue(CSS_VAR)).toBe('0px')
+  })
 })

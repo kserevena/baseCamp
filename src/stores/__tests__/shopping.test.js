@@ -967,7 +967,6 @@ describe('shopping store', () => {
       expect(payload.name).toBe('Milk')
       expect(payload.qty).toBe('2 pints')
       expect(payload.done).toBe(false)
-      expect(payload.fromMeal).toBeNull()
       expect(payload.sortOrder).toBeNull()
       expect(payload.addedBy).toBe('parent-uid')
     })

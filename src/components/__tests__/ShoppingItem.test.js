@@ -38,7 +38,6 @@ function makeItem(overrides = {}) {
     aisle: 'Dairy',
     done: false,
     addedBy: 'uid-1',
-    fromMeal: null,
     ...overrides,
   }
 }

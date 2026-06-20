@@ -17,6 +17,7 @@ const router = createRouter({
     { path: '/jobs',         component: JobsView },
     { path: '/login',        component: LoginView,  meta: { public: true, hideNav: true } },
     { path: '/setup',        component: SetupView,  meta: { public: true, hideNav: true } },
+    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 

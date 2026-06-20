@@ -182,7 +182,6 @@ export const useShoppingStore = defineStore('shopping', () => {
       aisleOrder: aisleObj?.order ?? 99,
       done: false,
       addedBy: familyStore.currentUser?.uid ?? '',
-      fromMeal: null,
       createdAt: serverTimestamp(),
     })
   }
@@ -217,7 +216,6 @@ export const useShoppingStore = defineStore('shopping', () => {
       aisleOrder: aisleObj?.order ?? 99,
       done: false,
       addedBy: familyStore.currentUser?.uid ?? '',
-      fromMeal: null,
       sortOrder: null,
       createdAt: serverTimestamp(),
     })

@@ -215,7 +215,7 @@ src/
 ├── main.js              # Entry point
 ├── App.vue              # Root — app bar, bottom nav, store lifecycle
 ├── components/          # Reusable UI pieces (FamilyAvatar, ShoppingItem, etc.)
-├── views/               # Full-screen pages (Home, Shopping, Meals, PocketMoney, Login, Setup)
+├── views/               # Full-screen pages (Home, Shopping, PocketMoney, Jobs, Login, Setup)
 ├── stores/              # Pinia stores (auth, family, shopping, pocketMoney)
 ├── router/              # Vue Router config and navigation guard
 ├── firebase/            # Firebase init (config.js, App Check, emulator wiring)

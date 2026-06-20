@@ -315,11 +315,14 @@ Run **both** test suites before every commit. Do not commit if any tests are fai
 
 ```bash
 npm test                  # unit tests (no external dependencies) — run first
+npm run test:coverage     # unit tests + coverage report + threshold enforcement (used by CI)
 npm run test:integration  # integration tests (auto-starts/stops emulator) — run after unit tests pass
 npm run test:watch        # unit tests in watch mode during development
 ```
 
 Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.
+
+**Coverage thresholds** are configured in `vitest.config.js` and enforced by CI via `npm run test:coverage`. Thresholds are set to the measured baseline and must only ever be raised, never lowered — if CI goes red after a legitimate refactor, add tests in the same PR rather than dropping the floor. When raising thresholds, do it in the same PR as the tests that justify the increase.
 
 ---
 

@@ -2,14 +2,15 @@
 
 A private family organiser Progressive Web App (PWA) built with Vue 3, designed for use on Android phones, tablets, and Chromebooks.
 
-## Project Goals
+## App Features
 
-BaseCamp helps families coordinate:
-- **Shopping lists** — share a list, group by aisle, tick off items as you shop
-- **Meal voting** — family members vote on what to eat, ingredients auto-add to the shopping list
-- **Family coordination** — see who's buying what, stay in sync across all devices
-
-The app works fully offline thanks to Firestore's IndexedDB persistence and a service worker. All family data syncs automatically when devices reconnect to the internet.
+- **Shopping lists** — create named lists, group items by aisle, tick off as you shop, drag to reorder within aisles; parents manage aisles and list settings
+- **Meal voting** — family members vote on suggested meals; when a meal gets enough votes its ingredients are automatically added to the shopping list
+- **Pocket money** — parents configure a weekly allowance per child with a payment day; balances accrue automatically and parents record withdrawals; children see their own read-only balance
+- **Household jobs** — any family member can suggest jobs; parents plan, assign, and track progress through suggested → planned → in progress → done; jobs support subtasks, priorities, cost estimates, and per-member assignment
+- **Family avatars** — each member has a colour used consistently across all views for item attribution, vote indicators, and assignment
+- **Offline-first** — all data is cached locally via Firestore IndexedDB persistence; the app works fully offline and syncs automatically when devices reconnect
+- **PWA install** — installs via "Add to Home Screen" on Android (Chrome), Fire tablets (Silk), and Chromebook; runs in standalone mode with no browser chrome
 
 ## Environments
 
@@ -35,20 +36,6 @@ cp .env.example .env.prod
 ```
 
 Fill in the values from the `basecamp-app-prod` Firebase project. The keys are identical to `.env`; only the values differ. Vite picks up `.env.prod` automatically when you run `npm run deploy:prod`.
-
----
-
-## Current Status
-
-| Phase | Status |
-|---|---|
-| Phase 0 — UI prototype | Complete |
-| Phase 1 — Firebase data | Complete |
-| Phase 2 — Authentication | Complete |
-| Phase 3 — Packaging & deploy | Complete — dev at https://basecamp-app-dev.web.app |
-| Phase 4 — Pocket money | Complete — parent config, auto-payment calc, withdrawal recording, child read-only view |
-
-See `CLAUDE.md` for full project spec, data structure, and coding conventions.
 
 ---
 
@@ -236,7 +223,7 @@ src/
 └── devtools/            # Dev-only tooling (seed.js — manual emulator demo seeding)
 ```
 
-Tests live alongside the code they test in `__tests__/` subdirectories. See `CLAUDE.md` for the full file map.
+Tests live alongside the code they test in `__tests__/` subdirectories. See `docs/project-structure.md` for the full annotated file tree.
 
 ---
 
@@ -256,7 +243,7 @@ Pocket money config, balances, and transactions live under `families/{familyId}/
 
 Household jobs live under `families/{familyId}/householdJobs/{jobId}` (and their `subtasks/` subcollection). Subtasks carry a `familyId` field so they can be queried via a Firestore collection-group listener.
 
-See `CLAUDE.md` for the full field-level schema and security rules.
+See `docs/schema.md` for the full field-level schema and `docs/security-rules.md` for security rules.
 
 > **Pocket money runs in UTC.** Payment-day accrual is computed using UTC day boundaries so the amount can never double-count or skip a week when a device changes timezone. A payment therefore posts on UTC midnight rather than local midnight (cosmetic for a UK family; the amount is always correct). Supporting a family's own non-UTC timezone is tracked in [issue #15](https://github.com/kserevena/baseCamp/issues/15).
 

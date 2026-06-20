@@ -157,18 +157,6 @@ describe('ShoppingItem', () => {
     })
   })
 
-  describe('fromMeal chip', () => {
-    it('shows the meal chip when fromMeal is set', () => {
-      const wrapper = mountItem(makeItem({ fromMeal: 'meal-id-1' }))
-      expect(wrapper.text()).toContain('meal')
-    })
-
-    it('hides the meal chip when fromMeal is null', () => {
-      const wrapper = mountItem(makeItem({ fromMeal: null }))
-      expect(wrapper.text()).not.toContain('meal')
-    })
-  })
-
   describe('delete button', () => {
     it('shows the delete button when showDelete is true', () => {
       const wrapper = mountItem(makeItem(), { showDelete: true })

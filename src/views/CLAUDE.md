@@ -5,7 +5,6 @@
 - Mobile-first — design for a phone screen, verify on tablet and Chromebook
 - Touch targets — all interactive elements at least 44px tall for comfortable tapping
 - Family colours — avatars and vote indicators always use the member's colour
-- "From meal" badge — items auto-added from meal voting show a purple badge
 - Aisle grouping — group items by aisle with a clear section header when sorted by store layout
 - Keep it friendly and clear — children use this app too
 

@@ -1,17 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import { useFamilyStore } from '@/stores/family.js'
-import { useMealsStore } from '@/stores/meals.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 
 const family = useFamilyStore()
-const meals = useMealsStore()
 const shopping = useShoppingStore()
-
-const topMeal = computed(() =>
-  [...meals.meals].sort((a, b) => (b.votes?.length ?? 0) - (a.votes?.length ?? 0))[0]
-)
 
 const lastActiveList = computed(() => {
   if (!family.familyId) return null
@@ -36,21 +30,6 @@ const lastActiveList = computed(() => {
         </div>
         <div v-if="lastActiveList" class="text-body-2 text-medium-emphasis mt-1">
           {{ lastActiveList.name }}
-        </div>
-      </v-card-text>
-    </v-card>
-
-    <!-- Meals summary -->
-    <v-card rounded="lg" elevation="1" :to="'/meals'">
-      <v-card-text>
-        <div class="d-flex align-center mb-2">
-          <v-icon color="primary" class="mr-2">mdi-silverware-fork-knife</v-icon>
-          <span class="text-subtitle-1 font-weight-medium">Meal poll</span>
-        </div>
-        <div v-if="topMeal" class="d-flex align-center gap-2">
-          <v-icon size="16" color="amber-darken-2">mdi-trophy</v-icon>
-          <span class="text-body-2">{{ topMeal.name }}</span>
-          <span class="text-caption text-medium-emphasis">({{ topMeal.votes?.length ?? 0 }} votes)</span>
         </div>
       </v-card-text>
     </v-card>

@@ -8,7 +8,7 @@ import { reactive } from 'vue'
 
 // ── shared store state ────────────────────────────────────────────────────────
 
-let familyStore, shoppingStore, mealsStore, pocketMoneyStore, authStore, jobsStore
+let familyStore, shoppingStore, pocketMoneyStore, authStore, jobsStore
 const mockRouterPush = vi.fn()
 
 // Use a getter so the live ES module binding in App.vue re-reads isDev on each render.
@@ -30,9 +30,6 @@ vi.mock('@/stores/family.js', () => ({
 }))
 vi.mock('@/stores/shopping.js', () => ({
   useShoppingStore: () => shoppingStore,
-}))
-vi.mock('@/stores/meals.js', () => ({
-  useMealsStore: () => mealsStore,
 }))
 vi.mock('@/stores/pocketMoney.js', () => ({
   usePocketMoneyStore: () => pocketMoneyStore,
@@ -68,7 +65,6 @@ function resetStores() {
     teardown: vi.fn(),
   })
   shoppingStore = reactive({ setup: vi.fn(), teardown: vi.fn() })
-  mealsStore    = reactive({ setup: vi.fn(), teardown: vi.fn() })
   pocketMoneyStore = reactive({ setup: vi.fn(), teardown: vi.fn() })
   jobsStore     = reactive({ setup: vi.fn(), teardown: vi.fn() })
   authStore = reactive({ user: null, signOut: vi.fn().mockResolvedValue(undefined) })
@@ -108,21 +104,19 @@ describe('App — store lifecycle', () => {
     document.body.innerHTML = ''
   })
 
-  it('calls shopping.setup, meals.setup and jobs.setup when familyId becomes non-null', async () => {
+  it('calls shopping.setup and jobs.setup when familyId becomes non-null', async () => {
     const wrapper = mountApp()
     await wrapper.vm.$nextTick()
     expect(shoppingStore.setup).not.toHaveBeenCalled()
-    expect(mealsStore.setup).not.toHaveBeenCalled()
     expect(jobsStore.setup).not.toHaveBeenCalled()
 
     familyStore.familyId = 'fam-1'
     await wrapper.vm.$nextTick()
     expect(shoppingStore.setup).toHaveBeenCalledWith('fam-1')
-    expect(mealsStore.setup).toHaveBeenCalledWith('fam-1')
     expect(jobsStore.setup).toHaveBeenCalledWith('fam-1')
   })
 
-  it('calls shopping.teardown, meals.teardown and jobs.teardown when familyId clears', async () => {
+  it('calls shopping.teardown and jobs.teardown when familyId clears', async () => {
     const wrapper = mountApp()
     await wrapper.vm.$nextTick()
 
@@ -133,7 +127,6 @@ describe('App — store lifecycle', () => {
     familyStore.familyId = null
     await wrapper.vm.$nextTick()
     expect(shoppingStore.teardown).toHaveBeenCalled()
-    expect(mealsStore.teardown).toHaveBeenCalled()
     expect(jobsStore.teardown).toHaveBeenCalled()
   })
 
@@ -181,13 +174,13 @@ describe('App — navigation bar', () => {
     document.body.innerHTML = ''
   })
 
-  it('renders the five nav items: Home, Shopping, Meals, Money, Jobs', () => {
+  it('renders the four nav items: Home, Shopping, Money, Jobs', () => {
     const wrapper = mountApp()
     expect(wrapper.text()).toContain('Home')
     expect(wrapper.text()).toContain('Shopping')
-    expect(wrapper.text()).toContain('Meals')
     expect(wrapper.text()).toContain('Money')
     expect(wrapper.text()).toContain('Jobs')
+    expect(wrapper.text()).not.toContain('Meals')
   })
 
   it('renders the BaseCamp title in the app bar', () => {

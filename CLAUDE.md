@@ -48,12 +48,12 @@ Understanding this flow is essential for any work on auth, routing, or store set
 
 ## Store lifecycle
 
-The data stores (`family`, `shopping`, `meals`, `pocketMoney`) all follow the same pattern:
+The data stores (`family`, `shopping`, `pocketMoney`) all follow the same pattern:
 
 - `setup(...)` — subscribes to Firestore via `onSnapshot`, populates reactive state
 - `teardown()` — unsubscribes the listener, clears state
 
-`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping`, `meals`, and `jobs` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
+`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping` and `jobs` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
 
 **`pocketMoney` store exception:** `pocketMoney.setup(familyId, currentUser)` requires the user's `role` to decide whether to subscribe to the whole collection (parent) or a single document (child). `role` is only available after the `families/{familyId}/members` snapshot fires — which happens asynchronously after `familyId` becomes non-null. `App.vue` therefore watches `family.currentUser` (not `familyId`) to set up the pocketMoney store.
 

@@ -1,10 +1,14 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+
+const SNOOZE_MS = 30 * 60 * 1000
 
 export function useServiceWorkerUpdate() {
   const updateAvailable = ref(false)
+  const snoozed = ref(false)
+  const bannerVisible = computed(() => updateAvailable.value && !snoozed.value)
   let waitingWorker = null
 
-  if (!navigator.serviceWorker) return { updateAvailable, applyUpdate: () => {} }
+  if (!navigator.serviceWorker) return { bannerVisible, applyUpdate: () => {}, snooze: () => {} }
 
   let refreshing = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -41,5 +45,10 @@ export function useServiceWorkerUpdate() {
     waitingWorker?.postMessage({ type: 'SKIP_WAITING' })
   }
 
-  return { updateAvailable, applyUpdate }
+  function snooze() {
+    snoozed.value = true
+    setTimeout(() => { snoozed.value = false }, SNOOZE_MS)
+  }
+
+  return { bannerVisible, applyUpdate, snooze }
 }

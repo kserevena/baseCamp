@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useServiceWorkerUpdate } from '@/composables/useServiceWorkerUpdate.js'
 
+const SNOOZE_MS = 30 * 60 * 1000
+
 describe('useServiceWorkerUpdate', () => {
   let mockRegistration
   let registrationListeners
@@ -60,33 +62,34 @@ describe('useServiceWorkerUpdate', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns updateAvailable ref and applyUpdate function', () => {
+  it('returns bannerVisible, applyUpdate, and snooze', () => {
     const result = useServiceWorkerUpdate()
-    expect(result).toHaveProperty('updateAvailable')
+    expect(result).toHaveProperty('bannerVisible')
     expect(result).toHaveProperty('applyUpdate')
+    expect(result).toHaveProperty('snooze')
     expect(typeof result.applyUpdate).toBe('function')
+    expect(typeof result.snooze).toBe('function')
   })
 
-  it('updateAvailable is false initially', () => {
-    const { updateAvailable } = useServiceWorkerUpdate()
-    expect(updateAvailable.value).toBe(false)
+  it('bannerVisible is false initially', () => {
+    const { bannerVisible } = useServiceWorkerUpdate()
+    expect(bannerVisible.value).toBe(false)
   })
 
-  it('sets updateAvailable true when a new worker reaches installed state', async () => {
-    const { updateAvailable } = useServiceWorkerUpdate()
+  it('bannerVisible becomes true when a new worker reaches installed state', async () => {
+    const { bannerVisible } = useServiceWorkerUpdate()
     await Promise.resolve()
 
     const newWorker = makeWorker('installing')
     mockRegistration.installing = newWorker
     registrationListeners['updatefound']()
-
     newWorker.state = 'installed'
     newWorker._emit('statechange')
 
-    expect(updateAvailable.value).toBe(true)
+    expect(bannerVisible.value).toBe(true)
   })
 
-  it('does not set updateAvailable true on first install (no existing controller)', async () => {
+  it('does not set bannerVisible true on first install (no existing controller)', async () => {
     Object.defineProperty(navigator, 'serviceWorker', {
       value: {
         ready: Promise.resolve(mockRegistration),
@@ -98,31 +101,29 @@ describe('useServiceWorkerUpdate', () => {
       configurable: true,
     })
 
-    const { updateAvailable } = useServiceWorkerUpdate()
+    const { bannerVisible } = useServiceWorkerUpdate()
     await Promise.resolve()
 
     const newWorker = makeWorker('installing')
     mockRegistration.installing = newWorker
     registrationListeners['updatefound']()
-
     newWorker.state = 'installed'
     newWorker._emit('statechange')
 
-    expect(updateAvailable.value).toBe(false)
+    expect(bannerVisible.value).toBe(false)
   })
 
-  it('sets updateAvailable true immediately if registration.waiting is already set', async () => {
-    const waitingWorker = makeWorker('installed')
-    mockRegistration.waiting = waitingWorker
+  it('bannerVisible becomes true immediately if registration.waiting is already set', async () => {
+    mockRegistration.waiting = makeWorker('installed')
 
-    const { updateAvailable } = useServiceWorkerUpdate()
+    const { bannerVisible } = useServiceWorkerUpdate()
     await Promise.resolve()
 
-    expect(updateAvailable.value).toBe(true)
+    expect(bannerVisible.value).toBe(true)
   })
 
   it('applyUpdate posts SKIP_WAITING to the waiting worker', async () => {
-    const { updateAvailable, applyUpdate } = useServiceWorkerUpdate()
+    const { bannerVisible, applyUpdate } = useServiceWorkerUpdate()
     await Promise.resolve()
 
     const newWorker = makeWorker('installing')
@@ -131,7 +132,7 @@ describe('useServiceWorkerUpdate', () => {
     newWorker.state = 'installed'
     newWorker._emit('statechange')
 
-    expect(updateAvailable.value).toBe(true)
+    expect(bannerVisible.value).toBe(true)
     applyUpdate()
     expect(newWorker.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' })
   })
@@ -145,6 +146,33 @@ describe('useServiceWorkerUpdate', () => {
 
     applyUpdate()
     expect(waitingWorker.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' })
+  })
+
+  it('snooze hides the banner immediately', async () => {
+    mockRegistration.waiting = makeWorker('installed')
+
+    const { bannerVisible, snooze } = useServiceWorkerUpdate()
+    await Promise.resolve()
+
+    expect(bannerVisible.value).toBe(true)
+    snooze()
+    expect(bannerVisible.value).toBe(false)
+  })
+
+  it('banner reappears after 30 minutes', async () => {
+    mockRegistration.waiting = makeWorker('installed')
+
+    const { bannerVisible, snooze } = useServiceWorkerUpdate()
+    await Promise.resolve()
+
+    snooze()
+    expect(bannerVisible.value).toBe(false)
+
+    vi.advanceTimersByTime(SNOOZE_MS - 1)
+    expect(bannerVisible.value).toBe(false)
+
+    vi.advanceTimersByTime(1)
+    expect(bannerVisible.value).toBe(true)
   })
 
   it('registers a controllerchange listener', () => {
@@ -195,9 +223,10 @@ describe('useServiceWorkerUpdate', () => {
     expect(() => useServiceWorkerUpdate()).not.toThrow()
   })
 
-  it('returns a no-op applyUpdate when serviceWorker is not supported', () => {
+  it('returns no-op functions when serviceWorker is not supported', () => {
     Object.defineProperty(navigator, 'serviceWorker', { value: undefined, configurable: true })
-    const { applyUpdate } = useServiceWorkerUpdate()
+    const { applyUpdate, snooze } = useServiceWorkerUpdate()
     expect(() => applyUpdate()).not.toThrow()
+    expect(() => snooze()).not.toThrow()
   })
 })

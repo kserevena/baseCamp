@@ -20,7 +20,7 @@ const pocketMoney = usePocketMoneyStore()
 const jobs = useJobsStore()
 
 const userMenu = ref(false)
-const { updateAvailable, applyUpdate } = useServiceWorkerUpdate()
+const { bannerVisible, applyUpdate, snooze } = useServiceWorkerUpdate()
 
 watch(() => family.familyId, (id, prevId) => {
   if (id) {
@@ -138,11 +138,11 @@ function navigate(path) {
       </v-btn>
     </v-bottom-navigation>
 
-    <v-snackbar v-model="updateAvailable" timeout="-1">
+    <v-snackbar :model-value="bannerVisible" timeout="-1">
       A new version is available
       <template #actions>
         <v-btn color="primary" variant="text" @click="applyUpdate">Update</v-btn>
-        <v-btn variant="text" @click="updateAvailable = false">Later</v-btn>
+        <v-btn variant="text" @click="snooze">Later</v-btn>
       </template>
     </v-snackbar>
   </v-app>

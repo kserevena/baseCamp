@@ -5,7 +5,6 @@ A private family organiser Progressive Web App (PWA) built with Vue 3, designed 
 ## App Features
 
 - **Shopping lists** — create named lists, group items by aisle, tick off as you shop, drag to reorder within aisles; parents manage aisles and list settings
-- **Meal voting** — family members vote on suggested meals; when a meal gets enough votes its ingredients are automatically added to the shopping list
 - **Pocket money** — parents configure a weekly allowance per child with a payment day; balances accrue automatically and parents record withdrawals; children see their own read-only balance
 - **Household jobs** — any family member can suggest jobs; parents plan, assign, and track progress through suggested → planned → in progress → done; jobs support subtasks, priorities, cost estimates, and per-member assignment
 - **Family avatars** — each member has a colour used consistently across all views for item attribution, vote indicators, and assignment
@@ -216,8 +215,8 @@ src/
 ├── main.js              # Entry point
 ├── App.vue              # Root — app bar, bottom nav, store lifecycle
 ├── components/          # Reusable UI pieces (FamilyAvatar, ShoppingItem, etc.)
-├── views/               # Full-screen pages (Home, Shopping, Meals, PocketMoney, Login, Setup)
-├── stores/              # Pinia stores (auth, family, shopping, meals, pocketMoney)
+├── views/               # Full-screen pages (Home, Shopping, PocketMoney, Jobs, Login, Setup)
+├── stores/              # Pinia stores (auth, family, shopping, pocketMoney)
 ├── router/              # Vue Router config and navigation guard
 ├── firebase/            # Firebase init (config.js, App Check, emulator wiring)
 └── devtools/            # Dev-only tooling (seed.js — manual emulator demo seeding)
@@ -237,7 +236,6 @@ Data lives in five top-level Firestore collections:
 | `inviteCodes/{code}` | Maps an 8-character invite code to a `familyId` |
 | `families/{familyId}` | Family name, invite code, and `members/` subcollection |
 | `shoppingLists/{listId}` | One document per named list per family, with an `items/` subcollection |
-| `meals/{mealId}` | Meal name, vote array, and family reference |
 
 Pocket money config, balances, and transactions live under `families/{familyId}/pocketMoney/{childUid}` (and its `transactions/` subcollection).
 

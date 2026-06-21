@@ -11,16 +11,14 @@ baseCamp/
 │   │   ├── AisleManager.vue         # Parent-only drag-and-drop aisle CRUD; shown in a bottom sheet in ShoppingView
 │   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
 │   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
-│   │   ├── MealVoting.vue           # Meal cards with vote button and voter avatars
 │   │   ├── JobCard.vue              # Single job card — collapsed summary + expanded controls; parent-gated actions
 │   │   ├── JobSubtasks.vue          # Subtask checklist per job; checkbox available to all; drag/add/delete parent-only
 │   │   └── __tests__/
 │   ├── views/
-│   │   ├── HomeView.vue             # Dashboard — shopping summary, top meal, family avatars
+│   │   ├── HomeView.vue             # Dashboard — shopping summary, family avatars
 │   │   ├── LoginView.vue            # Google Sign-In page
 │   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
 │   │   ├── ShoppingView.vue         # Shopping list — list, add-item FAB, manage aisles
-│   │   ├── MealsView.vue            # Meal voting wrapper
 │   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
 │   │   ├── JobsView.vue             # Household jobs — status sections, category filter, FAB add dialog
 │   │   ├── CLAUDE.md                # UI design principles; PocketMoneyView complexity notes
@@ -45,7 +43,6 @@ baseCamp/
 │   │   ├── auth.js                  # Firebase Auth — Google Sign-In, isMinor detection
 │   │   ├── family.js                # Family membership, create/join, member colours
 │   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort, aisle management)
-│   │   ├── meals.js                 # Meal suggestions and votes
 │   │   ├── pocketMoney.js           # Pocket money snapshots, auto-payment calc, withdrawal recording
 │   │   ├── jobs.js                  # Household jobs + subtasks; two onSnapshot listeners (jobs + collectionGroup subtasks)
 │   │   ├── CLAUDE.md                # pocketMoney UTC math + transaction safety; shopping store internals; jobs store internals

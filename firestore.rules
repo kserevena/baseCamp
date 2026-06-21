@@ -159,14 +159,5 @@ service cloud.firestore {
       }
     }
 
-    // Meal documents hold the meal name, votes array, and familyId.
-    // Any family member can read, add, or vote on meals.
-    // Only parents can delete a meal.
-    // Note: create uses request.resource for the same reason as shoppingLists above.
-    match /meals/{mealId} {
-      allow read, update: if isFamilyMember(resource.data.familyId);
-      allow create: if isFamilyMember(request.resource.data.familyId);
-      allow delete: if isParent(resource.data.familyId);
-    }
   }
 }

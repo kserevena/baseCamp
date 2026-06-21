@@ -36,15 +36,8 @@ shoppingLists/{listId}        ← auto-generated ID
     aisleOrder: number        ← for sorting by store layout; 99 = Unknown (items from deleted aisles)
     done: boolean
     addedBy: uid
-    fromMeal: string | null   ← meal document ID if auto-added
     sortOrder: number | null  ← custom drag-drop position within aisle; absent = sort by name
     createdAt: timestamp
-
-meals/{mealId}
-  familyId: string
-  name: string
-  votes: string[]             ← array of uids who voted
-  ingredients: string[]       ← auto-added to list when enough votes
 
 families/{familyId}/pocketMoney/{uid}   ← config + running balance snapshot per child
   weeklyAmount: number                  ← amount added each payment day
@@ -87,7 +80,7 @@ families/{familyId}/householdJobs/{jobId}/subtasks/{subtaskId}
   updatedAt: timestamp
 ```
 
-**New family-scoped collections must be subcollections of `families/{familyId}/`.** Do not create new root-level collections that carry a `familyId` field for access control — nesting under the family document makes security rules simpler and avoids cross-family data leakage by construction. (`shoppingLists` and `meals` predate this convention and use the root-level pattern; do not follow that pattern for any new data.)
+**New family-scoped collections must be subcollections of `families/{familyId}/`.** Do not create new root-level collections that carry a `familyId` field for access control — nesting under the family document makes security rules simpler and avoids cross-family data leakage by construction. (`shoppingLists` predates this convention and uses the root-level pattern; do not follow that pattern for any new data.)
 
 ---
 

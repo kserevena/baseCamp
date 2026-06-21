@@ -6,15 +6,10 @@ import * as directives from 'vuetify/directives'
 import { reactive } from 'vue'
 
 let familyStore
-let mealsStore
 let shoppingStore
 
 vi.mock('@/stores/family.js', () => ({
   useFamilyStore: () => familyStore,
-}))
-
-vi.mock('@/stores/meals.js', () => ({
-  useMealsStore: () => mealsStore,
 }))
 
 vi.mock('@/stores/shopping.js', () => ({
@@ -55,9 +50,6 @@ describe('HomeView', () => {
         { uid: 'child-uid',  name: 'Bob',   role: 'child' },
       ],
     })
-    mealsStore = reactive({
-      meals: [],
-    })
     shoppingStore = reactive({
       lists: [],
     })
@@ -90,56 +82,6 @@ describe('HomeView', () => {
       const cards = wrapper.findAllComponents({ name: 'VCard' })
       const shoppingCard = cards.find(c => c.text().includes('Shopping list'))
       expect(shoppingCard.props('to')).toBe('/shopping')
-    })
-  })
-
-  describe('meal poll card', () => {
-    it('renders the meal poll card', () => {
-      const wrapper = mountView()
-      expect(wrapper.text()).toContain('Meal poll')
-    })
-
-    it('links the meal card to /meals', () => {
-      const wrapper = mountView()
-      const cards = wrapper.findAllComponents({ name: 'VCard' })
-      const mealCard = cards.find(c => c.text().includes('Meal poll'))
-      expect(mealCard.props('to')).toBe('/meals')
-    })
-
-    it('shows the top meal name and vote count when meals exist', () => {
-      mealsStore.meals = [
-        { id: 'meal-1', name: 'Pasta', votes: ['uid-1', 'uid-2'] },
-        { id: 'meal-2', name: 'Pizza', votes: ['uid-1'] },
-      ]
-      const wrapper = mountView()
-      expect(wrapper.text()).toContain('Pasta')
-      expect(wrapper.text()).toContain('2 votes')
-    })
-
-    it('picks the meal with the most votes as topMeal', () => {
-      mealsStore.meals = [
-        { id: 'meal-1', name: 'Soup',  votes: ['uid-1'] },
-        { id: 'meal-2', name: 'Steak', votes: ['uid-1', 'uid-2', 'uid-3'] },
-        { id: 'meal-3', name: 'Salad', votes: [] },
-      ]
-      const wrapper = mountView()
-      expect(wrapper.text()).toContain('Steak')
-      expect(wrapper.text()).not.toContain('Soup')
-      expect(wrapper.text()).not.toContain('Salad')
-    })
-
-    it('does not show a top meal when there are no meals', () => {
-      mealsStore.meals = []
-      const wrapper = mountView()
-      // Trophy icon not rendered when there are no meals
-      expect(wrapper.html()).not.toContain('mdi-trophy')
-    })
-
-    it('handles meals with absent votes field without crashing', () => {
-      mealsStore.meals = [
-        { id: 'meal-1', name: 'Pasta' },
-      ]
-      expect(() => mountView()).not.toThrow()
     })
   })
 

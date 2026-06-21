@@ -4,7 +4,6 @@ import { createPinia, setActivePinia } from 'pinia'
 // Stub all view components so Vue Router doesn't need to render them
 vi.mock('@/views/HomeView.vue',     () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/ShoppingView.vue', () => ({ default: { template: '<div />' } }))
-vi.mock('@/views/MealsView.vue',    () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/LoginView.vue',    () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/SetupView.vue',      () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/PocketMoneyView.vue', () => ({ default: { template: '<div />' } }))
@@ -48,11 +47,6 @@ describe('router guard', () => {
 
     it('is redirected to /login when navigating to /shopping', async () => {
       await router.push('/shopping')
-      expect(router.currentRoute.value.path).toBe('/login')
-    })
-
-    it('is redirected to /login when navigating to /meals', async () => {
-      await router.push('/meals')
       expect(router.currentRoute.value.path).toBe('/login')
     })
 

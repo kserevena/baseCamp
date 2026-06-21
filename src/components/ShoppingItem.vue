@@ -50,15 +50,6 @@ function onToggle() {
 
     <template #append>
       <div class="d-flex align-center gap-2">
-        <v-chip
-          v-if="item.fromMeal"
-          size="x-small"
-          color="deep-purple"
-          variant="tonal"
-          label
-        >
-          meal
-        </v-chip>
         <FamilyAvatar :uid="item.addedBy" :size="28" />
         <v-btn
           v-if="showDelete"

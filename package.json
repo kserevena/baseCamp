@@ -25,7 +25,7 @@
   "_overridesNote": "protobufjs pinned to 7.6.3 to fix GHSA-f38q-mgvj-vph7 / CVE-2026-54269 (see issue #86), since firebase@12.14.0 (latest stable as of 2026-06-16) still resolves protobufjs@7.6.2 transitively via @grpc/proto-loader. Remove this override once a stable firebase release transitively pulls protobufjs>=7.6.3 - check with `npm ls protobufjs` after bumping firebase.",
   "dependencies": {
     "@mdi/font": "^7.4.47",
-    "firebase": "^12.14.0",
+    "firebase": "^12.15.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.38",
     "vue-draggable-plus": "^0.6.1",

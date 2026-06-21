@@ -9,7 +9,7 @@ export default defineConfig({
     vue(),
     vuetify({ autoImport: true }),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       manifest: {
         name: 'BaseCamp',
         short_name: 'BaseCamp',

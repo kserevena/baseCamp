@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFamilyStore } from '@/stores/family.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -20,6 +20,7 @@ const pocketMoney = usePocketMoneyStore()
 const jobs = useJobsStore()
 
 const userMenu = ref(false)
+const { updateAvailable, applyUpdate } = useServiceWorkerUpdate()
 
 watch(() => family.familyId, (id, prevId) => {
   if (id) {
@@ -29,10 +30,6 @@ watch(() => family.familyId, (id, prevId) => {
     shopping.teardown()
     jobs.teardown()
   }
-})
-
-onMounted(() => {
-  useServiceWorkerUpdate()
 })
 
 // pocketMoney.setup needs the user's role, which arrives via the members onSnapshot
@@ -140,5 +137,13 @@ function navigate(path) {
         <span>{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
+
+    <v-snackbar v-model="updateAvailable" timeout="-1">
+      A new version is available
+      <template #actions>
+        <v-btn color="primary" variant="text" @click="applyUpdate">Update</v-btn>
+        <v-btn variant="text" @click="updateAvailable = false">Later</v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>

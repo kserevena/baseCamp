@@ -24,7 +24,7 @@ baseCamp/
 │   │   ├── CLAUDE.md                # UI design principles; PocketMoneyView complexity notes
 │   │   └── __tests__/
 │   ├── composables/
-│   │   ├── useServiceWorkerUpdate.js  # SW update polling: controllerchange reload, visibilitychange + hourly check
+│   │   ├── useServiceWorkerUpdate.js  # SW update: detects waiting worker, exposes updateAvailable + applyUpdate; hourly + visibilitychange polling
 │   │   ├── useUserRole.js             # isParent/isChild computed derived from family.currentUser
 │   │   ├── useKeyboardAwareSheet.js   # Lifts v-bottom-sheet content above the Android virtual keyboard (#49, #109)
 │   │   └── __tests__/

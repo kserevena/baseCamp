@@ -139,7 +139,7 @@ function navigate(path) {
     </v-bottom-navigation>
 
     <v-snackbar :model-value="bannerVisible" timeout="-1">
-      A new version is available
+      Update ready
       <template #actions>
         <v-btn color="primary" variant="text" @click="applyUpdate">Update</v-btn>
         <v-btn variant="text" @click="snooze">Later</v-btn>

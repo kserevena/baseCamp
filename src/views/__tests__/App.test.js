@@ -39,7 +39,7 @@ vi.mock('@/stores/jobs.js', () => ({
 }))
 vi.mock('@/firebase/config.js', () => ({ auth: {}, db: {} }))
 vi.mock('@/composables/useServiceWorkerUpdate.js', () => ({
-  useServiceWorkerUpdate: vi.fn(),
+  useServiceWorkerUpdate: vi.fn(() => ({ bannerVisible: { value: false }, applyUpdate: vi.fn(), snooze: vi.fn() })),
 }))
 vi.mock('@/components/FamilyAvatar.vue', () => ({
   default: { props: ['uid', 'size'], template: '<span />' },

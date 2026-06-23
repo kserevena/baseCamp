@@ -107,7 +107,7 @@ Integration tests load the real `firestore.rules` file into the emulator. They v
 
 Two mechanisms work together to provide full offline support:
 
-1. **Service worker** caches all app shell files on first visit. Configured via the Vite PWA plugin with `registerType: 'autoUpdate'` and `clientsClaim: true`. `App.vue` calls `useServiceWorkerUpdate()` on mount, which adds a `controllerchange` → `reload` listener, a `visibilitychange` check, and an hourly `setInterval` — ensuring devices pick up new deploys without a manual refresh.
+1. **Service worker** caches all app shell files on first visit. Configured via the Vite PWA plugin with `registerType: 'prompt'` and `clientsClaim: true`. `useServiceWorkerUpdate()` (called at `App.vue` setup scope) detects a waiting SW via `updatefound`/`statechange` and exposes `bannerVisible`, `applyUpdate()`, and `snooze()`. `App.vue` shows a `v-snackbar` when `bannerVisible` is true; **Update** posts `SKIP_WAITING` and reloads, **Later** hides the banner for 30 minutes. A `visibilitychange` check and hourly `setInterval` keep calling `registration.update()` to poll for new versions.
 
 2. **Firestore IndexedDB persistence** (`persistentLocalCache()` in `src/firebase/config.js`) caches all family data locally. Offline writes are queued and synced automatically when connectivity returns.
 

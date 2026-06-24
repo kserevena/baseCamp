@@ -6,6 +6,7 @@ import { useUserRole } from '@/composables/useUserRole.js'
 import { formatGBP } from '@/utils/currency.js'
 import { formatDate } from '@/utils/date.js'
 import { ROLE_CHILD } from '@/constants/roles.js'
+import { pendingPaymentDates } from '@/utils/paymentSchedule.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 
 const family = useFamilyStore()
@@ -150,7 +151,7 @@ const childPendingAmount = computed(() => {
   const snap = store.snapshots.find(s => s.uid === uid)
   if (!snap) return 0
   const lastUpdated = snap.lastUpdated?.toDate?.() ?? new Date()
-  const dates = store.pendingPaymentDates(lastUpdated, snap.paymentDay ?? 0)
+  const dates = pendingPaymentDates(lastUpdated, snap.paymentDay ?? 0)
   return dates.length * (snap.weeklyAmount ?? 0)
 })
 </script>

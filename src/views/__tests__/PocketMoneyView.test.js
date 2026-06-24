@@ -4,6 +4,7 @@ import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { reactive, ref, computed } from 'vue'
+import { pendingPaymentDates } from '@/utils/paymentSchedule.js'
 
 let pocketMoneyStore
 let familyStore
@@ -21,6 +22,10 @@ vi.mock('@/components/FamilyAvatar.vue', () => ({
 }))
 
 vi.mock('@/firebase/config.js', () => ({ db: {} }))
+
+vi.mock('@/utils/paymentSchedule.js', () => ({
+  pendingPaymentDates: vi.fn().mockReturnValue([]),
+}))
 
 import PocketMoneyView from '@/views/PocketMoneyView.vue'
 
@@ -44,6 +49,8 @@ describe('PocketMoneyView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
+    pendingPaymentDates.mockReturnValue([])
+
     pocketMoneyStore = reactive({
       snapshots: [],
       transactions: [],
@@ -54,7 +61,6 @@ describe('PocketMoneyView', () => {
       saveConfig: vi.fn().mockResolvedValue(undefined),
       recordWithdrawal: vi.fn().mockResolvedValue(undefined),
       loadTransactions: vi.fn().mockResolvedValue(undefined),
-      pendingPaymentDates: vi.fn().mockReturnValue([]),
     })
 
     familyStore = reactive({
@@ -608,9 +614,26 @@ describe('PocketMoneyView', () => {
     })
 
     it('shows a pending chip when childPendingAmount > 0', () => {
-      pocketMoneyStore.pendingPaymentDates.mockReturnValue([new Date(), new Date()])
+      pendingPaymentDates.mockReturnValue([new Date(), new Date()])
       const wrapper = mountView()
       expect(wrapper.text()).toContain('pending')
+    })
+
+    it('does not show a pending chip when there are no pending payments', () => {
+      pendingPaymentDates.mockReturnValue([])
+      const wrapper = mountView()
+      expect(wrapper.text()).not.toContain('pending')
+    })
+
+    it('renders balance and "Your balance" label after snapshot loads even without store.pendingPaymentDates', () => {
+      // Regression: childPendingAmount previously called store.pendingPaymentDates which
+      // does not exist on the store. The TypeError blanked the card content the moment
+      // the Firestore snapshot arrived and populated store.snapshots. The fix imports
+      // pendingPaymentDates directly from @/utils/paymentSchedule.js.
+      delete pocketMoneyStore.pendingPaymentDates
+      const wrapper = mountView()
+      expect(wrapper.text()).toContain('Your balance')
+      expect(wrapper.text()).toContain('£10.00')
     })
   })
 })

@@ -26,7 +26,7 @@ const lastActiveList = computed(() => {
       <v-card-text>
         <div class="d-flex align-center">
           <v-icon color="primary" class="mr-2">mdi-cart</v-icon>
-          <span class="text-subtitle-1 font-weight-medium">Shopping list</span>
+          <span class="text-subtitle-1 font-weight-medium">Shopping</span>
         </div>
         <div v-if="lastActiveList" class="text-body-2 text-medium-emphasis mt-1">
           {{ lastActiveList.name }}

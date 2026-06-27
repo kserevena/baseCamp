@@ -81,7 +81,7 @@ function navigate(path) {
   <v-app>
     <v-app-bar v-if="!route.meta.hideNav" flat color="surface" border="b">
       <v-app-bar-title>
-        <span class="text-primary font-weight-bold">BaseCamp·</span>
+        <span class="text-primary font-weight-bold">BaseCamp</span>
         <v-chip v-if="isDev" color="warning" size="x-small" label class="ml-2">DEV</v-chip>
       </v-app-bar-title>
       <template #append>

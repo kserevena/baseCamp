@@ -24,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write
       issues: write
       pull-requests: write
     env:
@@ -70,7 +69,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Create .env from secret
@@ -95,19 +94,39 @@ jobs:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_DEV }}
         run: printf '%s\n' "$GCP_SA_KEY" > "${{ runner.temp }}/gcp-sa-key.json"
 
-      - name: Deploy Firestore rules and indexes to dev
+      - name: Deploy to dev
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
           GCLOUD_PROJECT: basecamp-app-dev
-        run: firebase deploy --only firestore:rules,firestore:indexes --project dev
-
-      - name: Deploy hosting to dev
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY_DEV }}
-          projectId: basecamp-app-dev
-          channelId: live
+        run: |
+          set +e
+          out=$(firebase deploy --only hosting,firestore:rules,firestore:indexes --project dev 2>&1)
+          code=$?
+          printf '%s\n' "$out"
+          if [ $code -ne 0 ] && printf '%s\n' "$out" | grep -q 'is the current active version'; then
+            deployed=$(printf '%s\n' "$out" | grep -oP '(?<=version `)projects/[^`]+' | tail -1)
+            sa_email=$(jq -r '.client_email' "$GOOGLE_APPLICATION_CREDENTIALS")
+            sa_key=$(jq -r '.private_key' "$GOOGLE_APPLICATION_CREDENTIALS")
+            now=$(date +%s); exp=$((now + 3600))
+            hdr=$(printf '{"alg":"RS256","typ":"JWT"}' | base64 -w0 | tr '+/' '-_' | tr -d '=')
+            pay=$(printf '{"iss":"%s","scope":"https://www.googleapis.com/auth/cloud-platform","aud":"https://oauth2.googleapis.com/token","exp":%d,"iat":%d}' \
+                  "$sa_email" "$exp" "$now" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+            tmpkey=$(mktemp); printf '%s' "$sa_key" > "$tmpkey"
+            sig=$(printf '%s' "$hdr.$pay" | openssl dgst -sha256 -sign "$tmpkey" 2>/dev/null \
+                  | base64 -w0 | tr '+/' '-_' | tr -d '=')
+            rm -f "$tmpkey"
+            token=$(curl -sf -X POST https://oauth2.googleapis.com/token \
+                    -d "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=$hdr.$pay.$sig" \
+                    | jq -r '.access_token')
+            active=$(curl -sf -H "Authorization: Bearer $token" \
+                     "https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/basecamp-app-dev/channels/live" \
+                     | jq -r '.release.version.name // ""')
+            if [ -n "$deployed" ] && [ "$deployed" = "$active" ]; then
+              echo "::warning::Deploy succeeded — Firebase confirmed version $active is now live. (CLI exited non-zero due to keep-alive retry on the release POST under service-account auth.)"
+              exit 0
+            fi
+          fi
+          exit $code
 
       - name: Update PR labels after successful deploy
         if: github.event_name == 'pull_request'

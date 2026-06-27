@@ -32,6 +32,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
+          # Pinned to 24.18.0: 24.17.0 shipped a keep-alive regression (nodejs/node#63989)
+          # that breaks firebase-tools deploys against *.googleapis.com. 24.18.0 fixes it.
           node-version: '24.18.0'
           cache: 'npm'
 
@@ -78,13 +80,4 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
           GCLOUD_PROJECT: basecamp-app-prod
-        run: |
-          set +e
-          out=$(firebase deploy --only hosting,firestore:rules,firestore:indexes --project prod 2>&1)
-          code=$?
-          printf '%s\n' "$out"
-          if [ $code -ne 0 ] && printf '%s\n' "$out" | grep -q 'is the current active version'; then
-            echo "::warning::Deploy succeeded — version is already live. (CLI exited non-zero due to keep-alive retry on release POST under service-account auth.)"
-            exit 0
-          fi
-          exit $code
+        run: firebase deploy --only hosting,firestore:rules,firestore:indexes --project prod

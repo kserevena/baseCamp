@@ -18,6 +18,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
+          # Pinned to 24.18.0: 24.17.0 shipped a keep-alive regression (nodejs/node#63989)
+          # that breaks firebase-tools deploys against *.googleapis.com. 24.18.0 fixes it.
           node-version: '24.18.0'
           cache: 'npm'
 

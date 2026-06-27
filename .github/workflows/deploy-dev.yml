@@ -89,14 +89,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Deploy hosting to dev
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY_DEV }}
-          projectId: basecamp-app-dev
-          channelId: live
-
       - name: Write service account key
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_DEV }}
@@ -107,6 +99,14 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
           GCLOUD_PROJECT: basecamp-app-dev
         run: firebase deploy --only firestore:rules,firestore:indexes --project dev
+
+      - name: Deploy hosting to dev
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY_DEV }}
+          projectId: basecamp-app-dev
+          channelId: live
 
       - name: Update PR labels after successful deploy
         if: github.event_name == 'pull_request'

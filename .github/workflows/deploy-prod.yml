@@ -69,14 +69,6 @@ jobs:
       - name: Build
         run: npm run build:prod
 
-      - name: Deploy hosting to prod
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY_PROD }}
-          projectId: basecamp-app-prod
-          channelId: live
-
       - name: Write service account key
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_PROD }}
@@ -87,3 +79,11 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
           GCLOUD_PROJECT: basecamp-app-prod
         run: firebase deploy --only firestore:rules,firestore:indexes --project prod
+
+      - name: Deploy hosting to prod
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY_PROD }}
+          projectId: basecamp-app-prod
+          channelId: live

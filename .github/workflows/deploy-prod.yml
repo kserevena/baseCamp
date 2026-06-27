@@ -78,3 +78,4 @@ jobs:
         run: firebase deploy --only hosting,firestore:rules,firestore:indexes --project prod
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
+          GCLOUD_PROJECT: basecamp-app-prod

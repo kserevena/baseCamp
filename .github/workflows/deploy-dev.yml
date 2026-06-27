@@ -98,6 +98,7 @@ jobs:
         run: firebase deploy --only hosting,firestore:rules,firestore:indexes --project dev
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
+          GCLOUD_PROJECT: basecamp-app-dev
 
       - name: Update PR labels after successful deploy
         if: github.event_name == 'pull_request'

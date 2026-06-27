@@ -89,32 +89,24 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Deploy hosting to dev
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY_DEV }}
+          projectId: basecamp-app-dev
+          channelId: live
+
       - name: Write service account key
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_DEV }}
         run: printf '%s\n' "$GCP_SA_KEY" > "${{ runner.temp }}/gcp-sa-key.json"
 
-      # Under service-account auth the hosting release POST can be retried by the
-      # Firebase CLI after it has already succeeded server-side, so the retry comes
-      # back 400 "supplied version ... is the current active version". That message
-      # only appears once the new version is already live, i.e. the deploy worked.
-      # Treat that one specific message as success; fail on anything else.
-      - name: Deploy to dev
+      - name: Deploy Firestore rules and indexes to dev
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
           GCLOUD_PROJECT: basecamp-app-dev
-        run: |
-          set +e
-          out=$(firebase deploy --only hosting,firestore:rules,firestore:indexes --project dev 2>&1)
-          code=$?
-          echo "$out"
-          if [ $code -ne 0 ]; then
-            if echo "$out" | grep -q "is the current active version"; then
-              echo "::warning::Hosting release reported the new version is already the active version (benign redundant-release retry under service-account auth); treating deploy as successful."
-              exit 0
-            fi
-            exit $code
-          fi
+        run: firebase deploy --only firestore:rules,firestore:indexes --project dev
 
       - name: Update PR labels after successful deploy
         if: github.event_name == 'pull_request'

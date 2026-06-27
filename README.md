@@ -184,8 +184,16 @@ Because every deploy includes `firestore.rules` and `firestore.indexes.json`, ru
 |---|---|
 | `DEV_ENV_FILE` | Full contents of your local `.env` file |
 | `PROD_ENV_FILE` | Full contents of your local `.env.prod` file |
-| `GCP_SA_KEY_DEV` | JSON key for a GCP service account on the dev project with `roles/firebasehosting.admin` and `roles/datastore.owner` |
+| `GCP_SA_KEY_DEV` | JSON key for a GCP service account on the dev project with the roles listed below |
 | `GCP_SA_KEY_PROD` | JSON key for a GCP service account on the prod project with the same roles |
+
+Each service account needs the following IAM roles on its respective GCP project:
+
+- `roles/firebasehosting.admin` — deploy Hosting
+- `roles/datastore.owner` — deploy Firestore indexes
+- `roles/serviceusage.serviceUsageViewer` — check that required APIs are enabled
+- `roles/firebaserules.admin` — validate and deploy Firestore rules
+- `roles/firebase.developAdmin` — Firebase Rules API access required by the CLI
 
 #### Deploying rules only
 

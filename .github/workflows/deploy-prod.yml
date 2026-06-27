@@ -6,7 +6,7 @@ name: Deploy to Prod
 #
 # Required GitHub secrets:
 #   PROD_ENV_FILE    — full contents of the local .env.prod file for the prod project
-#   FIREBASE_TOKEN   — CI token from `firebase login:ci`
+#   GCP_SA_KEY_PROD  — JSON key for the prod project service account
 
 on:
   push:
@@ -69,7 +69,12 @@ jobs:
       - name: Build
         run: npm run build:prod
 
+      - name: Write service account key
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_PROD }}
+        run: printf '%s\n' "$GCP_SA_KEY" > "${{ runner.temp }}/gcp-sa-key.json"
+
       - name: Deploy to prod
         run: firebase deploy --only hosting,firestore:rules,firestore:indexes --project prod
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json

@@ -178,13 +178,14 @@ Because every deploy includes `firestore.rules` and `firestore.indexes.json`, ru
 
 #### Deploying via GitHub Actions
 
-**Deploy to Prod** runs automatically on every push to `main` — in practice, every merged pull request deploys to prod, with no manual step required. It can also be run manually from the Actions UI (Actions tab → **Deploy to Prod** → Run workflow) and only runs from `main`. **Deploy to Dev** is manual-only — trigger it from the Actions UI (Actions tab → **Deploy to Dev** → Run workflow). Both workflows run the same checks as the local scripts. Three repository secrets must be configured in Settings → Secrets and variables → Actions:
+**Deploy to Prod** runs automatically on every push to `main` — in practice, every merged pull request deploys to prod, with no manual step required. It can also be run manually from the Actions UI (Actions tab → **Deploy to Prod** → Run workflow) and only runs from `main`. **Deploy to Dev** is manual-only — trigger it from the Actions UI (Actions tab → **Deploy to Dev** → Run workflow). Both workflows run the same checks as the local scripts. Four repository secrets must be configured in Settings → Secrets and variables → Actions:
 
 | Secret | Value |
 |---|---|
 | `DEV_ENV_FILE` | Full contents of your local `.env` file |
 | `PROD_ENV_FILE` | Full contents of your local `.env.prod` file |
-| `FIREBASE_TOKEN` | Output of `firebase login:ci` |
+| `GCP_SA_KEY_DEV` | JSON key for a GCP service account on the dev project with `roles/firebasehosting.admin` and `roles/datastore.owner` |
+| `GCP_SA_KEY_PROD` | JSON key for a GCP service account on the prod project with the same roles |
 
 #### Deploying rules only
 

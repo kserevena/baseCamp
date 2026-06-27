@@ -9,7 +9,7 @@ name: Deploy to Dev
 #
 # Required GitHub secrets:
 #   DEV_ENV_FILE     — full contents of the local .env file for the dev project
-#   FIREBASE_TOKEN   — CI token from `firebase login:ci`
+#   GCP_SA_KEY_DEV   — JSON key for the dev project service account
 
 on:
   pull_request:
@@ -89,10 +89,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Write service account key
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_DEV }}
+        run: printf '%s\n' "$GCP_SA_KEY" > "${{ runner.temp }}/gcp-sa-key.json"
+
       - name: Deploy to dev
         run: firebase deploy --only hosting,firestore:rules,firestore:indexes --project dev
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
 
       - name: Update PR labels after successful deploy
         if: github.event_name == 'pull_request'

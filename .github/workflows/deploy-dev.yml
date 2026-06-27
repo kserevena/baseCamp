@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      checks: write
       issues: write
       pull-requests: write
     env:
@@ -94,11 +95,19 @@ jobs:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY_DEV }}
         run: printf '%s\n' "$GCP_SA_KEY" > "${{ runner.temp }}/gcp-sa-key.json"
 
-      - name: Deploy to dev
+      - name: Deploy Firestore rules and indexes to dev
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-sa-key.json
           GCLOUD_PROJECT: basecamp-app-dev
-        run: firebase deploy --only hosting,firestore:rules,firestore:indexes --project dev
+        run: firebase deploy --only firestore:rules,firestore:indexes --project dev
+
+      - name: Deploy hosting to dev
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY_DEV }}
+          projectId: basecamp-app-dev
+          channelId: live
 
       - name: Update PR labels after successful deploy
         if: github.event_name == 'pull_request'

@@ -37,7 +37,7 @@ const lastActiveList = computed(() => {
     <!-- Family avatars -->
     <v-card rounded="lg" elevation="1">
       <v-card-text>
-        <div class="text-subtitle-1 font-weight-medium mb-3">Family members</div>
+        <div class="text-subtitle-1 font-weight-medium mb-3">Family</div>
         <div class="d-flex gap-3 flex-wrap">
           <div
             v-for="member in family.members"

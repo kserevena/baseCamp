@@ -107,7 +107,7 @@ describe('HomeView', () => {
 
     it('renders the family section heading', () => {
       const wrapper = mountView()
-      expect(wrapper.text()).toContain('Family members')
+      expect(wrapper.text()).toContain('Family')
     })
 
     it('renders no avatars when the family has no members', () => {

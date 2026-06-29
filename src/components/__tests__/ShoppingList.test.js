@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 
 vi.mock('vue-draggable-plus', () => ({
   VueDraggable: {
@@ -15,6 +15,7 @@ vi.mock('vue-draggable-plus', () => ({
 
 let shoppingStore
 let familyStore
+let isParentRef
 
 vi.mock('@/stores/shopping.js', () => ({
   useShoppingStore: () => shoppingStore,
@@ -24,12 +25,16 @@ vi.mock('@/stores/family.js', () => ({
   useFamilyStore: () => familyStore,
 }))
 
+vi.mock('@/composables/useUserRole.js', () => ({
+  useUserRole: () => ({ isParent: isParentRef }),
+}))
+
 vi.mock('@/components/ShoppingItem.vue', () => ({
   default: {
     name: 'ShoppingItem',
-    props: ['item', 'showDragHandle', 'showDelete', 'showEdit'],
-    emits: ['toggle'],
-    template: '<div class="shopping-item-stub" @click="$emit(\'toggle\', { id: item.id, name: item.name, done: item.done, previous: { done: item.done, addedBy: item.addedBy } })">{{ item.name }}</div>',
+    props: ['item', 'showDragHandle', 'showDelete', 'showEdit', 'showPriority'],
+    emits: ['toggle', 'toggle-priority'],
+    template: '<div class="shopping-item-stub" @click="$emit(\'toggle\', { id: item.id, name: item.name, done: item.done, previous: { done: item.done, addedBy: item.addedBy, priority: item.priority ?? false } })">{{ item.name }}</div>',
   },
 }))
 
@@ -56,12 +61,14 @@ function mountList(props = {}) {
 describe('ShoppingList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    isParentRef = ref(true)
     shoppingStore = reactive({
       items: [],
       activeAisles: [...DEFAULT_AISLES],
       reorderItems: vi.fn(),
       deleteItem: vi.fn(),
       toggleDone: vi.fn(),
+      togglePriority: vi.fn(),
       restoreToggleState: vi.fn(),
     })
     familyStore = reactive({
@@ -302,6 +309,108 @@ describe('ShoppingList', () => {
     })
   })
 
+  describe('priority section', () => {
+    it('renders a Priority section when at least one non-done item has priority: true', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).toContain('Priority')
+    })
+
+    it('does not render a Priority section when no items have priority: true', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: false },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).not.toContain('Priority')
+    })
+
+    it('does not render a Priority section when item list is empty', () => {
+      shoppingStore.items = []
+      const wrapper = mountList()
+      expect(wrapper.text()).not.toContain('Priority')
+    })
+
+    it('does not render a Priority section when the only priority item is done', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: true, priority: true },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).not.toContain('Priority')
+    })
+
+    it('shows the priority item in the Priority section', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).toContain('Eggs')
+    })
+
+    it('removes the Priority section when priority is toggled off', async () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).toContain('Priority')
+
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: false },
+      ]
+      await wrapper.vm.$nextTick()
+      expect(wrapper.text()).not.toContain('Priority')
+    })
+
+    it('calls store.togglePriority when a ShoppingItem emits toggle-priority', async () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      const item = wrapper.findComponent({ name: 'ShoppingItem' })
+      await item.vm.$emit('toggle-priority')
+      expect(shoppingStore.togglePriority).toHaveBeenCalledWith('i1')
+    })
+
+    it('hides the Priority section header when showHeaders is false', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList({ showHeaders: false })
+      expect(wrapper.text()).not.toContain('Priority')
+    })
+
+    it('passes show-priority to ShoppingItem in the priority section for parents', () => {
+      isParentRef = ref(true)
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      const priorityItem = wrapper.findComponent({ name: 'ShoppingItem' })
+      expect(priorityItem.props('showPriority')).toBe(true)
+    })
+
+    it('does not pass show-priority to ShoppingItem in the priority section for children', () => {
+      isParentRef = ref(false)
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      const priorityItem = wrapper.findComponent({ name: 'ShoppingItem' })
+      expect(priorityItem.props('showPriority')).toBe(false)
+    })
+
+    it('does not pass show-priority to ShoppingItem in the aisle section for children', () => {
+      isParentRef = ref(false)
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: false },
+      ]
+      const wrapper = mountList()
+      const aisleItem = wrapper.findComponent({ name: 'ShoppingItem' })
+      expect(aisleItem.props('showPriority')).toBeFalsy()
+    })
+  })
+
   describe('undo toggle', () => {
     it('shows an undo snackbar when an item is toggled', async () => {
       shoppingStore.items = [
@@ -328,6 +437,7 @@ describe('ShoppingList', () => {
       expect(shoppingStore.restoreToggleState).toHaveBeenCalledWith('i1', {
         done: true,
         addedBy: 'uid-original',
+        priority: false,
       })
       expect(shoppingStore.toggleDone).not.toHaveBeenCalled()
     })

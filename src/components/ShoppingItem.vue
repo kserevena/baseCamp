@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import FamilyAvatar from './FamilyAvatar.vue'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useUserRole } from '@/composables/useUserRole.js'
@@ -8,16 +9,19 @@ const props = defineProps({
   showDragHandle: { type: Boolean, default: false },
   showDelete: { type: Boolean, default: false },
   showEdit: { type: Boolean, default: false },
+  showPriority: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['delete', 'edit', 'toggle'])
+const emit = defineEmits(['delete', 'edit', 'toggle', 'toggle-priority'])
 const store = useShoppingStore()
 const { isParent } = useUserRole()
 
+const isPriority = computed(() => props.item.priority ?? false)
+
 function onToggle() {
   // Capture the pre-toggle state so the list can offer a faithful undo —
-  // toggleDone may reassign addedBy, so re-toggling is not a clean inverse.
-  const previous = { done: props.item.done, addedBy: props.item.addedBy }
+  // toggleDone may reassign addedBy and clears priority, so re-toggling is not a clean inverse.
+  const previous = { done: props.item.done, addedBy: props.item.addedBy, priority: isPriority.value }
   store.toggleDone(props.item.id)
   emit('toggle', { id: props.item.id, name: props.item.name, done: props.item.done, previous })
 }
@@ -51,6 +55,21 @@ function onToggle() {
     <template #append>
       <div class="d-flex align-center gap-2">
         <FamilyAvatar :uid="item.addedBy" :size="28" />
+        <v-btn
+          v-if="showPriority"
+          icon
+          size="small"
+          variant="plain"
+          :color="isPriority ? 'warning' : 'medium-emphasis'"
+          @click.stop="emit('toggle-priority')"
+        >
+          <v-icon>{{ isPriority ? 'mdi-star' : 'mdi-star-outline' }}</v-icon>
+        </v-btn>
+        <v-icon
+          v-else-if="isPriority"
+          color="warning"
+          size="small"
+        >mdi-star</v-icon>
         <v-btn
           v-if="showDelete"
           icon

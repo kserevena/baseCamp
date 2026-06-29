@@ -459,6 +459,61 @@ describe('Firestore security rules', () => {
       const ctx = testEnv.authenticatedContext('parent-uid')
       await assertSucceeds(deleteDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id)))
     })
+
+    describe('priority field', () => {
+      let itemRef
+
+      beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+            name: 'Milk', qty: '2 pints', aisle: 'Dairy', aisleOrder: 1, done: false,
+            addedBy: 'parent-uid', priority: false,
+          })
+        })
+      })
+
+      it('allows a parent to set priority: true', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
+        )
+      })
+
+      it('denies a child setting priority: true', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
+        )
+      })
+
+      it('denies a child setting priority: false', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: false })
+        )
+      })
+
+      it('denies a child updating done', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true })
+        )
+      })
+
+      it('denies an outsider setting priority', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
+        )
+      })
+
+      it('allows a family member to read an item that has the priority field', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id))
+        )
+      })
+    })
   })
 
   describe('pocketMoney subcollection', () => {

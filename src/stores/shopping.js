@@ -116,6 +116,14 @@ export const useShoppingStore = defineStore('shopping', () => {
     await deleteDoc(doc(db, 'shoppingLists', activeListId.value, 'items', itemId))
   }
 
+  function togglePriority(id) {
+    if (!activeListId.value) return
+    const item = items.value.find(i => i.id === id)
+    if (!item) return
+    item.priority = !(item.priority ?? false)
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { priority: item.priority })
+  }
+
   function toggleDone(id) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
@@ -128,20 +136,24 @@ export const useShoppingStore = defineStore('shopping', () => {
       const uid = familyStore.currentUser?.uid ?? ''
       item.addedBy = uid
       update.addedBy = uid
+    } else {
+      item.priority = false
+      update.priority = false
     }
     updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), update)
   }
 
-  // Restores an item's exact done/addedBy state. Used to undo a toggleDone:
-  // toggleDone reassigns addedBy on the uncheck path, so re-toggling is not a
-  // faithful inverse — undo must write back the captured pre-toggle values.
-  function restoreToggleState(id, { done, addedBy }) {
+  // Restores an item's exact done/addedBy/priority state. Used to undo a toggleDone:
+  // toggleDone reassigns addedBy on the uncheck path and clears priority on the check path,
+  // so re-toggling is not a faithful inverse — undo must write back the captured pre-toggle values.
+  function restoreToggleState(id, { done, addedBy, priority }) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
     if (!item) return
     item.done = done
     item.addedBy = addedBy
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { done, addedBy })
+    item.priority = priority ?? false
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { done, addedBy, priority: priority ?? false })
   }
 
   function updateItem(id, { name, qty, aisle }) {
@@ -215,6 +227,7 @@ export const useShoppingStore = defineStore('shopping', () => {
       aisle: aisleObj ? item.aisle : 'Unknown',
       aisleOrder: aisleObj?.order ?? 99,
       done: false,
+      priority: item.priority ?? false,
       addedBy: familyStore.currentUser?.uid ?? '',
       sortOrder: null,
       createdAt: serverTimestamp(),
@@ -245,5 +258,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle, moveOrCopyItem }
+  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, togglePriority, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle, moveOrCopyItem }
 })

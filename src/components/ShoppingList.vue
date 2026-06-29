@@ -13,6 +13,13 @@ const store = useShoppingStore()
 const { isParent } = useUserRole()
 const emit = defineEmits(['edit'])
 
+// Items without a sortOrder (null/undefined) sort after all explicitly ordered items,
+// then fall back to alphabetical within that group.
+const compareItems = (a, b) =>
+  (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
+    ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+    : a.name.localeCompare(b.name)
+
 function buildGroups(items, aisles) {
   const activeItems = items.filter(i => !i.done)
   const groups = aisles.map(a => ({ aisle: a.name, aisleOrder: a.order, items: [] }))
@@ -27,17 +34,17 @@ function buildGroups(items, aisles) {
   }
 
   for (const group of groups) {
-    group.items.sort((a, b) =>
-      (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
-        ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
-        : a.name.localeCompare(b.name)
-    )
+    group.items.sort(compareItems)
   }
 
   return groups
 }
 
 const doneItems = computed(() => store.items.filter(i => i.done))
+
+const priorityItems = computed(() =>
+  store.items.filter(i => !i.done && (i.priority ?? false)).sort(compareItems)
+)
 
 const groups = ref(buildGroups(store.items, store.activeAisles))
 let pendingReorder = false
@@ -87,6 +94,26 @@ function onDragEnd() {
 
 <template>
   <v-list lines="two" class="py-0">
+    <template v-if="priorityItems.length > 0">
+      <v-list-subheader v-if="showHeaders" class="aisle-header text-uppercase font-weight-bold priority-header">
+        <v-icon size="small" color="warning" class="mr-1">mdi-star</v-icon>
+        Priority
+      </v-list-subheader>
+      <ShoppingItem
+        v-for="item in priorityItems"
+        :key="item.id"
+        :item="item"
+        :show-priority="isParent"
+        :show-delete="isParent"
+        :show-edit="isParent"
+        @delete="store.deleteItem(item.id)"
+        @edit="emit('edit', item)"
+        @toggle="onToggle"
+        @toggle-priority="store.togglePriority(item.id)"
+      />
+      <v-divider />
+    </template>
+
     <template v-for="group in groups" :key="group.aisle">
       <v-list-subheader v-if="showHeaders" class="aisle-header text-uppercase font-weight-bold">
         {{ group.aisle }}
@@ -108,9 +135,11 @@ function onDragEnd() {
           :show-drag-handle="true"
           :show-delete="true"
           :show-edit="true"
+          :show-priority="true"
           @delete="store.deleteItem(item.id)"
           @edit="emit('edit', item)"
           @toggle="onToggle"
+          @toggle-priority="store.togglePriority(item.id)"
         />
       </VueDraggable>
 

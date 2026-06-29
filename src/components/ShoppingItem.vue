@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import FamilyAvatar from './FamilyAvatar.vue'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useUserRole } from '@/composables/useUserRole.js'
@@ -15,10 +16,12 @@ const emit = defineEmits(['delete', 'edit', 'toggle', 'toggle-priority'])
 const store = useShoppingStore()
 const { isParent } = useUserRole()
 
+const isPriority = computed(() => props.item.priority ?? false)
+
 function onToggle() {
   // Capture the pre-toggle state so the list can offer a faithful undo —
-  // toggleDone may reassign addedBy, so re-toggling is not a clean inverse.
-  const previous = { done: props.item.done, addedBy: props.item.addedBy }
+  // toggleDone may reassign addedBy and clears priority, so re-toggling is not a clean inverse.
+  const previous = { done: props.item.done, addedBy: props.item.addedBy, priority: isPriority.value }
   store.toggleDone(props.item.id)
   emit('toggle', { id: props.item.id, name: props.item.name, done: props.item.done, previous })
 }
@@ -57,13 +60,13 @@ function onToggle() {
           icon
           size="small"
           variant="plain"
-          :color="(item.priority ?? false) ? 'warning' : 'medium-emphasis'"
+          :color="isPriority ? 'warning' : 'medium-emphasis'"
           @click.stop="emit('toggle-priority')"
         >
-          <v-icon>{{ (item.priority ?? false) ? 'mdi-star' : 'mdi-star-outline' }}</v-icon>
+          <v-icon>{{ isPriority ? 'mdi-star' : 'mdi-star-outline' }}</v-icon>
         </v-btn>
         <v-icon
-          v-else-if="item.priority ?? false"
+          v-else-if="isPriority"
           color="warning"
           size="small"
         >mdi-star</v-icon>

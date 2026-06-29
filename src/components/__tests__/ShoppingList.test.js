@@ -29,7 +29,7 @@ vi.mock('@/components/ShoppingItem.vue', () => ({
     name: 'ShoppingItem',
     props: ['item', 'showDragHandle', 'showDelete', 'showEdit', 'showPriority'],
     emits: ['toggle', 'toggle-priority'],
-    template: '<div class="shopping-item-stub" @click="$emit(\'toggle\', { id: item.id, name: item.name, done: item.done, previous: { done: item.done, addedBy: item.addedBy } })">{{ item.name }}</div>',
+    template: '<div class="shopping-item-stub" @click="$emit(\'toggle\', { id: item.id, name: item.name, done: item.done, previous: { done: item.done, addedBy: item.addedBy, priority: item.priority ?? false } })">{{ item.name }}</div>',
   },
 }))
 
@@ -401,6 +401,7 @@ describe('ShoppingList', () => {
       expect(shoppingStore.restoreToggleState).toHaveBeenCalledWith('i1', {
         done: true,
         addedBy: 'uid-original',
+        priority: false,
       })
       expect(shoppingStore.toggleDone).not.toHaveBeenCalled()
     })

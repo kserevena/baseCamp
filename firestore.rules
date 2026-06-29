@@ -146,7 +146,7 @@ service cloud.firestore {
       // Individual shopping items live in the items subcollection.
       // The rule reads the parent shoppingList document to get the familyId,
       // then checks membership against that.
-      // Children are read-only on items — only parents can add, tick, or delete.
+      // Children are read-only on items — only parents can add, tick, delete, or toggle priority.
       match /items/{itemId} {
         allow read: if isFamilyMember(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
@@ -154,10 +154,6 @@ service cloud.firestore {
         allow create, update: if isParent(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId)
           && request.resource.data.name.size() <= 80;
-        // Any family member can toggle the priority flag (star) on an item.
-        allow update: if isFamilyMember(
-          get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priority']);
         allow delete: if isParent(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
       }

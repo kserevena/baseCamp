@@ -146,12 +146,12 @@ describe('ShoppingItem', () => {
       await wrapper.vm.$nextTick()
       expect(wrapper.emitted('toggle')).toHaveLength(1)
       // Payload carries the item id/name plus the captured previous state so the
-      // list can offer a faithful undo (restoring done AND addedBy).
+      // list can offer a faithful undo (restoring done, addedBy, and priority).
       expect(wrapper.emitted('toggle')[0][0]).toEqual({
         id: 'item-99',
         name: 'Milk',
         done: false,
-        previous: { done: false, addedBy: 'uid-original' },
+        previous: { done: false, addedBy: 'uid-original', priority: false },
       })
     })
   })

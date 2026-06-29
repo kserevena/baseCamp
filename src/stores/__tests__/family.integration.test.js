@@ -479,31 +479,24 @@ describe('Firestore security rules', () => {
         )
       })
 
-      it('allows a child to set priority: true', async () => {
+      it('denies a child setting priority: true', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
-        await assertSucceeds(
+        await assertFails(
           updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
         )
       })
 
-      it('allows a child to set priority: false', async () => {
+      it('denies a child setting priority: false', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
-        await assertSucceeds(
+        await assertFails(
           updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: false })
         )
       })
 
-      it('denies a child updating any field other than priority', async () => {
+      it('denies a child updating done', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
         await assertFails(
           updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true })
-        )
-      })
-
-      it('denies a child updating priority alongside other fields', async () => {
-        const ctx = testEnv.authenticatedContext('child-uid')
-        await assertFails(
-          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true, done: true })
         )
       })
 

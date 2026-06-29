@@ -13,6 +13,11 @@ const store = useShoppingStore()
 const { isParent } = useUserRole()
 const emit = defineEmits(['edit'])
 
+const compareItems = (a, b) =>
+  (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
+    ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+    : a.name.localeCompare(b.name)
+
 function buildGroups(items, aisles) {
   const activeItems = items.filter(i => !i.done)
   const groups = aisles.map(a => ({ aisle: a.name, aisleOrder: a.order, items: [] }))
@@ -27,11 +32,7 @@ function buildGroups(items, aisles) {
   }
 
   for (const group of groups) {
-    group.items.sort((a, b) =>
-      (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
-        ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
-        : a.name.localeCompare(b.name)
-    )
+    group.items.sort(compareItems)
   }
 
   return groups
@@ -40,17 +41,8 @@ function buildGroups(items, aisles) {
 const doneItems = computed(() => store.items.filter(i => i.done))
 
 const priorityItems = computed(() =>
-  store.items.filter(i => !i.done && (i.priority ?? false))
-    .sort((a, b) =>
-      (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
-        ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
-        : a.name.localeCompare(b.name)
-    )
+  store.items.filter(i => !i.done && (i.priority ?? false)).sort(compareItems)
 )
-
-function onTogglePriority(item) {
-  store.togglePriority(item.id)
-}
 
 const groups = ref(buildGroups(store.items, store.activeAisles))
 let pendingReorder = false
@@ -109,13 +101,13 @@ function onDragEnd() {
         v-for="item in priorityItems"
         :key="item.id"
         :item="item"
-        :show-priority="true"
+        :show-priority="isParent"
         :show-delete="isParent"
         :show-edit="isParent"
         @delete="store.deleteItem(item.id)"
         @edit="emit('edit', item)"
         @toggle="onToggle"
-        @toggle-priority="onTogglePriority(item)"
+        @toggle-priority="store.togglePriority(item.id)"
       />
       <v-divider />
     </template>
@@ -145,7 +137,7 @@ function onDragEnd() {
           @delete="store.deleteItem(item.id)"
           @edit="emit('edit', item)"
           @toggle="onToggle"
-          @toggle-priority="onTogglePriority(item)"
+          @toggle-priority="store.togglePriority(item.id)"
         />
       </VueDraggable>
 
@@ -154,9 +146,7 @@ function onDragEnd() {
           v-for="item in group.items"
           :key="item.id"
           :item="item"
-          :show-priority="true"
           @toggle="onToggle"
-          @toggle-priority="onTogglePriority(item)"
         />
       </template>
 

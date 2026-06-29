@@ -437,18 +437,19 @@ describe('shopping store', () => {
       expect(mockUpdateDoc).not.toHaveBeenCalled()
     })
 
-    it('does not include addedBy when checking an item (done: false → true)', () => {
+    it('clears priority and does not change addedBy when checking an item (done: false → true)', () => {
       let itemsCallback
       mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
 
       const store = useShoppingStore()
       store.activateList('list-1')
-      itemsCallback({ docs: [mockItem('item-1', { done: false, addedBy: 'original-uid' })] })
+      itemsCallback({ docs: [mockItem('item-1', { done: false, addedBy: 'original-uid', priority: true })] })
 
       store.toggleDone('item-1')
 
-      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: true })
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: true, priority: false })
       expect(store.items[0].addedBy).toBe('original-uid')
+      expect(store.items[0].priority).toBe(false)
     })
 
     it('updates addedBy to the current user when unchecking an item (done: true → false)', () => {
@@ -486,21 +487,22 @@ describe('shopping store', () => {
       expect(mockUpdateDoc).not.toHaveBeenCalled()
     })
 
-    it('writes back the exact done and addedBy, without reassigning addedBy', () => {
+    it('writes back the exact done, addedBy, and priority without reassigning addedBy', () => {
       let itemsCallback
       mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
 
       const store = useShoppingStore()
       store.activateList('list-1')
-      itemsCallback({ docs: [mockItem('item-1', { done: true, addedBy: 'current-uid' })] })
+      itemsCallback({ docs: [mockItem('item-1', { done: true, addedBy: 'current-uid', priority: false })] })
 
-      // Undo an accidental tick: restore to the original (not-done, original adder).
-      store.restoreToggleState('item-1', { done: false, addedBy: 'original-uid' })
+      // Undo an accidental tick: restore to the original (not-done, original adder, originally starred).
+      store.restoreToggleState('item-1', { done: false, addedBy: 'original-uid', priority: true })
 
       expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
-      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: false, addedBy: 'original-uid' })
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: false, addedBy: 'original-uid', priority: true })
       expect(store.items[0].done).toBe(false)
       expect(store.items[0].addedBy).toBe('original-uid')
+      expect(store.items[0].priority).toBe(true)
     })
   })
 
@@ -1042,6 +1044,24 @@ describe('shopping store', () => {
       expect(payload.done).toBe(false)
       expect(payload.sortOrder).toBeNull()
       expect(payload.addedBy).toBe('parent-uid')
+    })
+
+    it('copy — preserves the priority flag from the source item', () => {
+      let listsCallback, itemsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [
+        mockList('list-1', 'Weekly shop', 2000, DEFAULT_AISLES),
+        mockList('list-2', 'Party supplies', 1000, DEFAULT_AISLES),
+      ] })
+      itemsCallback({ docs: [mockItem('item-1', { priority: true })] })
+
+      store.moveOrCopyItem('item-1', 'list-2', 'copy')
+
+      expect(mockAddDoc.mock.calls[0][1].priority).toBe(true)
     })
 
     it('copy — falls back to Unknown/99 when the source aisle is not in the destination list', () => {

@@ -207,4 +207,57 @@ describe('ShoppingItem', () => {
       expect(wrapper.emitted('edit')).toBeFalsy()
     })
   })
+
+  describe('priority button', () => {
+    function findStarBtn(wrapper) {
+      return wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-star'))
+    }
+
+    it('shows a priority star button when showPriority is true', () => {
+      const wrapper = mountItem(makeItem(), { showPriority: true })
+      expect(findStarBtn(wrapper)).toBeTruthy()
+    })
+
+    it('hides the priority star button when showPriority is false', () => {
+      const wrapper = mountItem(makeItem({ priority: false }), { showPriority: false })
+      expect(findStarBtn(wrapper)).toBeUndefined()
+    })
+
+    it('shows a filled star (mdi-star) when item.priority is true', () => {
+      const wrapper = mountItem(makeItem({ priority: true }), { showPriority: true })
+      const btn = findStarBtn(wrapper)
+      expect(btn.html()).toContain('mdi-star')
+      expect(btn.html()).not.toContain('mdi-star-outline')
+    })
+
+    it('shows an outline star (mdi-star-outline) when item.priority is false', () => {
+      const wrapper = mountItem(makeItem({ priority: false }), { showPriority: true })
+      expect(findStarBtn(wrapper).html()).toContain('mdi-star-outline')
+    })
+
+    it('shows an outline star when item has no priority field', () => {
+      const wrapper = mountItem(makeItem(), { showPriority: true })
+      expect(findStarBtn(wrapper).html()).toContain('mdi-star-outline')
+    })
+
+    it('emits toggle-priority when the star button is clicked', async () => {
+      const wrapper = mountItem(makeItem(), { showPriority: true })
+      await findStarBtn(wrapper).trigger('click')
+      expect(wrapper.emitted('toggle-priority')).toHaveLength(1)
+    })
+
+    it('shows a read-only star indicator (not a button) when showPriority is false and priority is true', () => {
+      const wrapper = mountItem(makeItem({ priority: true }), { showPriority: false })
+      expect(findStarBtn(wrapper)).toBeUndefined()
+      expect(wrapper.html()).toContain('mdi-star')
+    })
+
+    it('shows no priority indicator when showPriority is false and priority is false', () => {
+      const wrapper = mountItem(makeItem({ priority: false }), { showPriority: false })
+      expect(findStarBtn(wrapper)).toBeUndefined()
+      // color="warning" is only applied by priority icons
+      expect(wrapper.html()).not.toContain('warning')
+    })
+  })
 })

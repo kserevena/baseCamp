@@ -116,6 +116,14 @@ export const useShoppingStore = defineStore('shopping', () => {
     await deleteDoc(doc(db, 'shoppingLists', activeListId.value, 'items', itemId))
   }
 
+  function togglePriority(id) {
+    if (!activeListId.value) return
+    const item = items.value.find(i => i.id === id)
+    if (!item) return
+    item.priority = !(item.priority ?? false)
+    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { priority: item.priority })
+  }
+
   function toggleDone(id) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
@@ -245,5 +253,5 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle, moveOrCopyItem }
+  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, togglePriority, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle, moveOrCopyItem }
 })

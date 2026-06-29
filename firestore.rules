@@ -154,6 +154,10 @@ service cloud.firestore {
         allow create, update: if isParent(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId)
           && request.resource.data.name.size() <= 80;
+        // Any family member can toggle the priority flag (star) on an item.
+        allow update: if isFamilyMember(
+          get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priority']);
         allow delete: if isParent(
           get(/databases/$(database)/documents/shoppingLists/$(listId)).data.familyId);
       }

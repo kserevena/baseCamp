@@ -39,6 +39,19 @@ function buildGroups(items, aisles) {
 
 const doneItems = computed(() => store.items.filter(i => i.done))
 
+const priorityItems = computed(() =>
+  store.items.filter(i => !i.done && (i.priority ?? false))
+    .sort((a, b) =>
+      (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
+        ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+        : a.name.localeCompare(b.name)
+    )
+)
+
+function onTogglePriority(item) {
+  store.togglePriority(item.id)
+}
+
 const groups = ref(buildGroups(store.items, store.activeAisles))
 let pendingReorder = false
 
@@ -87,6 +100,26 @@ function onDragEnd() {
 
 <template>
   <v-list lines="two" class="py-0">
+    <template v-if="priorityItems.length > 0">
+      <v-list-subheader v-if="showHeaders" class="aisle-header text-uppercase font-weight-bold priority-header">
+        <v-icon size="small" color="warning" class="mr-1">mdi-star</v-icon>
+        Priority
+      </v-list-subheader>
+      <ShoppingItem
+        v-for="item in priorityItems"
+        :key="item.id"
+        :item="item"
+        :show-priority="true"
+        :show-delete="isParent"
+        :show-edit="isParent"
+        @delete="store.deleteItem(item.id)"
+        @edit="emit('edit', item)"
+        @toggle="onToggle"
+        @toggle-priority="onTogglePriority(item)"
+      />
+      <v-divider />
+    </template>
+
     <template v-for="group in groups" :key="group.aisle">
       <v-list-subheader v-if="showHeaders" class="aisle-header text-uppercase font-weight-bold">
         {{ group.aisle }}
@@ -108,9 +141,11 @@ function onDragEnd() {
           :show-drag-handle="true"
           :show-delete="true"
           :show-edit="true"
+          :show-priority="true"
           @delete="store.deleteItem(item.id)"
           @edit="emit('edit', item)"
           @toggle="onToggle"
+          @toggle-priority="onTogglePriority(item)"
         />
       </VueDraggable>
 
@@ -119,7 +154,9 @@ function onDragEnd() {
           v-for="item in group.items"
           :key="item.id"
           :item="item"
+          :show-priority="true"
           @toggle="onToggle"
+          @toggle-priority="onTogglePriority(item)"
         />
       </template>
 

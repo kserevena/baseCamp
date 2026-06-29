@@ -8,9 +8,10 @@ const props = defineProps({
   showDragHandle: { type: Boolean, default: false },
   showDelete: { type: Boolean, default: false },
   showEdit: { type: Boolean, default: false },
+  showPriority: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['delete', 'edit', 'toggle'])
+const emit = defineEmits(['delete', 'edit', 'toggle', 'toggle-priority'])
 const store = useShoppingStore()
 const { isParent } = useUserRole()
 
@@ -51,6 +52,21 @@ function onToggle() {
     <template #append>
       <div class="d-flex align-center gap-2">
         <FamilyAvatar :uid="item.addedBy" :size="28" />
+        <v-btn
+          v-if="showPriority"
+          icon
+          size="small"
+          variant="plain"
+          :color="(item.priority ?? false) ? 'warning' : 'medium-emphasis'"
+          @click.stop="emit('toggle-priority')"
+        >
+          <v-icon>{{ (item.priority ?? false) ? 'mdi-star' : 'mdi-star-outline' }}</v-icon>
+        </v-btn>
+        <v-icon
+          v-else-if="item.priority ?? false"
+          color="warning"
+          size="small"
+        >mdi-star</v-icon>
         <v-btn
           v-if="showDelete"
           icon

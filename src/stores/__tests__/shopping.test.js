@@ -342,6 +342,79 @@ describe('shopping store', () => {
     })
   })
 
+  describe('togglePriority', () => {
+    it('does nothing when activeListId is null', () => {
+      const store = useShoppingStore()
+      store.togglePriority('item-1')
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when item is not found', () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      store.togglePriority('nonexistent')
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('sets priority to true when item has no priority field', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1')] })
+
+      store.togglePriority('item-1')
+
+      expect(store.items[0].priority).toBe(true)
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { priority: true })
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+    })
+
+    it('sets priority to true when item has priority: false', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { priority: false })] })
+
+      store.togglePriority('item-1')
+
+      expect(store.items[0].priority).toBe(true)
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { priority: true })
+    })
+
+    it('sets priority to false when item has priority: true', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { priority: true })] })
+
+      store.togglePriority('item-1')
+
+      expect(store.items[0].priority).toBe(false)
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { priority: false })
+    })
+
+    it('updates Pinia state optimistically without awaiting Firestore', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+      mockUpdateDoc.mockReturnValueOnce(new Promise(() => {})) // never resolves, scoped to one call
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1')] })
+
+      store.togglePriority('item-1')
+
+      // Pinia state is updated immediately, before the promise resolves
+      expect(store.items[0].priority).toBe(true)
+    })
+  })
+
   describe('toggleDone', () => {
     it('calls updateDoc on the correct path using activeListId', () => {
       let itemsCallback

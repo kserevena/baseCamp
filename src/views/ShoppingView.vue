@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
+import { useFormDialog } from '@/composables/useFormDialog.js'
 import { useKeyboardAwareSheet } from '@/composables/useKeyboardAwareSheet.js'
 import { ITEM_NAME_MAX_LENGTH } from '@/constants/shopping.js'
 import ShoppingList from '@/components/ShoppingList.vue'
@@ -113,15 +114,14 @@ function submit() {
   sheet.value = false
 }
 
-const listSheet = ref(false)
-const newListName = ref('')
-
-function submitList() {
-  if (!newListName.value.trim()) return
-  store.createList(newListName.value.trim())
-  newListName.value = ''
-  listSheet.value = false
-}
+// List creation form via composable
+const { isOpen: listSheet, formData: listFormData, openForm: openListForm, submitForm: submitList, closeForm: cancelListForm } = useFormDialog(
+  { name: '' },
+  async (data) => {
+    if (!data.name.trim()) return
+    store.createList(data.name.trim())
+  },
+)
 
 const deleteDialog = ref(false)
 const listToDelete = computed(() => store.lists.find(l => l.id === store.activeListId) ?? null)
@@ -201,7 +201,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
           variant="text"
           size="small"
           class="flex-0-0 ml-1"
-          @click="listSheet = true"
+          @click="openListForm()"
         >
           <v-icon>mdi-plus</v-icon>
         </v-btn>
@@ -233,7 +233,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
         color="primary"
         variant="flat"
         class="mt-4"
-        @click="listSheet = true"
+        @click="openListForm()"
       >
         New list
       </v-btn>
@@ -343,7 +343,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
       <v-card rounded="t-xl" class="pa-4 new-list-card">
         <div class="text-subtitle-1 font-weight-medium mb-3">New list</div>
         <v-text-field
-          v-model="newListName"
+          v-model="listFormData.name"
           label="List name"
           variant="outlined"
           autofocus
@@ -351,7 +351,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
           @keyup.enter="submitList"
         />
         <div class="d-flex gap-2">
-          <v-btn variant="text" @click="listSheet = false">Cancel</v-btn>
+          <v-btn variant="text" @click="cancelListForm">Cancel</v-btn>
           <v-spacer />
           <v-btn color="primary" variant="flat" @click="submitList">Create</v-btn>
         </div>

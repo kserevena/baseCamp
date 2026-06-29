@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useJobsStore } from '@/stores/jobs.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
+import { useFormDialog } from '@/composables/useFormDialog.js'
 import { JOB_STATUSES, JOB_STATUS_LABELS, JOB_PRIORITIES } from '@/constants/jobs.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import JobSubtasks from '@/components/JobSubtasks.vue'
@@ -17,7 +18,6 @@ const familyStore = useFamilyStore()
 const { isParent } = useUserRole()
 
 const expanded = ref(false)
-const editDialog = ref(false)
 const deleteDialog = ref(false)
 
 // Can this user edit only title/description (child who suggested it)?
@@ -46,33 +46,36 @@ const statusColor = {
   done: 'success',
 }
 
-// Edit form state
-const editTitle = ref(props.job.title)
-const editDescription = ref(props.job.description ?? '')
-const editCategory = ref(props.job.category ?? '')
-const editCost = ref(props.job.costEstimate != null ? String(props.job.costEstimate) : '')
+// Edit form state via composable
+const { isOpen: editDialog, formData: editFormData, openForm: openEdit, submitForm: saveEdit, closeForm: cancelEdit } = useFormDialog(
+  {
+    title: '',
+    description: '',
+    category: '',
+    cost: '',
+  },
+  async (data) => {
+    if (!data.title.trim()) return
+    const fields = {
+      title: data.title.trim(),
+      description: data.description.trim() || null,
+    }
+    if (isParent.value) {
+      fields.category = data.category.trim()
+      const cost = parseFloat(data.cost)
+      fields.costEstimate = Number.isFinite(cost) ? cost : null
+    }
+    jobsStore.updateJob(props.job.id, fields)
+  },
+)
 
-function openEdit() {
-  editTitle.value = props.job.title
-  editDescription.value = props.job.description ?? ''
-  editCategory.value = props.job.category ?? ''
-  editCost.value = props.job.costEstimate != null ? String(props.job.costEstimate) : ''
-  editDialog.value = true
-}
-
-function saveEdit() {
-  if (!editTitle.value.trim()) return
-  const fields = {
-    title: editTitle.value.trim(),
-    description: editDescription.value.trim() || null,
-  }
-  if (isParent.value) {
-    fields.category = editCategory.value.trim()
-    const cost = parseFloat(editCost.value)
-    fields.costEstimate = Number.isFinite(cost) ? cost : null
-  }
-  jobsStore.updateJob(props.job.id, fields)
-  editDialog.value = false
+function handleOpenEdit() {
+  openEdit({
+    title: props.job.title,
+    description: props.job.description ?? '',
+    category: props.job.category ?? '',
+    cost: props.job.costEstimate != null ? String(props.job.costEstimate) : '',
+  })
 }
 
 function onStatusChange(newStatus) {
@@ -270,7 +273,7 @@ function confirmDelete() {
               size="small"
               min-height="40"
               prepend-icon="mdi-pencil-outline"
-              @click="openEdit"
+              @click="handleOpenEdit"
             >
               Edit
             </v-btn>
@@ -296,7 +299,7 @@ function confirmDelete() {
             size="small"
             min-height="40"
             prepend-icon="mdi-pencil-outline"
-            @click="openEdit"
+            @click="handleOpenEdit"
           >
             Edit
           </v-btn>
@@ -311,14 +314,14 @@ function confirmDelete() {
       <v-card-title>Edit job</v-card-title>
       <v-card-text>
         <v-text-field
-          v-model="editTitle"
+          v-model="editFormData.title"
           label="Title"
           variant="outlined"
           density="compact"
           class="mb-2"
         />
         <v-textarea
-          v-model="editDescription"
+          v-model="editFormData.description"
           label="Description (optional)"
           variant="outlined"
           density="compact"
@@ -328,14 +331,14 @@ function confirmDelete() {
         />
         <template v-if="isParent">
           <v-text-field
-            v-model="editCategory"
+            v-model="editFormData.category"
             label="Category"
             variant="outlined"
             density="compact"
             class="mb-2"
           />
           <v-text-field
-            v-model="editCost"
+            v-model="editFormData.cost"
             label="Cost estimate (£)"
             variant="outlined"
             density="compact"
@@ -347,7 +350,7 @@ function confirmDelete() {
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" @click="editDialog = false">Cancel</v-btn>
+        <v-btn variant="text" @click="cancelEdit">Cancel</v-btn>
         <v-btn color="primary" variant="flat" @click="saveEdit">Save</v-btn>
       </v-card-actions>
     </v-card>

@@ -2,12 +2,12 @@
 import { ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useShoppingStore } from '@/stores/shopping.js'
+import { useFormDialog } from '@/composables/useFormDialog.js'
 
 const store = useShoppingStore()
 const emit = defineEmits(['close'])
 
 const localAisles = ref([])
-const newAisleName = ref('')
 const nameError = ref('')
 const deleteDialog = ref(false)
 const aisleToDelete = ref(null)
@@ -34,22 +34,25 @@ function onDragEnd() {
   store.saveAisles(normalised())
 }
 
-function addAisle() {
-  const name = newAisleName.value.trim()
-  if (!name) {
-    nameError.value = 'Enter a name'
-    return
-  }
-  if (localAisles.value.some(a => a.name.toLowerCase() === name.toLowerCase())) {
-    nameError.value = 'Aisle already exists'
-    return
-  }
-  const maxOrder = localAisles.value.reduce((m, a) => Math.max(m, a.order), 0)
-  localAisles.value.push({ name, order: maxOrder + 10 })
-  newAisleName.value = ''
-  nameError.value = ''
-  store.saveAisles(normalised())
-}
+// Add aisle form via composable
+const { formData: aisleFormData, submitForm: submitAddAisle } = useFormDialog(
+  { name: '' },
+  async (data) => {
+    const name = data.name.trim()
+    if (!name) {
+      nameError.value = 'Enter a name'
+      throw new Error('Name required')
+    }
+    if (localAisles.value.some(a => a.name.toLowerCase() === name.toLowerCase())) {
+      nameError.value = 'Aisle already exists'
+      throw new Error('Aisle already exists')
+    }
+    const maxOrder = localAisles.value.reduce((m, a) => Math.max(m, a.order), 0)
+    localAisles.value.push({ name, order: maxOrder + 10 })
+    nameError.value = ''
+    store.saveAisles(normalised())
+  },
+)
 
 function requestDelete(aisle) {
   aisleToDelete.value = aisle
@@ -104,20 +107,20 @@ async function confirmDelete() {
 
     <div class="d-flex align-start gap-2 mt-3">
       <v-text-field
-        v-model="newAisleName"
+        v-model="aisleFormData.name"
         label="New aisle"
         variant="outlined"
         density="compact"
         :error-messages="nameError"
         class="flex-grow-1"
-        @keyup.enter="addAisle"
+        @keyup.enter="submitAddAisle"
         @input="nameError = ''"
       />
       <v-btn
         color="primary"
         variant="tonal"
         class="mt-1"
-        @click="addAisle"
+        @click="submitAddAisle"
       >
         Add
       </v-btn>

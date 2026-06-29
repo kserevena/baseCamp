@@ -13,6 +13,8 @@ const store = useShoppingStore()
 const { isParent } = useUserRole()
 const emit = defineEmits(['edit'])
 
+// Items without a sortOrder (null/undefined) sort after all explicitly ordered items,
+// then fall back to alphabetical within that group.
 const compareItems = (a, b) =>
   (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
     ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)

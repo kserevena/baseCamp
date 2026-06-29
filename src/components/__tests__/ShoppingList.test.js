@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 
 vi.mock('vue-draggable-plus', () => ({
   VueDraggable: {
@@ -15,6 +15,7 @@ vi.mock('vue-draggable-plus', () => ({
 
 let shoppingStore
 let familyStore
+let isParentRef
 
 vi.mock('@/stores/shopping.js', () => ({
   useShoppingStore: () => shoppingStore,
@@ -22,6 +23,10 @@ vi.mock('@/stores/shopping.js', () => ({
 
 vi.mock('@/stores/family.js', () => ({
   useFamilyStore: () => familyStore,
+}))
+
+vi.mock('@/composables/useUserRole.js', () => ({
+  useUserRole: () => ({ isParent: isParentRef }),
 }))
 
 vi.mock('@/components/ShoppingItem.vue', () => ({
@@ -56,6 +61,7 @@ function mountList(props = {}) {
 describe('ShoppingList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    isParentRef = ref(true)
     shoppingStore = reactive({
       items: [],
       activeAisles: [...DEFAULT_AISLES],
@@ -372,6 +378,36 @@ describe('ShoppingList', () => {
       ]
       const wrapper = mountList({ showHeaders: false })
       expect(wrapper.text()).not.toContain('Priority')
+    })
+
+    it('passes show-priority to ShoppingItem in the priority section for parents', () => {
+      isParentRef = ref(true)
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      const priorityItem = wrapper.findComponent({ name: 'ShoppingItem' })
+      expect(priorityItem.props('showPriority')).toBe(true)
+    })
+
+    it('does not pass show-priority to ShoppingItem in the priority section for children', () => {
+      isParentRef = ref(false)
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: true },
+      ]
+      const wrapper = mountList()
+      const priorityItem = wrapper.findComponent({ name: 'ShoppingItem' })
+      expect(priorityItem.props('showPriority')).toBe(false)
+    })
+
+    it('does not pass show-priority to ShoppingItem in the aisle section for children', () => {
+      isParentRef = ref(false)
+      shoppingStore.items = [
+        { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false, priority: false },
+      ]
+      const wrapper = mountList()
+      const aisleItem = wrapper.findComponent({ name: 'ShoppingItem' })
+      expect(aisleItem.props('showPriority')).toBeFalsy()
     })
   })
 

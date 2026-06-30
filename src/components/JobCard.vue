@@ -31,6 +31,11 @@ const canChildEdit = computed(() =>
 const progress = computed(() => jobsStore.progressFor(props.job.id))
 const hasSubtasks = computed(() => progress.value.total > 0)
 
+// Creator name for the expanded "Created by" line
+const createdByName = computed(() =>
+  familyStore.members.find(m => m.uid === props.job.suggestedBy)?.name ?? 'Unknown'
+)
+
 // Priority colours
 const priorityColor = {
   high: 'error',
@@ -164,20 +169,23 @@ function confirmDelete() {
           </div>
         </div>
 
-        <!-- Avatars: suggester + assignee -->
+        <!-- Assignee only (creator is shown in the expanded view) -->
         <div class="d-flex align-center gap-1 flex-shrink-0">
-          <FamilyAvatar
-            v-if="job.suggestedBy"
-            :uid="job.suggestedBy"
-            :size="28"
-            class="flex-shrink-0"
-          />
           <FamilyAvatar
             v-if="job.assignedTo"
             :uid="job.assignedTo"
             :size="28"
             class="flex-shrink-0"
           />
+          <v-avatar
+            v-else
+            :size="28"
+            color="grey-lighten-1"
+            class="flex-shrink-0"
+            title="Unassigned"
+          >
+            <v-icon size="18">mdi-account-question-outline</v-icon>
+          </v-avatar>
         </div>
       </div>
     </v-card-text>
@@ -193,6 +201,16 @@ function confirmDelete() {
         >
           {{ job.description }}
         </p>
+
+        <!-- Created by -->
+        <div
+          v-if="job.suggestedBy"
+          class="d-flex align-center gap-2 mb-3"
+        >
+          <span class="text-caption text-medium-emphasis">Created by</span>
+          <FamilyAvatar :uid="job.suggestedBy" :size="22" />
+          <span class="text-body-2">{{ createdByName }}</span>
+        </div>
 
         <!-- Subtasks -->
         <JobSubtasks :job-id="job.id" />

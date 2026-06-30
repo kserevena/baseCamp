@@ -141,11 +141,13 @@ describe('JobCard', () => {
       expect(wrapper.text()).not.toContain('0 / 0')
     })
 
-    it('renders suggester avatar', () => {
-      const wrapper = mountCard(makeJob({ suggestedBy: 'parent-uid' }))
-      const avatars = wrapper.findAll('.avatar-stub')
-      const suggesterAvatar = avatars.find(a => a.attributes('data-uid') === 'parent-uid')
-      expect(suggesterAvatar).toBeTruthy()
+    it('does not render the creator avatar in the collapsed view', () => {
+      const wrapper = mountCard(makeJob({ suggestedBy: 'parent-uid', assignedTo: 'child-uid' }))
+      // Collapsed (not expanded): only the assignee avatar should be present,
+      // never the creator/suggester.
+      const avatars = wrapper.findAll('.avatar-stub[data-uid]')
+      const uids = avatars.map(a => a.attributes('data-uid'))
+      expect(uids).not.toContain('parent-uid')
     })
 
     it('renders assignee avatar when assignedTo is set', () => {
@@ -155,12 +157,12 @@ describe('JobCard', () => {
       expect(assigneeAvatar).toBeTruthy()
     })
 
-    it('does not render assignee avatar when assignedTo is null', () => {
+    it('renders an Unassigned placeholder when assignedTo is null', () => {
       const wrapper = mountCard(makeJob({ assignedTo: null, suggestedBy: 'parent-uid' }))
+      // No FamilyAvatar in the collapsed avatar slot, but a placeholder is shown
       const avatars = wrapper.findAll('.avatar-stub[data-uid]')
-      // Only suggestedBy avatar, no second avatar
-      const uids = avatars.map(a => a.attributes('data-uid'))
-      expect(uids.filter(u => u !== 'parent-uid')).toHaveLength(0)
+      expect(avatars).toHaveLength(0)
+      expect(wrapper.find('[title="Unassigned"]').exists()).toBe(true)
     })
   })
 
@@ -187,6 +189,22 @@ describe('JobCard', () => {
       const btn = wrapper.findComponent({ name: 'VBtn' })
       await btn.trigger('click')
       expect(wrapper.text()).toContain('The back garden fence is broken.')
+    })
+
+    it('hides the "Created by" line when collapsed', () => {
+      const wrapper = mountCard(makeJob({ suggestedBy: 'parent-uid' }))
+      expect(wrapper.text()).not.toContain('Created by')
+    })
+
+    it('shows "Created by" with the creator name and avatar when expanded', async () => {
+      const wrapper = mountCard(makeJob({ suggestedBy: 'parent-uid' }))
+      const btn = wrapper.findComponent({ name: 'VBtn' })
+      await btn.trigger('click')
+      expect(wrapper.text()).toContain('Created by')
+      expect(wrapper.text()).toContain('Dad')
+      // Creator's FamilyAvatar is rendered in the expanded body
+      const avatars = wrapper.findAll('.avatar-stub[data-uid]')
+      expect(avatars.some(a => a.attributes('data-uid') === 'parent-uid')).toBe(true)
     })
   })
 

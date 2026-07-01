@@ -4,6 +4,7 @@ import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { reactive, computed } from 'vue'
+import { JOB_STATUSES, JOB_STATUS_LABELS, JOB_PRIORITIES } from '@/constants/jobs.js'
 
 // ── store mocks ────────────────────────────────────────────────────────────
 
@@ -70,6 +71,35 @@ function mountCard(job = makeJob()) {
     global: { plugins: [vuetify] },
     attachTo: document.body,
   })
+}
+
+async function expandCard(wrapper) {
+  const btn = wrapper.findComponent({ name: 'VBtn' })
+  await btn.trigger('click')
+}
+
+async function openEditDialog(wrapper) {
+  await expandCard(wrapper)
+  const editBtn = wrapper.findAllComponents({ name: 'VBtn' })
+    .find(b => b.text() === 'Edit')
+  await editBtn.trigger('click')
+  await wrapper.vm.$nextTick()
+}
+
+// v-dialog content stays in the DOM (hidden) after closing, so we must check
+// the v-model prop rather than DOM text presence to know whether it's open.
+// Identify the edit dialog by its rendered title rather than array position,
+// since a positional index would silently point at the wrong dialog if the
+// template's dialog order ever changed. (VDialog's own wrapper.text() is
+// always empty because its root element is a Teleport anchor, not the
+// teleported content — but findComponent still reaches the real, relocated
+// VCardTitle node via the component tree.)
+function isEditDialogOpen(wrapper) {
+  const dialog = wrapper.findAllComponents({ name: 'VDialog' }).find(d => {
+    const title = d.findComponent({ name: 'VCardTitle' })
+    return title.exists() && title.text() === 'Edit job'
+  })
+  return dialog?.props('modelValue')
 }
 
 describe('JobCard', () => {
@@ -250,6 +280,263 @@ describe('JobCard', () => {
       expect(confirmBtn).toBeTruthy()
       await confirmBtn.trigger('click')
       expect(jobsStore.deleteJob).toHaveBeenCalledWith('job-1')
+    })
+  })
+
+  // ── edit dialog ──────────────────────────────────────────────────────────
+
+  describe('edit dialog', () => {
+    it('pre-fills title, description, category and cost from the job prop', async () => {
+      const wrapper = mountCard(makeJob({
+        title: 'Fix the fence',
+        description: 'The back garden fence is broken.',
+        category: 'Garden',
+        costEstimate: 150,
+      }))
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      const titleField = textFields.find(f => f.props('label') === 'Title')
+      const categoryField = textFields.find(f => f.props('label') === 'Category')
+      const costField = textFields.find(f => f.props('label') === 'Cost estimate (£)')
+      const descriptionField = wrapper.findComponent({ name: 'VTextarea' })
+      expect(titleField.props('modelValue')).toBe('Fix the fence')
+      expect(descriptionField.props('modelValue')).toBe('The back garden fence is broken.')
+      expect(categoryField.props('modelValue')).toBe('Garden')
+      expect(costField.props('modelValue')).toBe('150')
+    })
+
+    it('pre-fills blank strings for unset description, category and cost', async () => {
+      const wrapper = mountCard(makeJob({ description: null, category: null, costEstimate: null }))
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      const categoryField = textFields.find(f => f.props('label') === 'Category')
+      const costField = textFields.find(f => f.props('label') === 'Cost estimate (£)')
+      const descriptionField = wrapper.findComponent({ name: 'VTextarea' })
+      expect(descriptionField.props('modelValue')).toBe('')
+      expect(categoryField.props('modelValue')).toBe('')
+      expect(costField.props('modelValue')).toBe('')
+    })
+
+    it('does not show category/cost fields for a non-parent editor', async () => {
+      isParentValue = false
+      familyStore.currentUser = { uid: 'child-uid', role: 'child' }
+      const wrapper = mountCard(makeJob({ suggestedBy: 'child-uid', status: 'suggested' }))
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      expect(textFields.find(f => f.props('label') === 'Category')).toBeFalsy()
+      expect(textFields.find(f => f.props('label') === 'Cost estimate (£)')).toBeFalsy()
+    })
+
+    it('saves title/description plus parent-only category/costEstimate on Save', async () => {
+      const wrapper = mountCard(makeJob({ title: 'Fix the fence' }))
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      const titleField = textFields.find(f => f.props('label') === 'Title')
+      const categoryField = textFields.find(f => f.props('label') === 'Category')
+      const costField = textFields.find(f => f.props('label') === 'Cost estimate (£)')
+      await titleField.find('input').setValue('Fix the gate')
+      await categoryField.find('input').setValue('Outdoor')
+      await costField.find('input').setValue('75.50')
+      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', {
+        title: 'Fix the gate',
+        description: 'The back garden fence is broken.',
+        category: 'Outdoor',
+        costEstimate: 75.5,
+      })
+    })
+
+    it('closes the dialog after a successful save', async () => {
+      const wrapper = mountCard()
+      await openEditDialog(wrapper)
+      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(isEditDialogOpen(wrapper)).toBe(false)
+    })
+
+    it('sets costEstimate to null when the cost field is not a valid number', async () => {
+      const wrapper = mountCard(makeJob({ costEstimate: 150 }))
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      const costField = textFields.find(f => f.props('label') === 'Cost estimate (£)')
+      await costField.find('input').setValue('')
+      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', expect.objectContaining({
+        costEstimate: null,
+      }))
+    })
+
+    it('does not save and keeps the dialog open when title is blank', async () => {
+      const wrapper = mountCard()
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      const titleField = textFields.find(f => f.props('label') === 'Title')
+      await titleField.find('input').setValue('   ')
+      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      expect(jobsStore.updateJob).not.toHaveBeenCalled()
+      expect(isEditDialogOpen(wrapper)).toBe(true)
+    })
+
+    it('trims title and blanks an empty description to null on save', async () => {
+      const wrapper = mountCard(makeJob({ title: 'Fix the fence', description: 'old' }))
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      const titleField = textFields.find(f => f.props('label') === 'Title')
+      await titleField.find('input').setValue('  Fix the gate  ')
+      const descriptionField = wrapper.findComponent({ name: 'VTextarea' })
+      await descriptionField.find('textarea').setValue('   ')
+      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', expect.objectContaining({
+        title: 'Fix the gate',
+        description: null,
+      }))
+    })
+
+    it('does not call updateJob when Cancel is clicked, and closes the dialog', async () => {
+      const wrapper = mountCard()
+      await openEditDialog(wrapper)
+      const cancelBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Cancel')
+      await cancelBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(jobsStore.updateJob).not.toHaveBeenCalled()
+      expect(isEditDialogOpen(wrapper)).toBe(false)
+    })
+
+    it('lets a child who suggested the job edit title/description without category/cost', async () => {
+      isParentValue = false
+      familyStore.currentUser = { uid: 'child-uid', role: 'child' }
+      const wrapper = mountCard(makeJob({ suggestedBy: 'child-uid', status: 'suggested', title: 'Tidy room' }))
+      await openEditDialog(wrapper)
+      const textFields = wrapper.findAllComponents({ name: 'VTextField' })
+      const titleField = textFields.find(f => f.props('label') === 'Title')
+      await titleField.find('input').setValue('Tidy bedroom')
+      const saveBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text() === 'Save')
+      await saveBtn.trigger('click')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', {
+        title: 'Tidy bedroom',
+        description: 'The back garden fence is broken.',
+      })
+    })
+  })
+
+  // ── status / priority controls ───────────────────────────────────────────
+
+  describe('status and priority selects', () => {
+    it('calls updateJob with the new status when the Status select changes', async () => {
+      const wrapper = mountCard()
+      await expandCard(wrapper)
+      const selects = wrapper.findAllComponents({ name: 'VSelect' })
+      const statusSelect = selects[0]
+      await statusSelect.vm.$emit('update:modelValue', 'planned')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', { status: 'planned' })
+    })
+
+    it('calls updateJob with the new priority when the Priority select changes', async () => {
+      const wrapper = mountCard()
+      await expandCard(wrapper)
+      const selects = wrapper.findAllComponents({ name: 'VSelect' })
+      const prioritySelect = selects[1]
+      await prioritySelect.vm.$emit('update:modelValue', 'low')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', { priority: 'low' })
+    })
+
+    it('sends priority null when "None" is selected', async () => {
+      const wrapper = mountCard()
+      await expandCard(wrapper)
+      const selects = wrapper.findAllComponents({ name: 'VSelect' })
+      const prioritySelect = selects[1]
+      await prioritySelect.vm.$emit('update:modelValue', null)
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', { priority: null })
+    })
+
+    // The tests above hand-feed values straight to the update:model-value
+    // handler, which never exercises the `:items` binding that builds the
+    // dropdown options. These assert on the actual items prop so a mistake
+    // in that mapping (wrong value field, missing "None" entry, etc.) fails.
+    it('builds Status select items from JOB_STATUSES/JOB_STATUS_LABELS', async () => {
+      const wrapper = mountCard()
+      await expandCard(wrapper)
+      const statusSelect = wrapper.findAllComponents({ name: 'VSelect' })[0]
+      expect(statusSelect.props('items')).toEqual(
+        JOB_STATUSES.map(s => ({ title: JOB_STATUS_LABELS[s], value: s }))
+      )
+    })
+
+    it('builds Priority select items with a None option plus JOB_PRIORITIES', async () => {
+      const wrapper = mountCard()
+      await expandCard(wrapper)
+      const prioritySelect = wrapper.findAllComponents({ name: 'VSelect' })[1]
+      expect(prioritySelect.props('items')).toEqual([
+        { title: 'None', value: null },
+        ...JOB_PRIORITIES.map(p => ({ title: p.charAt(0).toUpperCase() + p.slice(1), value: p })),
+      ])
+    })
+  })
+
+  // ── assignee picker ──────────────────────────────────────────────────────
+
+  describe('assignee picker', () => {
+    it('lists every family member in the dropdown', async () => {
+      const wrapper = mountCard(makeJob({ assignedTo: null }))
+      await expandCard(wrapper)
+      const assignBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text().includes('Assign'))
+      await assignBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const names = items.map(i => i.text())
+      expect(names.some(t => t.includes('Dad'))).toBe(true)
+      expect(names.some(t => t.includes('Ella'))).toBe(true)
+    })
+
+    it('calls updateJob with assignedTo when a member is selected', async () => {
+      const wrapper = mountCard(makeJob({ assignedTo: null }))
+      await expandCard(wrapper)
+      const assignBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text().includes('Assign'))
+      await assignBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const ellaItem = items.find(i => i.text().includes('Ella'))
+      await ellaItem.trigger('click')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', { assignedTo: 'child-uid' })
+    })
+
+    it('does not show an "Unassigned" option when the job has no assignee', async () => {
+      const wrapper = mountCard(makeJob({ assignedTo: null }))
+      await expandCard(wrapper)
+      const assignBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text().includes('Assign'))
+      await assignBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      expect(items.some(i => i.text().includes('Unassigned'))).toBe(false)
+    })
+
+    it('shows an "Unassigned" option and calls updateJob with assignedTo null when clicked', async () => {
+      const wrapper = mountCard(makeJob({ assignedTo: 'child-uid' }))
+      await expandCard(wrapper)
+      const assignBtn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.text().includes('Assign'))
+      await assignBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      const items = wrapper.findAllComponents({ name: 'VListItem' })
+      const unassignItem = items.find(i => i.text().includes('Unassigned'))
+      expect(unassignItem).toBeTruthy()
+      await unassignItem.trigger('click')
+      expect(jobsStore.updateJob).toHaveBeenCalledWith('job-1', { assignedTo: null })
     })
   })
 

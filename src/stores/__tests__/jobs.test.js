@@ -204,6 +204,65 @@ describe('jobs store', () => {
     })
   })
 
+  // ── activeJobsByPriority() ──────────────────────────────────────────────────
+
+  describe('activeJobsByPriority', () => {
+    // Firestore Timestamps expose toMillis(); helper builds a stand-in.
+    const ts = (ms) => ({ toMillis: () => ms })
+
+    it('excludes done jobs', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(0, [
+        { id: 'j-1', data: { title: 'Active', status: 'planned', priority: 'high' } },
+        { id: 'j-2', data: { title: 'Finished', status: 'done', priority: 'high' } },
+      ])
+      const result = store.activeJobsByPriority
+      expect(result).toHaveLength(1)
+      expect(result[0].id).toBe('j-1')
+    })
+
+    it('ranks by priority high > medium > low > none', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(0, [
+        { id: 'none', data: { title: 'None', status: 'suggested', priority: null } },
+        { id: 'low',  data: { title: 'Low',  status: 'suggested', priority: 'low' } },
+        { id: 'high', data: { title: 'High', status: 'suggested', priority: 'high' } },
+        { id: 'med',  data: { title: 'Med',  status: 'suggested', priority: 'medium' } },
+      ])
+      expect(store.activeJobsByPriority.map(j => j.id)).toEqual(['high', 'med', 'low', 'none'])
+    })
+
+    it('tie-breaks equal priority by newest createdAt first', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(0, [
+        { id: 'older',  data: { title: 'Older',  status: 'suggested', priority: 'high', createdAt: ts(1000) } },
+        { id: 'newer',  data: { title: 'Newer',  status: 'suggested', priority: 'high', createdAt: ts(2000) } },
+      ])
+      expect(store.activeJobsByPriority.map(j => j.id)).toEqual(['newer', 'older'])
+    })
+
+    it('does not throw when createdAt is null (optimistic write) and keeps the job', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(0, [
+        { id: 'pending', data: { title: 'Pending', status: 'suggested', priority: 'high', createdAt: null } },
+      ])
+      expect(store.activeJobsByPriority.map(j => j.id)).toEqual(['pending'])
+    })
+
+    it('returns an empty array when there are no active jobs', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(0, [
+        { id: 'done-1', data: { title: 'Done', status: 'done', priority: 'high' } },
+      ])
+      expect(store.activeJobsByPriority).toHaveLength(0)
+    })
+  })
+
   // ── subtasksFor() ─────────────────────────────────────────────────────────
 
   describe('subtasksFor()', () => {

@@ -149,5 +149,18 @@ describe('JobsPreview', () => {
       const wrapper = mountPreview()
       expect(wrapper.findComponent({ name: 'VCard' }).props('to')).toBe('/jobs')
     })
+
+    it('truncates a long title instead of letting it overflow the row', () => {
+      const longTitle = 'Replace the broken bracket on the upstairs bathroom towel rail'
+      jobsStore = makeStore([job('a', 'high', longTitle)])
+      const wrapper = mountPreview()
+      // The full text is present in the DOM...
+      expect(wrapper.text()).toContain(longTitle)
+      // ...and the title element is set up to truncate (ellipsis) rather than
+      // overflow: text-truncate needs min-width:0 to shrink inside the flex row.
+      const titleEl = wrapper.findAll('span').find(s => s.text() === longTitle)
+      expect(titleEl.classes()).toContain('text-truncate')
+      expect(titleEl.attributes('style')).toContain('min-width: 0')
+    })
   })
 })

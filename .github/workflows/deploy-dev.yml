@@ -2,6 +2,8 @@ name: Deploy to Dev
 
 # Label-triggered: add "deploy-to-dev" to a PR to deploy that PR's branch to dev.
 # Manual trigger: workflow_dispatch (no label management — no PR context).
+# Synchronize-triggered: pushing a new commit to a PR that carries "on-dev" removes
+# the label, since dev would otherwise falsely appear to be running the new HEAD.
 #
 # Labels used:
 #   deploy-to-dev   — trigger label; added by user/Claude, removed automatically on success
@@ -13,10 +15,34 @@ name: Deploy to Dev
 
 on:
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
   workflow_dispatch:
 
 jobs:
+  remove-stale-on-dev-label:
+    if: github.event_name == 'pull_request' && github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Remove on-dev label if present
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr.labels.some(label => label.name === 'on-dev')) return;
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                name: 'on-dev',
+              });
+              console.log(`PR #${pr.number}: removed stale on-dev label after new commit`);
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+
   deploy:
     if: >
       github.event_name == 'workflow_dispatch' ||

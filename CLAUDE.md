@@ -10,7 +10,7 @@ Firebase Hosting. Family devices install it via the browser's "Add to Home Scree
 - **Stack:** Vue 3 (`<script setup>` only), Vite, Vuetify 3, Pinia, Firebase (Firestore + Auth + Hosting)
 - **Users:** Parents (Android), children (Fire tablets via Google Family Link), Chromebook
 - **Run:** `npm test` then `npm run test:integration` before every commit
-- **Deploy:** Dev deploys via PR label — add `deploy-to-dev` to a PR to deploy that branch to dev (`deploy-to-dev` is removed on success; `on-dev` is added and persists to show what is live). Dev can also be triggered manually via the Actions UI. Always ask before deploying. Prod auto-deploys on every merge to `main` via `.github/workflows/deploy-prod.yml` (also runnable manually with `npm run deploy:prod` from `main`)
+- **Deploy:** Dev deploys via PR label — add `deploy-to-dev` to a PR to deploy that branch to dev (`deploy-to-dev` is removed on success; `on-dev` is added to show what is live, and removed automatically if a new commit is pushed to that PR). Dev can also be triggered manually via the Actions UI. Always ask before deploying. Prod auto-deploys on every merge to `main` via `.github/workflows/deploy-prod.yml` (also runnable manually with `npm run deploy:prod` from `main`)
 - **Key complexity:** `src/stores/pocketMoney.js` uses UTC-based date math — read `src/stores/CLAUDE.md` before touching
 - **Schema changes:** Follow expand–migrate–cut in `docs/schema.md` before any rename, removal, or restructure
 - **Offline:** Update Pinia state immediately, fire Firestore write in background, never await write in UI
@@ -144,7 +144,7 @@ Update documentation in the same commit as the change that makes it stale.
 
 **Issue linking.** If a PR fully resolves a GitHub issue, include `Closes #NNN` in the PR body — this auto-closes the issue on merge. Only use `Closes` when the PR completely addresses the issue; if unsure, confirm with the user before adding it. For PRs that relate to but don't fully fix an issue, reference it with `Related to #NNN` instead.
 
-**Deploy workflows.** Dev: add `deploy-to-dev` label to any open PR (removed on success; `on-dev` added and persists). Prod: auto-deploys on every push to `main` (i.e. every merged PR). Both workflows run: env preflight check → `npm run deploy:checks` (ci + unit + integration tests) → `firebase deploy --only hosting,firestore:rules,firestore:indexes`. See `.github/workflows/` for full implementation detail.
+**Deploy workflows.** Dev: add `deploy-to-dev` label to any open PR (removed on success; `on-dev` added, and automatically removed if a new commit is pushed to that PR, since dev would then be running stale code). Prod: auto-deploys on every push to `main` (i.e. every merged PR). Both workflows run: env preflight check → `npm run deploy:checks` (ci + unit + integration tests) → `firebase deploy --only hosting,firestore:rules,firestore:indexes`. See `.github/workflows/` for full implementation detail.
 
 **Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. **Merging a PR to `main` triggers an automatic prod deploy** — treat "merge this PR" as equivalent to "deploy to prod" and get explicit confirmation before merging.
 

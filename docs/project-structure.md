@@ -12,10 +12,11 @@ baseCamp/
 │   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
 │   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
 │   │   ├── JobCard.vue              # Single job card — collapsed summary + expanded controls; parent-gated actions
+│   │   ├── JobsPreview.vue          # Compact home-screen card — top 3 active jobs by priority, +N overflow, links to /jobs
 │   │   ├── JobSubtasks.vue          # Subtask checklist per job; checkbox available to all; drag/add/delete parent-only
 │   │   └── __tests__/
 │   ├── views/
-│   │   ├── HomeView.vue             # Dashboard — shopping summary, family avatars
+│   │   ├── HomeView.vue             # Dashboard — shopping summary, top jobs preview, family avatars
 │   │   ├── LoginView.vue            # Google Sign-In page
 │   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
 │   │   ├── ShoppingView.vue         # Shopping list — list, add-item FAB, manage aisles

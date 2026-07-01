@@ -33,6 +33,22 @@ export const useJobsStore = defineStore('jobs', () => {
 
   // ── getters ────────────────────────────────────────────────────────────────
 
+  // Priority sort weight — lower sorts first. null/absent priority sinks to the end.
+  const PRIORITY_RANK = { high: 0, medium: 1, low: 2 }
+
+  // Non-done jobs ranked highest-priority first, tie-breaking by newest createdAt.
+  // Used by the home-screen jobs preview to surface the most important active jobs.
+  // createdAt is a Firestore Timestamp (or null for a not-yet-synced optimistic write).
+  const activeJobsByPriority = computed(() =>
+    jobs.value
+      .filter(j => j.status !== 'done')
+      .slice()
+      .sort((a, b) =>
+        (PRIORITY_RANK[a.priority] ?? 3) - (PRIORITY_RANK[b.priority] ?? 3) ||
+        (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
+      )
+  )
+
   const subtasksFor = computed(() => (jobId) =>
     subtasks.value
       .filter(s => s.jobId === jobId)
@@ -222,6 +238,7 @@ export const useJobsStore = defineStore('jobs', () => {
   return {
     jobs,
     subtasks,
+    activeJobsByPriority,
     subtasksFor,
     progressFor,
     setup,

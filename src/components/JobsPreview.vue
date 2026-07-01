@@ -41,7 +41,7 @@ const overflow = computed(() => jobsStore.activeJobsByPriority.length - topJobs.
           :key="job.id"
           class="d-flex align-center gap-2"
         >
-          <span class="text-body-2 text-truncate flex-grow-1">{{ job.title }}</span>
+          <span class="text-body-2 text-truncate flex-grow-1" style="min-width: 0">{{ job.title }}</span>
           <v-chip
             v-if="job.priority"
             size="x-small"

@@ -166,6 +166,38 @@ describe('family store', () => {
     })
   })
 
+  describe('memberName', () => {
+    it('returns the matching member\'s name', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ familyId: 'fam-123' }),
+      })
+      mockOnSnapshot.mockImplementation((ref, callback) => {
+        callback({
+          docs: [
+            { id: 'parent-uid', data: () => ({ name: 'Test Parent', role: 'parent', colour: '#fff' }) },
+          ],
+        })
+        return vi.fn()
+      })
+
+      const store = useFamilyStore()
+      await store.resolveFamily('parent-uid')
+
+      expect(store.memberName('parent-uid')).toBe('Test Parent')
+    })
+
+    it('returns "Unknown" when no member matches the uid', () => {
+      const store = useFamilyStore()
+      expect(store.memberName('missing-uid')).toBe('Unknown')
+    })
+
+    it('returns "Unknown" when uid is null', () => {
+      const store = useFamilyStore()
+      expect(store.memberName(null)).toBe('Unknown')
+    })
+  })
+
   describe('createFamily', () => {
     it('calls setDoc four times — family, member, user, and inviteCode docs', async () => {
       const store = useFamilyStore()

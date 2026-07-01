@@ -31,6 +31,10 @@ export const useFamilyStore = defineStore('family', () => {
     members.value.find(m => m.uid === authStore.user?.uid) ?? null
   )
 
+  function memberName(uid) {
+    return members.value.find(m => m.uid === uid)?.name ?? 'Unknown'
+  }
+
   let unsubscribe = null
 
   function setup(id) {
@@ -107,5 +111,5 @@ export const useFamilyStore = defineStore('family', () => {
     return true
   }
 
-  return { familyId, members, currentUser, setup, teardown, resolveFamily, createFamily, joinFamily }
+  return { familyId, members, currentUser, memberName, setup, teardown, resolveFamily, createFamily, joinFamily }
 })

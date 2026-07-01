@@ -90,6 +90,7 @@ describe('JobCard', () => {
         { uid: 'parent-uid', name: 'Dad', colour: '#378ADD' },
         { uid: 'child-uid',  name: 'Ella', colour: '#D4537E' },
       ],
+      memberName: (uid) => familyStore.members.find(m => m.uid === uid)?.name ?? 'Unknown',
     })
   })
 

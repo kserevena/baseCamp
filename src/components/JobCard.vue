@@ -32,9 +32,7 @@ const progress = computed(() => jobsStore.progressFor(props.job.id))
 const hasSubtasks = computed(() => progress.value.total > 0)
 
 // Creator name for the expanded "Created by" line
-const createdByName = computed(() =>
-  familyStore.members.find(m => m.uid === props.job.suggestedBy)?.name ?? 'Unknown'
-)
+const createdByName = computed(() => familyStore.memberName(props.job.suggestedBy))
 
 // Priority colours
 const priorityColor = {

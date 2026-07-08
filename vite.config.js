@@ -13,7 +13,7 @@ export default defineConfig({
       manifest: {
         name: 'BaseCamp',
         short_name: 'BaseCamp',
-        theme_color: '#1D9E75',
+        theme_color: '#CE1124',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [

@@ -15,3 +15,8 @@
   right: 20px;
   z-index: 5;
 }
+
+/* Red top border on the bottom nav, echoing the England kit trim. */
+.kit-stripe {
+  border-top: 3px solid #CE1124;
+}

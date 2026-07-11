@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useJobsStore } from '@/stores/jobs.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
-import { JOB_STATUSES, JOB_STATUS_LABELS, JOB_PRIORITIES } from '@/constants/jobs.js'
+import { JOB_STATUSES, JOB_STATUS_LABELS, JOB_PRIORITIES, JOB_PRIORITY_COLOURS } from '@/constants/jobs.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import JobSubtasks from '@/components/JobSubtasks.vue'
 import { formatGBP } from '@/utils/currency.js'
@@ -33,13 +33,6 @@ const hasSubtasks = computed(() => progress.value.total > 0)
 
 // Creator name for the expanded "Created by" line
 const createdByName = computed(() => familyStore.memberName(props.job.suggestedBy))
-
-// Priority colours
-const priorityColor = {
-  high: 'error',
-  medium: 'warning',
-  low: 'success',
-}
 
 // Status colours
 const statusColor = {
@@ -139,7 +132,7 @@ function confirmDelete() {
             <v-chip
               v-if="job.priority"
               size="x-small"
-              :color="priorityColor[job.priority] ?? 'grey'"
+              :color="JOB_PRIORITY_COLOURS[job.priority] ?? 'grey'"
               variant="tonal"
             >
               {{ job.priority }}

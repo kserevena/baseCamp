@@ -15,3 +15,12 @@ export const JOB_STATUS_LABELS = {
 
 // Job priority values. null means no priority set.
 export const JOB_PRIORITIES = ['high', 'medium', 'low']
+
+// Vuetify colour token for each priority — the single source of truth for
+// priority chip colours across the app (JobCard, JobsPreview). Fall back to
+// 'grey' for an absent/unknown priority at the call site.
+export const JOB_PRIORITY_COLOURS = {
+  high:   'error',
+  medium: 'warning',
+  low:    'success',
+}

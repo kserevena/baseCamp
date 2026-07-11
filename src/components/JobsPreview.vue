@@ -1,15 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import { useJobsStore } from '@/stores/jobs.js'
+import { JOB_PRIORITY_COLOURS } from '@/constants/jobs.js'
 
 const jobsStore = useJobsStore()
-
-// Priority chip colours — mirror JobCard.vue so the two views stay consistent.
-const priorityColor = {
-  high: 'error',
-  medium: 'warning',
-  low: 'success',
-}
 
 // Up to 3 highest-priority active jobs, plus a count of any beyond that.
 const topJobs = computed(() => jobsStore.activeJobsByPriority.slice(0, 3))
@@ -45,7 +39,7 @@ const overflow = computed(() => jobsStore.activeJobsByPriority.length - topJobs.
           <v-chip
             v-if="job.priority"
             size="x-small"
-            :color="priorityColor[job.priority] ?? 'grey'"
+            :color="JOB_PRIORITY_COLOURS[job.priority] ?? 'grey'"
             variant="tonal"
           >
             {{ job.priority }}

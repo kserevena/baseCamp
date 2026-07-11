@@ -7,6 +7,7 @@ import { reactive } from 'vue'
 
 let familyStore
 let shoppingStore
+let jobsStore
 
 vi.mock('@/stores/family.js', () => ({
   useFamilyStore: () => familyStore,
@@ -14,6 +15,10 @@ vi.mock('@/stores/family.js', () => ({
 
 vi.mock('@/stores/shopping.js', () => ({
   useShoppingStore: () => shoppingStore,
+}))
+
+vi.mock('@/stores/jobs.js', () => ({
+  useJobsStore: () => jobsStore,
 }))
 
 vi.mock('@/components/FamilyAvatar.vue', () => ({
@@ -53,6 +58,9 @@ describe('HomeView', () => {
     shoppingStore = reactive({
       lists: [],
     })
+    jobsStore = reactive({
+      activeJobsByPriority: [],
+    })
   })
 
   afterEach(() => {
@@ -82,6 +90,21 @@ describe('HomeView', () => {
       const cards = wrapper.findAllComponents({ name: 'VCard' })
       const shoppingCard = cards.find(c => c.text().includes('Shopping list'))
       expect(shoppingCard.props('to')).toBe('/shopping')
+    })
+  })
+
+  describe('jobs preview', () => {
+    it('renders the household jobs preview section', () => {
+      const wrapper = mountView()
+      expect(wrapper.findComponent({ name: 'JobsPreview' }).exists()).toBe(true)
+      expect(wrapper.text()).toContain('Household jobs')
+    })
+
+    it('links the jobs preview card to /jobs', () => {
+      const wrapper = mountView()
+      const cards = wrapper.findAllComponents({ name: 'VCard' })
+      const jobsCard = cards.find(c => c.text().includes('Household jobs'))
+      expect(jobsCard.props('to')).toBe('/jobs')
     })
   })
 

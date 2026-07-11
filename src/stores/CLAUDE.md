@@ -36,6 +36,8 @@ See root `CLAUDE.md` for the setup/teardown pattern and pocketMoney write semant
 
 **`deleteJob`** deletes subtask documents before the parent job, mirroring `deleteList` in the shopping store. The subtask security rule does not reach back to the parent job, but the pattern is established practice for child-before-parent deletion.
 
+**`activeJobsByPriority`** is a computed getter returning non-`done` jobs ranked by priority (`high` > `medium` > `low` > none), tie-breaking by newest `createdAt`. It backs the home-screen `JobsPreview.vue` card. `createdAt` may be `null` for a not-yet-synced optimistic write, so the tie-break guards with `?.toMillis?.() ?? 0`.
+
 ---
 
 See root `CLAUDE.md` → **Firebase data structure** for the full Firestore schema, and **Firestore schema evolution** for migration patterns before any database change.

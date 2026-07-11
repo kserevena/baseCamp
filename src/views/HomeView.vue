@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useFamilyStore } from '@/stores/family.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
+import JobsPreview from '@/components/JobsPreview.vue'
 
 const family = useFamilyStore()
 const shopping = useShoppingStore()
@@ -33,6 +34,9 @@ const lastActiveList = computed(() => {
         </div>
       </v-card-text>
     </v-card>
+
+    <!-- Top household jobs preview -->
+    <JobsPreview />
 
     <!-- Family avatars -->
     <v-card rounded="lg" elevation="1">

@@ -64,6 +64,8 @@ baseCamp/
 ├── scripts/
 │   ├── check-dev-env.mjs            # Preflight guard run by deploy:dev (validates .env)
 │   ├── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
+│   ├── migrate-shopping-lists.mjs   # One-off: copy shoppingLists → families/{id}/shoppingLists (issue #137)
+│   ├── delete-old-shopping-lists.mjs # One-off: delete legacy top-level shoppingLists after migration
 │   └── __tests__/
 │       └── check-dev-env.test.mjs   # Unit tests for check-dev-env validation logic
 ├── public/

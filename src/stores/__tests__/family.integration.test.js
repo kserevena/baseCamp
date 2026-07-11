@@ -301,10 +301,9 @@ describe('Firestore security rules', () => {
         { uid: 'parent-uid', name: 'Parent', role: 'parent' },
         { uid: 'child-uid',  name: 'Child',  role: 'child' },
       ])
-      // Seed a shopping list owned by the family
+      // Seed a shopping list owned by the family (scope is in the path; no familyId field)
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        await setDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), {
-          familyId: 'fam-1',
+        await setDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1'), {
           name: 'Weekly shop',
           createdAt: serverTimestamp(),
           createdBy: 'parent-uid',
@@ -314,18 +313,18 @@ describe('Firestore security rules', () => {
 
     it('allows a family member to read the shopping list', async () => {
       const ctx = testEnv.authenticatedContext('child-uid')
-      await assertSucceeds(getDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1')))
+      await assertSucceeds(getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1')))
     })
 
     it('denies a non-member reading the shopping list', async () => {
       const ctx = testEnv.authenticatedContext('outsider-uid')
-      await assertFails(getDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1')))
+      await assertFails(getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1')))
     })
 
     it('allows a parent to add a shopping item', async () => {
       const ctx = testEnv.authenticatedContext('parent-uid')
       await assertSucceeds(
-        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'Milk', qty: '2 pints', aisle: 'Dairy',
           aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
         })
@@ -335,7 +334,7 @@ describe('Firestore security rules', () => {
     it('denies a child adding a shopping item', async () => {
       const ctx = testEnv.authenticatedContext('child-uid')
       await assertFails(
-        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'Milk', qty: '2 pints', aisle: 'Dairy',
           aisleOrder: 1, done: false, addedBy: 'child-uid', fromMeal: null,
         })
@@ -345,7 +344,7 @@ describe('Firestore security rules', () => {
     it('denies a non-member adding a shopping item', async () => {
       const ctx = testEnv.authenticatedContext('outsider-uid')
       await assertFails(
-        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'Milk', qty: '2 pints', aisle: 'Dairy',
           aisleOrder: 1, done: false, addedBy: 'outsider-uid', fromMeal: null,
         })
@@ -355,30 +354,30 @@ describe('Firestore security rules', () => {
     it('allows a parent to tick off a shopping item', async () => {
       let itemRef
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        itemRef = await addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'Eggs', qty: '6', aisle: 'Dairy', aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
         })
       })
       const ctx = testEnv.authenticatedContext('parent-uid')
-      await assertSucceeds(updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true }))
+      await assertSucceeds(updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true }))
     })
 
     it('denies a child ticking off a shopping item', async () => {
       let itemRef
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        itemRef = await addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'Eggs', qty: '6', aisle: 'Dairy', aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
         })
       })
       const ctx = testEnv.authenticatedContext('child-uid')
-      await assertFails(updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true }))
+      await assertFails(updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true }))
     })
 
     it('allows a parent to create a shopping list', async () => {
       const ctx = testEnv.authenticatedContext('parent-uid')
       await assertSucceeds(
-        addDoc(collection(ctx.firestore(), 'shoppingLists'), {
-          familyId: 'fam-1', name: 'New list', createdAt: serverTimestamp(), createdBy: 'parent-uid',
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists'), {
+          name: 'New list', createdAt: serverTimestamp(), createdBy: 'parent-uid',
         })
       )
     })
@@ -386,8 +385,8 @@ describe('Firestore security rules', () => {
     it('denies a child creating a shopping list', async () => {
       const ctx = testEnv.authenticatedContext('child-uid')
       await assertFails(
-        addDoc(collection(ctx.firestore(), 'shoppingLists'), {
-          familyId: 'fam-1', name: 'Child list', createdAt: serverTimestamp(), createdBy: 'child-uid',
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists'), {
+          name: 'Child list', createdAt: serverTimestamp(), createdBy: 'child-uid',
         })
       )
     })
@@ -395,21 +394,21 @@ describe('Firestore security rules', () => {
     it('denies a child updating the aisles field on a shopping list', async () => {
       const ctx = testEnv.authenticatedContext('child-uid')
       await assertFails(
-        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), { aisles: [] })
+        updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1'), { aisles: [] })
       )
     })
 
     it('denies a child updating the name field on a shopping list', async () => {
       const ctx = testEnv.authenticatedContext('child-uid')
       await assertFails(
-        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), { name: 'Hacked' })
+        updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1'), { name: 'Hacked' })
       )
     })
 
     it('allows a parent to update the aisles field on a shopping list', async () => {
       const ctx = testEnv.authenticatedContext('parent-uid')
       await assertSucceeds(
-        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), {
+        updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1'), {
           aisles: [{ name: 'Produce', order: 1 }],
         })
       )
@@ -418,21 +417,21 @@ describe('Firestore security rules', () => {
     it('allows a parent to update the name of a shopping list', async () => {
       const ctx = testEnv.authenticatedContext('parent-uid')
       await assertSucceeds(
-        updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'), { name: 'Big shop' })
+        updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1'), { name: 'Big shop' })
       )
     })
 
     it('denies a child deleting a shopping list', async () => {
       const ctx = testEnv.authenticatedContext('child-uid')
       await assertFails(
-        deleteDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1'))
+        deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1'))
       )
     })
 
     it('allows a parent to add an item with a name of exactly 80 characters', async () => {
       const ctx = testEnv.authenticatedContext('parent-uid')
       await assertSucceeds(
-        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'A'.repeat(80), qty: '', aisle: 'Dairy',
           aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
         })
@@ -442,7 +441,7 @@ describe('Firestore security rules', () => {
     it('denies a parent adding an item with a name longer than 80 characters', async () => {
       const ctx = testEnv.authenticatedContext('parent-uid')
       await assertFails(
-        addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'A'.repeat(81), qty: '', aisle: 'Dairy',
           aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
         })
@@ -452,12 +451,12 @@ describe('Firestore security rules', () => {
     it('allows a parent to delete an item regardless of name length', async () => {
       let itemRef
       await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+        itemRef = await addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
           name: 'A'.repeat(81), qty: '', aisle: 'Dairy', aisleOrder: 1, done: false, addedBy: 'parent-uid', fromMeal: null,
         })
       })
       const ctx = testEnv.authenticatedContext('parent-uid')
-      await assertSucceeds(deleteDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id)))
+      await assertSucceeds(deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id)))
     })
 
     describe('priority field', () => {
@@ -465,7 +464,7 @@ describe('Firestore security rules', () => {
 
       beforeEach(async () => {
         await testEnv.withSecurityRulesDisabled(async (ctx) => {
-          itemRef = await addDoc(collection(ctx.firestore(), 'shoppingLists', 'list-1', 'items'), {
+          itemRef = await addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
             name: 'Milk', qty: '2 pints', aisle: 'Dairy', aisleOrder: 1, done: false,
             addedBy: 'parent-uid', priority: false,
           })
@@ -475,42 +474,66 @@ describe('Firestore security rules', () => {
       it('allows a parent to set priority: true', async () => {
         const ctx = testEnv.authenticatedContext('parent-uid')
         await assertSucceeds(
-          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
         )
       })
 
       it('denies a child setting priority: true', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
         await assertFails(
-          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
         )
       })
 
       it('denies a child setting priority: false', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
         await assertFails(
-          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: false })
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: false })
         )
       })
 
       it('denies a child updating done', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
         await assertFails(
-          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true })
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id), { done: true })
         )
       })
 
       it('denies an outsider setting priority', async () => {
         const ctx = testEnv.authenticatedContext('outsider-uid')
         await assertFails(
-          updateDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id), { priority: true })
         )
       })
 
       it('allows a family member to read an item that has the priority field', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
         await assertSucceeds(
-          getDoc(doc(ctx.firestore(), 'shoppingLists', 'list-1', 'items', itemRef.id))
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', itemRef.id))
+        )
+      })
+    })
+
+    describe('cross-family isolation', () => {
+      // Lists are scoped purely by the families/{familyId} path — a member of one
+      // family must not reach into another family's lists or items.
+      beforeEach(async () => {
+        await seedFamily('fam-2', [
+          { uid: 'parent2-uid', name: 'Parent 2', role: 'parent' },
+        ], { createdBy: 'parent2-uid' })
+      })
+
+      it('denies a parent of another family reading a list', async () => {
+        const ctx = testEnv.authenticatedContext('parent2-uid')
+        await assertFails(getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1')))
+      })
+
+      it('denies a parent of another family adding an item', async () => {
+        const ctx = testEnv.authenticatedContext('parent2-uid')
+        await assertFails(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
+            name: 'Injected', qty: '', aisle: 'Dairy', aisleOrder: 1, done: false, addedBy: 'parent2-uid',
+          })
         )
       })
     })

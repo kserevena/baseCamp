@@ -4,7 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 const {
   mockOnSnapshot, mockAddDoc, mockUpdateDoc, mockDeleteDoc, mockGetDocs,
   mockDoc, mockCollection, mockQuery, mockWhere, mockServerTimestamp,
-  mockUseFamilyStore, mockBatchUpdate, mockBatchCommit, mockWriteBatch,
+  mockUseFamilyStore, mockBatchUpdate, mockBatchDelete, mockBatchCommit, mockWriteBatch,
 } = vi.hoisted(() => ({
   mockOnSnapshot:      vi.fn(() => vi.fn()),
   mockAddDoc:          vi.fn().mockResolvedValue({ id: 'new-list-id' }),
@@ -18,6 +18,7 @@ const {
   mockServerTimestamp: vi.fn(() => new Date()),
   mockUseFamilyStore:  vi.fn(() => ({ currentUser: { uid: 'parent-uid' } })),
   mockBatchUpdate:     vi.fn(),
+  mockBatchDelete:     vi.fn(),
   mockBatchCommit:     vi.fn().mockResolvedValue(undefined),
   mockWriteBatch:      vi.fn(),
 }))
@@ -68,6 +69,11 @@ const mockItem = (id, overrides = {}) => ({
   data: () => ({ name: 'Milk', qty: '2 pints', aisle: 'Dairy', aisleOrder: 1, done: false, ...overrides }),
 })
 
+const mockSupermarket = (id, name, aisles = [], order = 0, millis = 1000) => ({
+  id,
+  data: () => ({ name, aisles, order, createdAt: { toMillis: () => millis } }),
+})
+
 describe('shopping store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -79,7 +85,7 @@ describe('shopping store', () => {
     mockGetDocs.mockResolvedValue({ docs: [] })
     mockUseFamilyStore.mockReturnValue({ currentUser: { uid: 'parent-uid' } })
     mockBatchCommit.mockResolvedValue(undefined)
-    mockWriteBatch.mockReturnValue({ update: mockBatchUpdate, commit: mockBatchCommit })
+    mockWriteBatch.mockReturnValue({ update: mockBatchUpdate, delete: mockBatchDelete, commit: mockBatchCommit })
   })
 
   describe('setup', () => {
@@ -87,7 +93,8 @@ describe('shopping store', () => {
       const store = useShoppingStore()
       store.setup('fam-1')
 
-      expect(mockOnSnapshot).toHaveBeenCalledOnce()
+      // Two listeners registered on setup: shoppingLists + supermarkets
+      expect(mockOnSnapshot).toHaveBeenCalledTimes(2)
       // addDoc / updateDoc / setDoc should not be called on setup
       expect(mockAddDoc).not.toHaveBeenCalled()
       expect(mockUpdateDoc).not.toHaveBeenCalled()
@@ -105,7 +112,7 @@ describe('shopping store', () => {
       expect(store.lists).toHaveLength(2)
       expect(store.lists[0].id).toBe('list-1') // sorted newest first
       expect(store.activeListId).toBe('list-1')
-      expect(mockOnSnapshot).toHaveBeenCalledTimes(2) // lists + items
+      expect(mockOnSnapshot).toHaveBeenCalledTimes(3) // lists + supermarkets + items
     })
 
     it('leaves lists empty and activeListId null when snapshot fires with no data', () => {
@@ -119,12 +126,12 @@ describe('shopping store', () => {
 
       expect(store.lists).toHaveLength(0)
       expect(store.activeListId).toBeNull()
-      expect(mockOnSnapshot).toHaveBeenCalledOnce() // only the lists listener
+      expect(mockOnSnapshot).toHaveBeenCalledTimes(2) // lists + supermarkets listeners
     })
 
     it('does not re-activate if activeListId is already set when new snapshot fires', () => {
       let listsCallback
-      mockOnSnapshot.mockImplementation((_ref, cb) => { listsCallback = cb; return vi.fn() })
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { listsCallback = cb; return vi.fn() })
 
       const store = useShoppingStore()
       store.setup('fam-1')
@@ -712,7 +719,8 @@ describe('shopping store', () => {
 
       mockOnSnapshot
         .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
-        .mockImplementationOnce(() => unsubItems)
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
+        .mockImplementationOnce(() => unsubItems) // items
 
       const store = useShoppingStore()
       store.setup('fam-1')
@@ -902,6 +910,7 @@ describe('shopping store', () => {
       let listsCallback, itemsCallback
       mockOnSnapshot
         .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
         .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
 
       const store = useShoppingStore()
@@ -985,6 +994,7 @@ describe('shopping store', () => {
       let listsCallback, itemsCallback
       mockOnSnapshot
         .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
         .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
 
       const store = useShoppingStore()
@@ -1003,6 +1013,7 @@ describe('shopping store', () => {
       let listsCallback, itemsCallback
       mockOnSnapshot
         .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
         .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
       store.setup('fam-1')
       listsCallback({ docs: [
@@ -1065,6 +1076,7 @@ describe('shopping store', () => {
       let listsCallback, itemsCallback
       mockOnSnapshot
         .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
         .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
       const store = useShoppingStore()
       store.setup('fam-1')
@@ -1095,6 +1107,7 @@ describe('shopping store', () => {
       let listsCallback, itemsCallback
       mockOnSnapshot
         .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
         .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
       const store = useShoppingStore()
       store.setup('fam-1')
@@ -1168,6 +1181,7 @@ describe('shopping store', () => {
       let listsCallback, itemsCallback
       mockOnSnapshot
         .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
         .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
 
       const store = useShoppingStore()
@@ -1209,6 +1223,386 @@ describe('shopping store', () => {
 
       expect(unsubLists).toHaveBeenCalledOnce()
       expect(unsubItems).toHaveBeenCalledOnce()
+    })
+  })
+
+  // ── Supermarkets (Part B) ───────────────────────────────────────────────────
+
+  // Registers all three listeners (lists, supermarkets, items) and drives their
+  // callbacks with data. The items listener is the 3rd onSnapshot call, fired when
+  // the lists callback auto-activates the list.
+  function setupWithData(store, { supermarketDocs = [], itemDocs = [], listAisles = DEFAULT_AISLES } = {}) {
+    let listsCallback, smCallback, itemsCallback
+    mockOnSnapshot
+      .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() }) // lists
+      .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() })    // supermarkets
+      .mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() }) // items
+    store.setup('fam-1')
+    listsCallback({ docs: [mockList('list-1', 'Shop', 1000, listAisles)] })
+    smCallback({ docs: supermarketDocs })
+    itemsCallback({ docs: itemDocs })
+  }
+
+  describe('supermarkets — setup & selection', () => {
+    it('populates supermarkets from the snapshot, sorted by order', () => {
+      let smCallback
+      mockOnSnapshot
+        .mockImplementationOnce(() => vi.fn()) // lists
+        .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() }) // supermarkets
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      smCallback({ docs: [mockSupermarket('sm-2', 'Lidl', [], 2), mockSupermarket('sm-1', 'Tesco', [], 1)] })
+
+      expect(store.supermarkets.map(s => s.id)).toEqual(['sm-1', 'sm-2'])
+      expect(store.supermarketsLoaded).toBe(true)
+    })
+
+    it('selectSupermarket persists the choice; null clears it', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+
+      store.selectSupermarket('sm-1')
+      expect(store.selectedSupermarketId).toBe('sm-1')
+      expect(localStorage.getItem('selectedSupermarket_fam-1')).toBe('sm-1')
+
+      store.selectSupermarket(null)
+      expect(store.selectedSupermarketId).toBeNull()
+      expect(localStorage.getItem('selectedSupermarket_fam-1')).toBeNull()
+    })
+
+    it('restores the persisted supermarket selection on setup', () => {
+      localStorage.setItem('selectedSupermarket_fam-1', 'sm-9')
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      expect(store.selectedSupermarketId).toBe('sm-9')
+    })
+
+    it('resets to All items when the selected supermarket is absent from the snapshot', () => {
+      localStorage.setItem('selectedSupermarket_fam-1', 'sm-deleted')
+      let smCallback
+      mockOnSnapshot
+        .mockImplementationOnce(() => vi.fn()) // lists
+        .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() }) // supermarkets
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      expect(store.selectedSupermarketId).toBe('sm-deleted')
+
+      smCallback({ docs: [mockSupermarket('sm-1', 'Tesco', [])] })
+      expect(store.selectedSupermarketId).toBeNull()
+    })
+  })
+
+  describe('visibleItems', () => {
+    it('shows every item in the All items view (no selection)', () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0)],
+        itemDocs: [
+          mockItem('i1', { supermarketIds: ['sm-1'] }),
+          mockItem('i2', { supermarketIds: ['sm-2'] }),
+          mockItem('i3', { allSupermarkets: true }),
+          mockItem('i4', {}), // unallocated
+        ],
+      })
+      expect(store.visibleItems).toHaveLength(4)
+    })
+
+    it('a specific supermarket shows allocated, all-supermarkets, and unallocated items only', () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [
+          mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0),
+          mockSupermarket('sm-2', 'Lidl', DEFAULT_AISLES, 1),
+        ],
+        itemDocs: [
+          mockItem('i1', { supermarketIds: ['sm-1'] }),          // shown
+          mockItem('i2', { supermarketIds: ['sm-2'] }),          // hidden
+          mockItem('i3', { allSupermarkets: true }),             // shown
+          mockItem('i4', {}),                                     // unallocated → shown
+          mockItem('i5', { supermarketIds: ['sm-1', 'sm-2'] }),  // shown
+        ],
+      })
+      store.selectSupermarket('sm-1')
+      const ids = store.visibleItems.map(i => i.id)
+      expect(ids).toEqual(expect.arrayContaining(['i1', 'i3', 'i4', 'i5']))
+      expect(ids).not.toContain('i2')
+    })
+  })
+
+  describe('activeAisles with supermarkets', () => {
+    it('returns the selected supermarket aisles', () => {
+      const store = useShoppingStore()
+      const tescoAisles = [{ name: 'Produce', order: 1 }, { name: 'Frozen', order: 2 }]
+      setupWithData(store, { supermarketDocs: [mockSupermarket('sm-1', 'Tesco', tescoAisles, 0)] })
+      store.selectSupermarket('sm-1')
+      expect(store.activeAisles).toEqual(tescoAisles)
+    })
+
+    it('All items returns a deduplicated union, default store order first then extras alphabetically', () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [
+          mockSupermarket('sm-1', 'Tesco', [{ name: 'Dairy', order: 1 }, { name: 'Meat', order: 2 }], 0),
+          mockSupermarket('sm-2', 'Lidl', [{ name: 'Dairy', order: 1 }, { name: 'Frozen', order: 2 }], 1),
+        ],
+      })
+      expect(store.activeAisles.map(a => a.name)).toEqual(['Dairy', 'Meat', 'Frozen'])
+    })
+
+    it('union dedup is case-insensitive', () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [
+          mockSupermarket('sm-1', 'Tesco', [{ name: 'Dairy', order: 1 }], 0),
+          mockSupermarket('sm-2', 'Lidl', [{ name: 'dairy', order: 1 }], 1),
+        ],
+      })
+      expect(store.activeAisles.map(a => a.name)).toEqual(['Dairy'])
+    })
+  })
+
+  describe('addSupermarket / renameSupermarket / aisle editing', () => {
+    it('addSupermarket writes name, DEFAULT_AISLES and order 0 when none exist', async () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      await store.addSupermarket('  Tesco  ')
+
+      const payload = mockAddDoc.mock.calls.at(-1)[1]
+      expect(payload.name).toBe('Tesco')
+      expect(payload.aisles).toEqual(DEFAULT_AISLES)
+      expect(payload.order).toBe(0)
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'supermarkets')
+    })
+
+    it('addSupermarket increments order above existing supermarkets', async () => {
+      const store = useShoppingStore()
+      let smCallback
+      mockOnSnapshot
+        .mockImplementationOnce(() => vi.fn())
+        .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() })
+      store.setup('fam-1')
+      smCallback({ docs: [mockSupermarket('sm-1', 'Tesco', [], 0), mockSupermarket('sm-2', 'Lidl', [], 3)] })
+
+      await store.addSupermarket('Aldi')
+      expect(mockAddDoc.mock.calls.at(-1)[1].order).toBe(4)
+    })
+
+    it('renameSupermarket updates the doc name (trimmed)', async () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      await store.renameSupermarket('sm-1', '  Costco ')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'supermarkets', 'sm-1')
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { name: 'Costco' })
+    })
+
+    it('saveSupermarketAisles writes the aisles array', async () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      const aisles = [{ name: 'A', order: 1 }]
+      await store.saveSupermarketAisles('sm-1', aisles)
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { aisles })
+    })
+
+    it('deleteSupermarketAisle removes only that aisle and does NOT rewrite items', async () => {
+      const store = useShoppingStore()
+      let smCallback
+      mockOnSnapshot
+        .mockImplementationOnce(() => vi.fn())
+        .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() })
+      store.setup('fam-1')
+      smCallback({ docs: [mockSupermarket('sm-1', 'Tesco', [{ name: 'Dairy', order: 1 }, { name: 'Meat', order: 2 }], 0)] })
+
+      await store.deleteSupermarketAisle('sm-1', 'Dairy')
+
+      expect(mockUpdateDoc.mock.calls.at(-1)[1]).toEqual({ aisles: [{ name: 'Meat', order: 2 }] })
+      expect(mockWriteBatch).not.toHaveBeenCalled() // no item rewrites
+    })
+  })
+
+  describe('deleteSupermarket', () => {
+    it('strips the supermarket id from items and deletes the doc in one batch', async () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0)],
+        itemDocs: [
+          mockItem('i1', { supermarketIds: ['sm-1', 'sm-2'] }),
+          mockItem('i2', { supermarketIds: ['sm-2'] }),
+          mockItem('i3', {}),
+        ],
+      })
+
+      await store.deleteSupermarket('sm-1')
+
+      const updateCalls = mockBatchUpdate.mock.calls.filter(c => c[1]?.supermarketIds !== undefined)
+      expect(updateCalls).toHaveLength(1)
+      expect(mockBatchUpdate).toHaveBeenCalledWith(expect.anything(), { supermarketIds: ['sm-2'] })
+      expect(mockBatchDelete).toHaveBeenCalledOnce()
+      expect(mockBatchCommit).toHaveBeenCalledOnce()
+    })
+
+    it('resets selection to All items when the deleted supermarket was selected', async () => {
+      const store = useShoppingStore()
+      setupWithData(store, { supermarketDocs: [mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0)] })
+      store.selectSupermarket('sm-1')
+
+      await store.deleteSupermarket('sm-1')
+      expect(store.selectedSupermarketId).toBeNull()
+    })
+  })
+
+  describe('ensureDefaultSupermarket', () => {
+    it('creates a default supermarket seeded from the active list aisles when none exist', async () => {
+      const store = useShoppingStore()
+      const custom = [{ name: 'Produce', order: 1 }, { name: 'Bakery', order: 2 }]
+      setupWithData(store, { supermarketDocs: [], listAisles: custom })
+
+      await store.ensureDefaultSupermarket()
+
+      const payload = mockAddDoc.mock.calls.at(-1)[1]
+      expect(payload.name).toBe('My supermarket')
+      expect(payload.order).toBe(0)
+      expect(payload.aisles).toEqual(custom)
+    })
+
+    it('does not create a supermarket if one already exists', async () => {
+      const store = useShoppingStore()
+      setupWithData(store, { supermarketDocs: [mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0)] })
+      mockAddDoc.mockClear()
+      await store.ensureDefaultSupermarket()
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
+
+    it('does not provision before the supermarkets snapshot has loaded', async () => {
+      const store = useShoppingStore()
+      store.setup('fam-1') // no snapshot fired → supermarketsLoaded is false
+      await store.ensureDefaultSupermarket()
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
+
+    it('clears the guard so a rejected provision can be retried', async () => {
+      const store = useShoppingStore()
+      setupWithData(store, { supermarketDocs: [] })
+      mockAddDoc.mockRejectedValueOnce(new Error('denied'))
+
+      await store.ensureDefaultSupermarket() // rejected → guard reset
+      await store.ensureDefaultSupermarket() // retried
+      expect(mockAddDoc).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('item allocation writes', () => {
+    it('addItem defaults to unallocated (empty ids, allSupermarkets false)', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      store.activateList('list-1')
+      store.addItem('Milk', '2 pints', 'Dairy')
+      const payload = mockAddDoc.mock.calls.at(-1)[1]
+      expect(payload.supermarketIds).toEqual([])
+      expect(payload.allSupermarkets).toBe(false)
+    })
+
+    it('addItem writes the provided allocation', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      store.activateList('list-1')
+      store.addItem('Milk', '2 pints', 'Dairy', { supermarketIds: ['sm-1'], allSupermarkets: false })
+      expect(mockAddDoc.mock.calls.at(-1)[1].supermarketIds).toEqual(['sm-1'])
+    })
+
+    it('updateItem writes supermarketIds and allSupermarkets when provided', () => {
+      const store = useShoppingStore()
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_r, cb) => { itemsCallback = cb; return vi.fn() })
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1')] })
+
+      store.updateItem('item-1', { name: 'Milk', qty: '1', supermarketIds: ['sm-1'], allSupermarkets: false })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        { name: 'Milk', qty: '1', supermarketIds: ['sm-1'], allSupermarkets: false },
+      )
+      expect(store.items.find(i => i.id === 'item-1').supermarketIds).toEqual(['sm-1'])
+    })
+  })
+
+  describe('supermarket actions — guard and fallback branches', () => {
+    it('addSupermarket / renameSupermarket / saveSupermarketAisles / deleteSupermarketAisle / deleteSupermarket are no-ops before setup', async () => {
+      const store = useShoppingStore()
+      await store.addSupermarket('X')
+      await store.renameSupermarket('sm-1', 'X')
+      await store.saveSupermarketAisles('sm-1', [])
+      await store.deleteSupermarketAisle('sm-1', 'Dairy')
+      await store.deleteSupermarket('sm-1')
+      expect(mockAddDoc).not.toHaveBeenCalled()
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+      expect(mockWriteBatch).not.toHaveBeenCalled()
+    })
+
+    it('deleteSupermarketAisle is a no-op when the supermarket is not loaded', async () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      await store.deleteSupermarketAisle('missing', 'Dairy')
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
+    })
+
+    it('deleteSupermarket skips item stripping when no list is active', async () => {
+      const store = useShoppingStore()
+      let smCallback
+      mockOnSnapshot
+        .mockImplementationOnce(() => vi.fn())
+        .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() })
+      store.setup('fam-1') // no list activated → activeListId stays null
+      smCallback({ docs: [mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0)] })
+
+      await store.deleteSupermarket('sm-1')
+
+      expect(mockBatchDelete).toHaveBeenCalledOnce()
+      // No item updates because there is no active list
+      expect(mockBatchUpdate).not.toHaveBeenCalled()
+    })
+
+    it('activeAisles falls back to DEFAULT_AISLES when the selected store has no aisles field', () => {
+      const store = useShoppingStore()
+      let smCallback
+      mockOnSnapshot
+        .mockImplementationOnce(() => vi.fn())
+        .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() })
+      store.setup('fam-1')
+      // Supermarket document with no aisles field (old/partial doc)
+      smCallback({ docs: [{ id: 'sm-1', data: () => ({ name: 'Tesco', order: 0, createdAt: { toMillis: () => 1 } }) }] })
+      store.selectSupermarket('sm-1')
+
+      expect(store.activeAisles).toEqual(DEFAULT_AISLES)
+    })
+
+    it('union tolerates a supermarket with no aisles field', () => {
+      const store = useShoppingStore()
+      let smCallback
+      mockOnSnapshot
+        .mockImplementationOnce(() => vi.fn())
+        .mockImplementationOnce((_r, cb) => { smCallback = cb; return vi.fn() })
+      store.setup('fam-1')
+      smCallback({ docs: [
+        mockSupermarket('sm-1', 'Tesco', [{ name: 'Dairy', order: 1 }], 0),
+        { id: 'sm-2', data: () => ({ name: 'Lidl', order: 1, createdAt: { toMillis: () => 1 } }) },
+      ] })
+      // All items view → union; the aisle-less store contributes nothing
+      expect(store.activeAisles.map(a => a.name)).toEqual(['Dairy'])
+    })
+  })
+
+  describe('teardown — supermarket state', () => {
+    it('clears supermarkets, selection, and loaded flag', () => {
+      const store = useShoppingStore()
+      setupWithData(store, { supermarketDocs: [mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0)] })
+      store.selectSupermarket('sm-1')
+
+      store.teardown()
+
+      expect(store.supermarkets).toHaveLength(0)
+      expect(store.selectedSupermarketId).toBeNull()
+      expect(store.supermarketsLoaded).toBe(false)
     })
   })
 })

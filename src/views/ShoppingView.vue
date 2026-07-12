@@ -6,7 +6,7 @@ import { useUserRole } from '@/composables/useUserRole.js'
 import { useKeyboardAwareSheet } from '@/composables/useKeyboardAwareSheet.js'
 import { ITEM_NAME_MAX_LENGTH } from '@/constants/shopping.js'
 import ShoppingList from '@/components/ShoppingList.vue'
-import AisleManager from '@/components/AisleManager.vue'
+import SupermarketManager from '@/components/SupermarketManager.vue'
 
 const store = useShoppingStore()
 const family = useFamilyStore()
@@ -22,6 +22,19 @@ function toggleHeaders() {
   localStorage.setItem(storageKey, String(showHeaders.value))
 }
 
+// Auto-provision the family's default supermarket once a parent has loaded a
+// list and no supermarket exists yet — the automatic, additive migration for
+// existing families. The store guards against double-creation.
+watch(
+  () => [isParent.value, store.supermarketsLoaded, store.supermarkets.length, store.activeListId],
+  () => {
+    if (isParent.value && store.supermarketsLoaded && store.supermarkets.length === 0 && store.activeListId) {
+      store.ensureDefaultSupermarket()
+    }
+  },
+  { immediate: true },
+)
+
 // Single bottom sheet shared between "Add item" and "Edit item" — itemMode
 // distinguishes the two; only the fields and submit behaviour differ.
 const sheet = ref(false)
@@ -31,11 +44,30 @@ const itemName = ref('')
 const itemQty = ref('')
 const itemAisle = ref('')
 const selectedDoneItem = ref(null)
-const destListId = ref(null)
+// Item → supermarket allocation. Empty ids + allSupermarkets false = unallocated.
+const itemAllSupermarkets = ref(false)
+const itemSupermarketIds = ref([])
 
-const otherLists = computed(() =>
-  store.lists.filter(l => l.id !== store.activeListId)
-)
+const allocationHint = computed(() => {
+  if (itemAllSupermarkets.value) return 'Shown in every store'
+  if (itemSupermarketIds.value.length === 0) return 'Unallocated — shown in every store'
+  const names = store.supermarkets
+    .filter(s => itemSupermarketIds.value.includes(s.id))
+    .map(s => s.name)
+  return `Shown in: ${names.join(', ')}`
+})
+
+function toggleAllSupermarkets() {
+  itemAllSupermarkets.value = !itemAllSupermarkets.value
+  if (itemAllSupermarkets.value) itemSupermarketIds.value = []
+}
+
+function toggleSupermarket(id) {
+  itemAllSupermarkets.value = false
+  itemSupermarketIds.value = itemSupermarketIds.value.includes(id)
+    ? itemSupermarketIds.value.filter(x => x !== id)
+    : [...itemSupermarketIds.value, id]
+}
 
 const doneSuggestions = computed(() => {
   if (itemMode.value !== 'add') return []
@@ -72,14 +104,10 @@ function openAdd() {
   itemQty.value = ''
   itemAisle.value = store.activeAisles[0]?.name ?? ''
   selectedDoneItem.value = null
-  destListId.value = null
+  // New items default to unallocated (visible everywhere).
+  itemAllSupermarkets.value = false
+  itemSupermarketIds.value = []
   sheet.value = true
-}
-
-function moveOrCopy(action) {
-  if (!destListId.value || !editItem.value) return
-  store.moveOrCopyItem(editItem.value.id, destListId.value, action)
-  sheet.value = false
 }
 
 function openEdit(item) {
@@ -88,24 +116,30 @@ function openEdit(item) {
   itemName.value = item.name
   itemQty.value = item.qty ?? ''
   itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
-  destListId.value = null
+  itemAllSupermarkets.value = item.allSupermarkets ?? false
+  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
   sheet.value = true
 }
 
 function submit() {
   const name = itemName.value.trim().slice(0, ITEM_NAME_MAX_LENGTH)
   if (!name) return
+  const allocation = {
+    supermarketIds: itemAllSupermarkets.value ? [] : itemSupermarketIds.value,
+    allSupermarkets: itemAllSupermarkets.value,
+  }
   if (itemMode.value === 'edit') {
     store.updateItem(editItem.value.id, {
       name,
       qty: itemQty.value.trim(),
       aisle: itemAisle.value,
+      ...allocation,
     })
   } else if (selectedDoneItem.value) {
     const restored = store.restoreItem(selectedDoneItem.value.id, itemQty.value.trim(), itemAisle.value || null)
-    if (!restored) store.addItem(name, itemQty.value.trim(), itemAisle.value || null)
+    if (!restored) store.addItem(name, itemQty.value.trim(), itemAisle.value || null, allocation)
   } else {
-    store.addItem(name, itemQty.value.trim(), itemAisle.value || null)
+    store.addItem(name, itemQty.value.trim(), itemAisle.value || null, allocation)
   }
   itemName.value = ''
   itemQty.value = ''
@@ -123,21 +157,13 @@ function submitList() {
   listSheet.value = false
 }
 
-const deleteDialog = ref(false)
-const listToDelete = computed(() => store.lists.find(l => l.id === store.activeListId) ?? null)
+const supermarketSheet = ref(false)
 
-function confirmDelete() {
-  store.deleteList()
-  deleteDialog.value = false
-}
-
-const aisleSheet = ref(false)
-
-// Keep all three bottom sheets that contain text inputs above the Android
-// virtual keyboard. See useKeyboardAwareSheet for the full explanation.
+// Keep all bottom sheets that contain text inputs above the Android virtual
+// keyboard. See useKeyboardAwareSheet for the full explanation.
 useKeyboardAwareSheet(sheet, '--add-item-sheet-bottom')
 useKeyboardAwareSheet(listSheet, '--list-sheet-bottom')
-useKeyboardAwareSheet(aisleSheet, '--aisle-manager-sheet-bottom')
+useKeyboardAwareSheet(supermarketSheet, '--supermarket-manager-sheet-bottom')
 
 watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
 </script>
@@ -145,22 +171,32 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
 <template>
   <div class="shopping-view">
 
-    <!-- Lists exist: show items, FAB -->
+    <!-- List exists: supermarket selector, items, FAB -->
     <template v-if="hasLists">
-      <!-- List selector -->
+      <!-- Supermarket selector: "All items" (raw list) plus one chip per store -->
       <div class="list-selector px-2 pt-2">
         <div class="list-chips">
           <v-chip
-            v-for="list in store.lists"
-            :key="list.id"
-            :color="list.id === store.activeListId ? 'primary' : undefined"
-            :variant="list.id === store.activeListId ? 'flat' : 'tonal'"
-            :prepend-icon="list.id === store.activeListId ? 'mdi-check' : undefined"
+            :color="store.selectedSupermarketId === null ? 'primary' : undefined"
+            :variant="store.selectedSupermarketId === null ? 'flat' : 'tonal'"
+            :prepend-icon="store.selectedSupermarketId === null ? 'mdi-check' : undefined"
             size="small"
             class="mr-2"
-            @click="store.activateList(list.id)"
+            @click="store.selectSupermarket(null)"
           >
-            {{ list.name }}
+            All items
+          </v-chip>
+          <v-chip
+            v-for="sm in store.supermarkets"
+            :key="sm.id"
+            :color="store.selectedSupermarketId === sm.id ? 'primary' : undefined"
+            :variant="store.selectedSupermarketId === sm.id ? 'flat' : 'tonal'"
+            :prepend-icon="store.selectedSupermarketId === sm.id ? 'mdi-check' : undefined"
+            size="small"
+            class="mr-2"
+            @click="store.selectSupermarket(sm.id)"
+          >
+            {{ sm.name }}
           </v-chip>
         </div>
         <v-btn
@@ -179,31 +215,11 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
           icon
           variant="text"
           size="small"
-          color="error"
-          class="flex-0-0"
-          @click="deleteDialog = true"
-        >
-          <v-icon>mdi-delete-outline</v-icon>
-        </v-btn>
-        <v-btn
-          v-if="isParent"
-          icon
-          variant="text"
-          size="small"
           class="flex-0-0 ml-1"
-          @click="aisleSheet = true"
+          aria-label="Manage supermarkets"
+          @click="supermarketSheet = true"
         >
-          <v-icon>mdi-view-list-outline</v-icon>
-        </v-btn>
-        <v-btn
-          v-if="isParent"
-          icon
-          variant="text"
-          size="small"
-          class="flex-0-0 ml-1"
-          @click="listSheet = true"
-        >
-          <v-icon>mdi-plus</v-icon>
+          <v-icon>mdi-storefront-outline</v-icon>
         </v-btn>
       </div>
 
@@ -224,7 +240,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
       </v-btn>
     </template>
 
-    <!-- No lists yet: empty state -->
+    <!-- No list yet: empty state -->
     <div v-else class="empty-state">
       <v-icon size="64" color="medium-emphasis">mdi-cart-outline</v-icon>
       <p class="text-body-1 text-medium-emphasis mt-3">No shopping list yet</p>
@@ -235,7 +251,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
         class="mt-4"
         @click="listSheet = true"
       >
-        New list
+        Create shopping list
       </v-btn>
     </div>
 
@@ -292,41 +308,32 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
             </v-chip>
           </div>
         </div>
-        <!-- Move / copy to another list — only in edit mode when >1 list exists -->
-        <template v-if="itemMode === 'edit' && otherLists.length > 0">
-          <v-divider class="my-3" />
-          <div class="text-caption text-medium-emphasis mb-2">Move or copy to list</div>
-          <div class="d-flex flex-wrap gap-1 mb-3">
+
+        <!-- Supermarket allocation — only shown once the family has supermarkets -->
+        <div v-if="store.supermarkets.length > 0" class="mb-3">
+          <div class="text-caption text-medium-emphasis mb-2">Available in</div>
+          <div class="d-flex flex-wrap gap-1">
             <v-chip
-              v-for="list in otherLists"
-              :key="list.id"
-              :color="destListId === list.id ? 'secondary' : undefined"
-              :variant="destListId === list.id ? 'flat' : 'tonal'"
+              :color="itemAllSupermarkets ? 'primary' : undefined"
+              :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
               size="small"
-              @click="destListId = destListId === list.id ? null : list.id"
+              @click="toggleAllSupermarkets"
             >
-              {{ list.name }}
+              All supermarkets
+            </v-chip>
+            <v-chip
+              v-for="sm in store.supermarkets"
+              :key="sm.id"
+              :color="itemSupermarketIds.includes(sm.id) ? 'primary' : undefined"
+              :variant="itemSupermarketIds.includes(sm.id) ? 'flat' : 'tonal'"
+              size="small"
+              @click="toggleSupermarket(sm.id)"
+            >
+              {{ sm.name }}
             </v-chip>
           </div>
-          <div v-if="destListId" class="d-flex gap-2 mb-3">
-            <v-btn
-              variant="tonal"
-              color="secondary"
-              size="small"
-              @click="moveOrCopy('copy')"
-            >
-              Copy
-            </v-btn>
-            <v-btn
-              variant="tonal"
-              color="secondary"
-              size="small"
-              @click="moveOrCopy('move')"
-            >
-              Move
-            </v-btn>
-          </div>
-        </template>
+          <div class="text-caption text-medium-emphasis mt-1">{{ allocationHint }}</div>
+        </div>
 
         <div class="d-flex gap-2">
           <v-btn variant="text" @click="sheet = false">Cancel</v-btn>
@@ -338,7 +345,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
       </v-card>
     </v-bottom-sheet>
 
-    <!-- New list bottom sheet -->
+    <!-- New list bottom sheet (first-time onboarding of the single list) -->
     <v-bottom-sheet v-model="listSheet" max-width="600" content-class="list-sheet-overlay">
       <v-card rounded="t-xl" class="pa-4 new-list-card">
         <div class="text-subtitle-1 font-weight-medium mb-3">New list</div>
@@ -358,25 +365,10 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
       </v-card>
     </v-bottom-sheet>
 
-    <!-- Manage aisles bottom sheet (parent only) -->
-    <v-bottom-sheet v-model="aisleSheet" max-width="600" content-class="aisle-manager-overlay">
-      <AisleManager @close="aisleSheet = false" />
+    <!-- Manage supermarkets bottom sheet (parent only) -->
+    <v-bottom-sheet v-model="supermarketSheet" max-width="600" content-class="supermarket-manager-overlay">
+      <SupermarketManager @close="supermarketSheet = false" />
     </v-bottom-sheet>
-
-    <!-- Delete list confirmation dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400">
-      <v-card>
-        <v-card-title>Delete list?</v-card-title>
-        <v-card-text>
-          "{{ listToDelete?.name }}" will be permanently deleted.
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-          <v-btn color="error" variant="flat" @click="confirmDelete">Delete</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
 
   </div>
 </template>
@@ -393,8 +385,8 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   margin-bottom: var(--list-sheet-bottom, 0px);
   transition: margin-bottom 0.15s ease;
 }
-.aisle-manager-overlay {
-  margin-bottom: var(--aisle-manager-sheet-bottom, 0px);
+.supermarket-manager-overlay {
+  margin-bottom: var(--supermarket-manager-sheet-bottom, 0px);
   transition: margin-bottom 0.15s ease;
 }
 </style>

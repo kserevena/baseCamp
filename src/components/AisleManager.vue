@@ -3,8 +3,15 @@ import { ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useShoppingStore } from '@/stores/shopping.js'
 
+// Edits the aisle ordering of a single supermarket. Rendered inline inside
+// SupermarketManager (one instance per expanded store), so it carries no card
+// or close affordance of its own — the parent sheet owns those. Each store owns
+// an independent aisle list (issue #137 Part B).
+const props = defineProps({
+  supermarket: { type: Object, required: true },
+})
+
 const store = useShoppingStore()
-const emit = defineEmits(['close'])
 
 const localAisles = ref([])
 const newAisleName = ref('')
@@ -14,11 +21,11 @@ const aisleToDelete = ref(null)
 let pendingReorder = false
 
 watch(
-  () => store.activeAisles,
+  () => props.supermarket.aisles,
   (aisles) => {
-    if (!pendingReorder) localAisles.value = aisles.map(a => ({ ...a }))
+    if (!pendingReorder) localAisles.value = (aisles ?? []).map(a => ({ ...a }))
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
 
 function normalised() {
@@ -31,7 +38,7 @@ function onDragStart() {
 
 function onDragEnd() {
   pendingReorder = false
-  store.saveAisles(normalised())
+  store.saveSupermarketAisles(props.supermarket.id, normalised())
 }
 
 function addAisle() {
@@ -44,11 +51,11 @@ function addAisle() {
     nameError.value = 'Aisle already exists'
     return
   }
-  const maxOrder = localAisles.value.reduce((m, a) => Math.max(m, a.order), 0)
+  const maxOrder = localAisles.value.reduce((m, a) => Math.max(m, a.order ?? 0), 0)
   localAisles.value.push({ name, order: maxOrder + 10 })
   newAisleName.value = ''
   nameError.value = ''
-  store.saveAisles(normalised())
+  store.saveSupermarketAisles(props.supermarket.id, normalised())
 }
 
 function requestDelete(aisle) {
@@ -58,7 +65,7 @@ function requestDelete(aisle) {
 
 async function confirmDelete() {
   if (!aisleToDelete.value) return
-  await store.deleteAisle(aisleToDelete.value.name)
+  await store.deleteSupermarketAisle(props.supermarket.id, aisleToDelete.value.name)
   localAisles.value = localAisles.value.filter(a => a.name !== aisleToDelete.value.name)
   deleteDialog.value = false
   aisleToDelete.value = null
@@ -66,14 +73,7 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <v-card rounded="t-xl" class="pa-4 aisle-manager-card">
-    <div class="d-flex align-center mb-3">
-      <span class="text-subtitle-1 font-weight-medium flex-grow-1">Manage aisles</span>
-      <v-btn icon variant="text" size="small" @click="emit('close')">
-        <v-icon>mdi-close</v-icon>
-      </v-btn>
-    </div>
-
+  <div class="aisle-manager">
     <VueDraggable
       v-model="localAisles"
       handle=".drag-handle"
@@ -102,7 +102,7 @@ async function confirmDelete() {
       </div>
     </VueDraggable>
 
-    <div class="d-flex align-start gap-2 mt-3">
+    <div class="d-flex align-start gap-2 mt-2">
       <v-text-field
         v-model="newAisleName"
         label="New aisle"
@@ -123,34 +123,27 @@ async function confirmDelete() {
       </v-btn>
     </div>
 
-  </v-card>
-
-  <!-- Delete confirmation -->
-  <v-dialog v-model="deleteDialog" max-width="360">
-    <v-card>
-      <v-card-title>Delete aisle?</v-card-title>
-      <v-card-text>
-        "{{ aisleToDelete?.name }}" will be removed. Items in this aisle will be moved to Unknown.
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
-        <v-btn color="error" variant="flat" @click="confirmDelete">Delete</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    <!-- Delete confirmation. Removing an aisle only drops it from this store's
+         ordering — items keep their aisle name and fall to the bottom here. -->
+    <v-dialog v-model="deleteDialog" max-width="360">
+      <v-card>
+        <v-card-title>Delete aisle?</v-card-title>
+        <v-card-text>
+          "{{ aisleToDelete?.name }}" will be removed from {{ supermarket.name }}.
+          Items keep their aisle and appear at the bottom of this store's list.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
+          <v-btn color="error" variant="flat" @click="confirmDelete">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
 </template>
 
 <style scoped>
 .aisle-row {
   background: rgba(var(--v-theme-primary), 0.12);
-}
-
-/* dvh shrinks when the Android keyboard is shown, keeping the card fully
-   visible above the keyboard (#109). */
-.aisle-manager-card {
-  max-height: 90vh; /* fallback for browsers without dvh support */
-  max-height: 90dvh;
-  overflow-y: auto;
 }
 </style>

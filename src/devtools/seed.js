@@ -50,15 +50,43 @@ export async function seedIfEmpty() {
     })
   }
 
+  const AISLES = [
+    { name: 'Dairy', order: 1 },
+    { name: 'Meat', order: 2 },
+    { name: 'Dry goods', order: 3 },
+    { name: 'Bakery', order: 4 },
+    { name: 'Fruit & veg', order: 5 },
+  ]
+
   const listRef = await addDoc(collection(db, 'families', FAMILY_ID, 'shoppingLists'), {
     name: "This week's shop",
     createdAt: serverTimestamp(),
     createdBy: 'mock_dad',
+    aisles: AISLES,
   })
+
+  // Two supermarkets, each with its own aisle order (Lidl reverses fresh/ambient).
+  const tescoRef = await addDoc(collection(db, 'families', FAMILY_ID, 'supermarkets'), {
+    name: 'Tesco', aisles: AISLES, order: 0, createdBy: 'mock_dad', createdAt: serverTimestamp(),
+  })
+  await addDoc(collection(db, 'families', FAMILY_ID, 'supermarkets'), {
+    name: 'Lidl',
+    aisles: [
+      { name: 'Fruit & veg', order: 1 },
+      { name: 'Bakery', order: 2 },
+      { name: 'Dairy', order: 3 },
+      { name: 'Meat', order: 4 },
+      { name: 'Dry goods', order: 5 },
+    ],
+    order: 1, createdBy: 'mock_mum', createdAt: serverTimestamp(),
+  })
+
+  // Most items are unallocated (visible everywhere); a couple demonstrate
+  // specific-store and all-supermarkets allocation.
   const items = [
-    { name: 'Milk',            qty: '2 pints', aisle: 'Dairy',       aisleOrder: 1, done: false, addedBy: 'mock_dad'  },
+    { name: 'Milk',            qty: '2 pints', aisle: 'Dairy',       aisleOrder: 1, done: false, addedBy: 'mock_dad',  allSupermarkets: true },
     { name: 'Cheddar cheese',  qty: '400g',    aisle: 'Dairy',       aisleOrder: 1, done: false, addedBy: 'mock_mum'  },
-    { name: 'Chicken thighs',  qty: '1kg',     aisle: 'Meat',        aisleOrder: 2, done: false, addedBy: 'mock_mum'  },
+    { name: 'Chicken thighs',  qty: '1kg',     aisle: 'Meat',        aisleOrder: 2, done: false, addedBy: 'mock_mum', supermarketIds: [tescoRef.id] },
     { name: 'Bacon',           qty: '300g',    aisle: 'Meat',        aisleOrder: 2, done: false, addedBy: 'mock_dad'  },
     { name: 'Pasta',           qty: '500g',    aisle: 'Dry goods',   aisleOrder: 3, done: false, addedBy: 'mock_ella' },
     { name: 'Tinned tomatoes', qty: 'x2',      aisle: 'Dry goods',   aisleOrder: 3, done: false, addedBy: 'mock_mum'  },

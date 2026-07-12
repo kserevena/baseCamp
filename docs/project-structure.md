@@ -8,9 +8,10 @@ baseCamp/
 │   ├── test-setup.js                # Vitest global setup (Vuetify polyfills)
 │   ├── components/
 │   │   ├── FamilyAvatar.vue         # Coloured avatar circle with member initials
-│   │   ├── AisleManager.vue         # Parent-only drag-and-drop aisle CRUD; shown in a bottom sheet in ShoppingView
-│   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar)
-│   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers
+│   │   ├── AisleManager.vue         # Parent-only drag-and-drop aisle CRUD for one supermarket; embedded in SupermarketManager
+│   │   ├── SupermarketManager.vue   # Parent-only add/rename/remove supermarkets + per-store aisle editing; bottom sheet in ShoppingView
+│   │   ├── ShoppingItem.vue         # Single shopping list item (checkbox, name, qty, avatar, "All stores" badge)
+│   │   ├── ShoppingList.vue         # Items grouped by aisle with section headers (per-selected-supermarket order)
 │   │   ├── JobCard.vue              # Single job card — collapsed summary + expanded controls; parent-gated actions
 │   │   ├── JobsPreview.vue          # Compact home-screen card — top 3 active jobs by priority, +N overflow, links to /jobs
 │   │   ├── JobSubtasks.vue          # Subtask checklist per job; checkbox available to all; drag/add/delete parent-only
@@ -19,7 +20,7 @@ baseCamp/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top jobs preview, family avatars
 │   │   ├── LoginView.vue            # Google Sign-In page
 │   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
-│   │   ├── ShoppingView.vue         # Shopping list — list, add-item FAB, manage aisles
+│   │   ├── ShoppingView.vue         # Shopping list — supermarket selector, add-item FAB, allocation, manage supermarkets
 │   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
 │   │   ├── JobsView.vue             # Household jobs — status sections, category filter, FAB add dialog
 │   │   ├── CLAUDE.md                # UI design principles; PocketMoneyView complexity notes
@@ -43,7 +44,7 @@ baseCamp/
 │   ├── stores/
 │   │   ├── auth.js                  # Firebase Auth — Google Sign-In, isMinor detection
 │   │   ├── family.js                # Family membership, create/join, member colours
-│   │   ├── shopping.js              # Shopping list items (weekly list, CRUD, aisle sort, aisle management)
+│   │   ├── shopping.js              # Shopping list items + supermarkets (allocation, per-store aisle order, list CRUD)
 │   │   ├── pocketMoney.js           # Pocket money snapshots, auto-payment calc, withdrawal recording
 │   │   ├── jobs.js                  # Household jobs + subtasks; two onSnapshot listeners (jobs + collectionGroup subtasks)
 │   │   ├── CLAUDE.md                # pocketMoney UTC math + transaction safety; shopping store internals; jobs store internals
@@ -64,6 +65,7 @@ baseCamp/
 ├── scripts/
 │   ├── check-dev-env.mjs            # Preflight guard run by deploy:dev (validates .env)
 │   ├── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
+│   ├── migrate-supermarkets.mjs     # One-off #137 Part B migration: merge lists + seed default supermarket
 │   └── __tests__/
 │       └── check-dev-env.test.mjs   # Unit tests for check-dev-env validation logic
 ├── public/

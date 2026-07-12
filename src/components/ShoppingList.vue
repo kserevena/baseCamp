@@ -25,7 +25,9 @@ function buildGroups(items, aisles) {
   const groups = aisles.map(a => ({ aisle: a.name, aisleOrder: a.order, items: [] }))
 
   for (const item of activeItems) {
-    let group = groups.find(g => g.aisle === item.aisle)
+    // Match aisle by name case-insensitively so the deduplicated "All items"
+    // axis (which may hold one casing) still collects items written with another.
+    let group = groups.find(g => g.aisle.toLowerCase() === (item.aisle ?? '').toLowerCase())
     if (!group) {
       group = { aisle: item.aisle, aisleOrder: item.aisleOrder ?? 99, items: [] }
       groups.push(group)
@@ -40,17 +42,19 @@ function buildGroups(items, aisles) {
   return groups
 }
 
-const doneItems = computed(() => store.items.filter(i => i.done))
+// visibleItems reflects the selected supermarket filter (all items when the
+// "All items" view is active). Done/priority sections filter with it too.
+const doneItems = computed(() => store.visibleItems.filter(i => i.done))
 
 const priorityItems = computed(() =>
-  store.items.filter(i => !i.done && (i.priority ?? false)).sort(compareItems)
+  store.visibleItems.filter(i => !i.done && (i.priority ?? false)).sort(compareItems)
 )
 
-const groups = ref(buildGroups(store.items, store.activeAisles))
+const groups = ref(buildGroups(store.visibleItems, store.activeAisles))
 let pendingReorder = false
 
 watch(
-  [() => store.items, () => store.activeAisles],
+  [() => store.visibleItems, () => store.activeAisles],
   ([newItems, newAisles]) => {
     if (!pendingReorder) groups.value = buildGroups(newItems, newAisles)
   },

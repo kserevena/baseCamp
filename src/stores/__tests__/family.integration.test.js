@@ -537,6 +537,101 @@ describe('Firestore security rules', () => {
         )
       })
     })
+
+    describe('item supermarket allocation fields', () => {
+      // Part B adds supermarketIds / allSupermarkets to items. They are ordinary
+      // fields on a parent-only write path — no separate rule — but verify the
+      // write path still succeeds carrying them.
+      it('allows a parent to add an item with allocation fields', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items'), {
+            name: 'Milk', qty: '2 pints', aisle: 'Dairy', aisleOrder: 1, done: false,
+            addedBy: 'parent-uid', supermarketIds: ['sm-1'], allSupermarkets: false,
+          })
+        )
+      })
+    })
+  })
+
+  describe('supermarkets subcollection', () => {
+    beforeEach(async () => {
+      await seedFamily('fam-1', [
+        { uid: 'parent-uid', name: 'Parent', role: 'parent' },
+        { uid: 'child-uid',  name: 'Child',  role: 'child' },
+      ])
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1'), {
+          name: 'Tesco', aisles: [{ name: 'Dairy', order: 1 }], order: 0,
+          createdBy: 'parent-uid', createdAt: serverTimestamp(),
+        })
+      })
+    })
+
+    it('allows a family member to read a supermarket', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertSucceeds(getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1')))
+    })
+
+    it('denies a non-member reading a supermarket', async () => {
+      const ctx = testEnv.authenticatedContext('outsider-uid')
+      await assertFails(getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1')))
+    })
+
+    it('allows a parent to create a supermarket', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'supermarkets'), {
+          name: 'Lidl', aisles: [], order: 1, createdBy: 'parent-uid', createdAt: serverTimestamp(),
+        })
+      )
+    })
+
+    it('denies a child creating a supermarket', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'supermarkets'), {
+          name: 'Lidl', aisles: [], order: 1, createdBy: 'child-uid', createdAt: serverTimestamp(),
+        })
+      )
+    })
+
+    it('allows a parent to update a supermarket (rename / edit aisles)', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(
+        updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1'), { name: 'Costco' })
+      )
+    })
+
+    it('denies a child updating a supermarket', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(
+        updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1'), { name: 'Costco' })
+      )
+    })
+
+    it('allows a parent to delete a supermarket', async () => {
+      const ctx = testEnv.authenticatedContext('parent-uid')
+      await assertSucceeds(deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1')))
+    })
+
+    it('denies a child deleting a supermarket', async () => {
+      const ctx = testEnv.authenticatedContext('child-uid')
+      await assertFails(deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1')))
+    })
+
+    it('denies a parent of another family reading or writing a supermarket', async () => {
+      await seedFamily('fam-2', [
+        { uid: 'parent2-uid', name: 'Parent 2', role: 'parent' },
+      ], { createdBy: 'parent2-uid' })
+      const ctx = testEnv.authenticatedContext('parent2-uid')
+      await assertFails(getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'supermarkets', 'sm-1')))
+      await assertFails(
+        addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'supermarkets'), {
+          name: 'Injected', aisles: [], order: 9, createdBy: 'parent2-uid', createdAt: serverTimestamp(),
+        })
+      )
+    })
   })
 
   describe('pocketMoney subcollection', () => {

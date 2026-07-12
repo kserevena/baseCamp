@@ -4,7 +4,7 @@ A private family organiser Progressive Web App (PWA) built with Vue 3, designed 
 
 ## App Features
 
-- **Shopping lists** — create named lists, group items by aisle, tick off as you shop, drag to reorder within aisles; parents manage aisles and list settings
+- **Shopping** — a shared family list grouped by aisle; tick off as you shop and drag to reorder. Define your supermarkets, each with its own aisle order, allocate items to specific stores / all stores / leave unallocated, then filter the list to one store; parents manage supermarkets, aisles, and allocation
 - **Pocket money** — parents configure a weekly allowance per child with a payment day; balances accrue automatically and parents record withdrawals; children see their own read-only balance
 - **Household jobs** — any family member can suggest jobs; parents plan, assign, and track progress through suggested → planned → in progress → done; jobs support subtasks, priorities, cost estimates, and per-member assignment
 - **Family avatars** — each member has a colour used consistently across all views for item attribution, vote indicators, and assignment
@@ -244,7 +244,8 @@ Data lives in five top-level Firestore collections:
 | `users/{uid}` | Maps each authenticated user to their `familyId` |
 | `inviteCodes/{code}` | Maps an 8-character invite code to a `familyId` |
 | `families/{familyId}` | Family name, invite code, and `members/` subcollection |
-| `families/{familyId}/shoppingLists/{listId}` | One document per named list, with an `items/` subcollection |
+| `families/{familyId}/shoppingLists/{listId}` | One document per named list, with an `items/` subcollection. Items can be allocated to supermarkets (`supermarketIds` / `allSupermarkets`) |
+| `families/{familyId}/supermarkets/{supermarketId}` | Per-family stores, each with its own aisle ordering (used to filter and re-order the shopping list) |
 
 Pocket money config, balances, and transactions live under `families/{familyId}/pocketMoney/{childUid}` (and its `transactions/` subcollection).
 

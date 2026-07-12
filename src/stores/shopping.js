@@ -92,6 +92,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     if (unsubscribeItems) unsubscribeItems()
     unsubscribeLists = null
     unsubscribeItems = null
+    currentFamilyId = null
     lists.value = []
     items.value = []
     activeListId.value = null
@@ -109,6 +110,7 @@ export const useShoppingStore = defineStore('shopping', () => {
   }
 
   async function createList(name) {
+    if (!currentFamilyId) return
     const familyStore = useFamilyStore()
     const ref = await addDoc(listsCol(), {
       name: name.trim(),

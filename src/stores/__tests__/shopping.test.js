@@ -213,6 +213,14 @@ describe('shopping store', () => {
 
       expect(store.activeListId).toBe('created-list-id')
     })
+
+    it('does nothing when setup has never been called', async () => {
+      const store = useShoppingStore()
+
+      await store.createList('Orphan list')
+
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
   })
 
   describe('addItem', () => {
@@ -1172,6 +1180,16 @@ describe('shopping store', () => {
       expect(store.lists).toHaveLength(0)
       expect(store.items).toHaveLength(0)
       expect(store.activeListId).toBeNull()
+    })
+
+    it('clears currentFamilyId so a stray createList after teardown does not write to the previous family', async () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      store.teardown()
+
+      await store.createList('Should not be created')
+
+      expect(mockAddDoc).not.toHaveBeenCalled()
     })
 
     it('calls both unsubscribe functions', () => {

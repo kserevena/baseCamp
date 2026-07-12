@@ -50,8 +50,7 @@ export async function seedIfEmpty() {
     })
   }
 
-  const listRef = await addDoc(collection(db, 'shoppingLists'), {
-    familyId: FAMILY_ID,
+  const listRef = await addDoc(collection(db, 'families', FAMILY_ID, 'shoppingLists'), {
     name: "This week's shop",
     createdAt: serverTimestamp(),
     createdBy: 'mock_dad',
@@ -68,7 +67,7 @@ export async function seedIfEmpty() {
     { name: 'Broccoli',        qty: '1 head',  aisle: 'Fruit & veg', aisleOrder: 5, done: false, addedBy: 'mock_mum'  },
   ]
   for (const item of items) {
-    await addDoc(collection(db, 'shoppingLists', listRef.id, 'items'), {
+    await addDoc(collection(db, 'families', FAMILY_ID, 'shoppingLists', listRef.id, 'items'), {
       ...item, createdAt: serverTimestamp(),
     })
   }

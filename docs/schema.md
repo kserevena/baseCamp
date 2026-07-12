@@ -21,8 +21,7 @@ families/{familyId}
     inviteCode: string        ← only on child members who joined; the code they used,
                                 so the security rule can verify it maps to this family
 
-shoppingLists/{listId}        ← auto-generated ID
-  familyId: string
+families/{familyId}/shoppingLists/{listId}   ← auto-generated ID; family scope is in the path
   name: string                ← user-provided name; set by a parent when creating the list
   createdAt: timestamp
   createdBy: uid
@@ -80,7 +79,7 @@ families/{familyId}/householdJobs/{jobId}/subtasks/{subtaskId}
   updatedAt: timestamp
 ```
 
-**New family-scoped collections must be subcollections of `families/{familyId}/`.** Do not create new root-level collections that carry a `familyId` field for access control — nesting under the family document makes security rules simpler and avoids cross-family data leakage by construction. (`shoppingLists` predates this convention and uses the root-level pattern; do not follow that pattern for any new data.)
+**New family-scoped collections must be subcollections of `families/{familyId}/`.** Do not create new root-level collections that carry a `familyId` field for access control — nesting under the family document makes security rules simpler and avoids cross-family data leakage by construction. (`shoppingLists` was originally root-level; it was migrated to `families/{familyId}/shoppingLists` in issue #137, so every family-scoped collection now follows this convention.)
 
 ---
 

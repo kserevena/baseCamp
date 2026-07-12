@@ -57,7 +57,6 @@ const DEFAULT_AISLES = [
 const mockList = (id, name, millis = 1000, aisles = undefined) => ({
   id,
   data: () => ({
-    familyId: 'fam-1',
     name,
     createdAt: { toMillis: () => millis },
     ...(aisles !== undefined ? { aisles } : {}),
@@ -186,10 +185,10 @@ describe('shopping store', () => {
       expect(mockAddDoc).toHaveBeenCalledOnce()
       const payload = mockAddDoc.mock.calls[0][1]
       expect(payload).toMatchObject({
-        familyId: 'fam-1',
         name: 'Party supplies',
         createdBy: 'parent-uid',
       })
+      expect(payload.familyId).toBeUndefined()
       expect(payload.createdAt).toBeDefined()
       expect(payload.aisles).toEqual(DEFAULT_AISLES)
     })
@@ -214,17 +213,26 @@ describe('shopping store', () => {
 
       expect(store.activeListId).toBe('created-list-id')
     })
+
+    it('does nothing when setup has never been called', async () => {
+      const store = useShoppingStore()
+
+      await store.createList('Orphan list')
+
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
   })
 
   describe('addItem', () => {
     it('calls addDoc on the correct path using activeListId', () => {
       const store = useShoppingStore()
+      store.setup('fam-1')
       store.activateList('list-1')
 
       store.addItem('Butter', '250g', 'Dairy')
 
       expect(mockAddDoc).toHaveBeenCalledOnce()
-      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items')
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items')
     })
 
     it('does nothing when activeListId is null', () => {
@@ -296,10 +304,10 @@ describe('shopping store', () => {
     })
 
     it('returns true and calls updateDoc with done:false, qty, aisle, aisleOrder', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
       let itemsCallback
       mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
-
-      const store = useShoppingStore()
       store.activateList('list-1')
       itemsCallback({ docs: [mockItem('item-1', { done: true, aisle: 'Dairy', aisleOrder: 1 })] })
 
@@ -307,7 +315,7 @@ describe('shopping store', () => {
 
       expect(result).toBe(true)
       expect(mockUpdateDoc).toHaveBeenCalledOnce()
-      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1')
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
         done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1,
       })
@@ -357,10 +365,10 @@ describe('shopping store', () => {
     })
 
     it('sets priority to true when item has no priority field', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
       let itemsCallback
       mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
-
-      const store = useShoppingStore()
       store.activateList('list-1')
       itemsCallback({ docs: [mockItem('item-1')] })
 
@@ -368,7 +376,7 @@ describe('shopping store', () => {
 
       expect(store.items[0].priority).toBe(true)
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { priority: true })
-      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1')
     })
 
     it('sets priority to true when item has priority: false', () => {
@@ -417,17 +425,17 @@ describe('shopping store', () => {
 
   describe('toggleDone', () => {
     it('calls updateDoc on the correct path using activeListId', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
       let itemsCallback
       mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
-
-      const store = useShoppingStore()
       store.activateList('list-1')
       itemsCallback({ docs: [mockItem('item-1')] })
 
       store.toggleDone('item-1')
 
       expect(mockUpdateDoc).toHaveBeenCalledOnce()
-      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1')
     })
 
     it('does nothing when activeListId is null', () => {
@@ -488,17 +496,17 @@ describe('shopping store', () => {
     })
 
     it('writes back the exact done, addedBy, and priority without reassigning addedBy', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
       let itemsCallback
       mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
-
-      const store = useShoppingStore()
       store.activateList('list-1')
       itemsCallback({ docs: [mockItem('item-1', { done: true, addedBy: 'current-uid', priority: false })] })
 
       // Undo an accidental tick: restore to the original (not-done, original adder, originally starred).
       store.restoreToggleState('item-1', { done: false, addedBy: 'original-uid', priority: true })
 
-      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1')
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: false, addedBy: 'original-uid', priority: true })
       expect(store.items[0].done).toBe(false)
       expect(store.items[0].addedBy).toBe('original-uid')
@@ -521,17 +529,17 @@ describe('shopping store', () => {
     })
 
     it('calls updateDoc on the correct Firestore path', () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
       let itemsCallback
       mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
-
-      const store = useShoppingStore()
       store.activateList('list-1')
       itemsCallback({ docs: [mockItem('item-1')] })
 
       store.updateItem('item-1', { name: 'Skimmed milk', qty: '1 pint' })
 
       expect(mockDoc).toHaveBeenCalledWith(
-        expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1'
+        expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1'
       )
     })
 
@@ -613,12 +621,13 @@ describe('shopping store', () => {
 
     it('calls getDocs on the items subcollection first', async () => {
       const store = useShoppingStore()
+      store.setup('fam-1')
       store.activateList('list-1')
 
       await store.deleteList()
 
       expect(mockGetDocs).toHaveBeenCalledOnce()
-      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items')
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items')
     })
 
     it('calls deleteDoc for each item before deleting the parent', async () => {
@@ -627,27 +636,30 @@ describe('shopping store', () => {
       mockGetDocs.mockResolvedValueOnce({ docs: [item1, item2] })
 
       const store = useShoppingStore()
+      store.setup('fam-1')
       store.activateList('list-1')
 
       await store.deleteList()
 
       // deleteDoc called 3 times: 2 items + 1 parent
       expect(mockDeleteDoc).toHaveBeenCalledTimes(3)
-      // Parent delete is last
+      // Parent delete is last. List doc path is [db, 'families', fam, 'shoppingLists', listId]
+      // (5 args); item doc path adds 'items'/itemId (7 args).
       const calls = mockDoc.mock.calls
-      const parentCall = calls.find(c => c.length === 3 && c[2] === 'list-1')
-      const itemCalls = calls.filter(c => c.length === 5)
+      const parentCall = calls.find(c => c.length === 5 && c[4] === 'list-1')
+      const itemCalls = calls.filter(c => c.length === 7)
       expect(itemCalls).toHaveLength(2)
       expect(parentCall).toBeDefined()
     })
 
     it('deletes the parent document at path shoppingLists/{activeListId}', async () => {
       const store = useShoppingStore()
+      store.setup('fam-1')
       store.activateList('list-1')
 
       await store.deleteList()
 
-      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1')
       expect(mockDeleteDoc).toHaveBeenCalled()
     })
   })
@@ -655,13 +667,14 @@ describe('shopping store', () => {
   describe('deleteItem', () => {
     it('calls deleteDoc on the correct Firestore path', async () => {
       const store = useShoppingStore()
+      store.setup('fam-1')
       store.activateList('list-1')
 
       await store.deleteItem('item-1')
 
       expect(mockDeleteDoc).toHaveBeenCalledOnce()
       expect(mockDoc).toHaveBeenCalledWith(
-        expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1'
+        expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1'
       )
     })
 
@@ -754,12 +767,13 @@ describe('shopping store', () => {
 
     it('targets the correct item document path', async () => {
       const store = useShoppingStore()
+      store.setup('fam-1')
       store.activateList('list-1')
 
       await store.reorderItems([{ id: 'item-99', sortOrder: 0 }])
 
       expect(mockDoc).toHaveBeenCalledWith(
-        expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-99',
+        expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-99',
       )
     })
   })
@@ -824,12 +838,13 @@ describe('shopping store', () => {
     it('calls updateDoc on shoppingLists/{listId} with the aisles array', async () => {
       const newAisles = [{ name: 'Dairy', order: 1 }, { name: 'Meat', order: 2 }]
       const store = useShoppingStore()
+      store.setup('fam-1')
       store.activateList('list-1')
 
       await store.saveAisles(newAisles)
 
       expect(mockUpdateDoc).toHaveBeenCalledOnce()
-      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1')
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { aisles: newAisles })
     })
   })
@@ -1029,7 +1044,7 @@ describe('shopping store', () => {
       store.moveOrCopyItem('item-1', 'list-2', 'copy')
 
       expect(mockAddDoc).toHaveBeenCalledOnce()
-      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-2', 'items')
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-2', 'items')
     })
 
     it('copy — writes correct item fields to the destination', () => {
@@ -1125,7 +1140,7 @@ describe('shopping store', () => {
       store.moveOrCopyItem('item-1', 'list-2', 'move')
 
       expect(mockAddDoc).toHaveBeenCalledOnce()
-      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-2', 'items')
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-2', 'items')
     })
 
     it('move — calls deleteDoc on the source item', () => {
@@ -1135,7 +1150,7 @@ describe('shopping store', () => {
       store.moveOrCopyItem('item-1', 'list-2', 'move')
 
       expect(mockDeleteDoc).toHaveBeenCalledOnce()
-      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'shoppingLists', 'list-1', 'items', 'item-1')
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1')
     })
 
     it('move — removes the item from local Pinia state immediately', () => {
@@ -1165,6 +1180,16 @@ describe('shopping store', () => {
       expect(store.lists).toHaveLength(0)
       expect(store.items).toHaveLength(0)
       expect(store.activeListId).toBeNull()
+    })
+
+    it('clears currentFamilyId so a stray createList after teardown does not write to the previous family', async () => {
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      store.teardown()
+
+      await store.createList('Should not be created')
+
+      expect(mockAddDoc).not.toHaveBeenCalled()
     })
 
     it('calls both unsubscribe functions', () => {

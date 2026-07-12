@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, query, where, writeBatch,
+  collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config.js'
 import { useFamilyStore } from './family.js'
@@ -27,6 +27,14 @@ export const useShoppingStore = defineStore('shopping', () => {
   let unsubscribeLists = null
   let unsubscribeItems = null
 
+  // Firestore path helpers. Shopping lists live under the family document
+  // (families/{familyId}/shoppingLists/{listId}) so the family scope is carried
+  // by the path — there is no familyId field on the documents.
+  const listsCol = () => collection(db, 'families', currentFamilyId, 'shoppingLists')
+  const listDoc = (listId) => doc(db, 'families', currentFamilyId, 'shoppingLists', listId)
+  const itemsCol = (listId) => collection(db, 'families', currentFamilyId, 'shoppingLists', listId, 'items')
+  const itemDoc = (listId, itemId) => doc(db, 'families', currentFamilyId, 'shoppingLists', listId, 'items', itemId)
+
   function storageKey(familyId) {
     return `lastActiveListId_${familyId}`
   }
@@ -38,7 +46,7 @@ export const useShoppingStore = defineStore('shopping', () => {
       localStorage.setItem(storageKey(currentFamilyId), listId)
     }
     unsubscribeItems = onSnapshot(
-      collection(db, 'shoppingLists', listId, 'items'),
+      itemsCol(listId),
       (snap) => {
         items.value = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
@@ -56,7 +64,7 @@ export const useShoppingStore = defineStore('shopping', () => {
   function setup(familyId) {
     currentFamilyId = familyId
     unsubscribeLists = onSnapshot(
-      query(collection(db, 'shoppingLists'), where('familyId', '==', familyId)),
+      listsCol(),
       (snap) => {
         lists.value = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
@@ -84,6 +92,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     if (unsubscribeItems) unsubscribeItems()
     unsubscribeLists = null
     unsubscribeItems = null
+    currentFamilyId = null
     lists.value = []
     items.value = []
     activeListId.value = null
@@ -92,17 +101,18 @@ export const useShoppingStore = defineStore('shopping', () => {
   async function deleteList() {
     if (!activeListId.value) return
     const listId = activeListId.value
-    // Items must be deleted before the parent — the items rule does a get() on the
-    // parent to read familyId; deleting the parent first would deny item deletes.
-    const itemsSnap = await getDocs(collection(db, 'shoppingLists', listId, 'items'))
-    await Promise.all(itemsSnap.docs.map(d => deleteDoc(doc(db, 'shoppingLists', listId, 'items', d.id))))
-    await deleteDoc(doc(db, 'shoppingLists', listId))
+    // Items must be deleted before the parent — parents-only delete is scoped by the
+    // families/{familyId} path, but deleting child items first mirrors established
+    // child-before-parent deletion practice (see deleteJob in the jobs store).
+    const itemsSnap = await getDocs(itemsCol(listId))
+    await Promise.all(itemsSnap.docs.map(d => deleteDoc(itemDoc(listId, d.id))))
+    await deleteDoc(listDoc(listId))
   }
 
   async function createList(name) {
+    if (!currentFamilyId) return
     const familyStore = useFamilyStore()
-    const ref = await addDoc(collection(db, 'shoppingLists'), {
-      familyId: currentFamilyId,
+    const ref = await addDoc(listsCol(), {
       name: name.trim(),
       createdAt: serverTimestamp(),
       createdBy: familyStore.currentUser?.uid ?? '',
@@ -113,7 +123,7 @@ export const useShoppingStore = defineStore('shopping', () => {
 
   async function deleteItem(itemId) {
     if (!activeListId.value) return
-    await deleteDoc(doc(db, 'shoppingLists', activeListId.value, 'items', itemId))
+    await deleteDoc(itemDoc(activeListId.value, itemId))
   }
 
   function togglePriority(id) {
@@ -121,7 +131,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     const item = items.value.find(i => i.id === id)
     if (!item) return
     item.priority = !(item.priority ?? false)
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { priority: item.priority })
+    updateDoc(itemDoc(activeListId.value, id), { priority: item.priority })
   }
 
   function toggleDone(id) {
@@ -140,7 +150,7 @@ export const useShoppingStore = defineStore('shopping', () => {
       item.priority = false
       update.priority = false
     }
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), update)
+    updateDoc(itemDoc(activeListId.value, id), update)
   }
 
   // Restores an item's exact done/addedBy/priority state. Used to undo a toggleDone:
@@ -153,7 +163,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     item.done = done
     item.addedBy = addedBy
     item.priority = priority ?? false
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), { done, addedBy, priority: priority ?? false })
+    updateDoc(itemDoc(activeListId.value, id), { done, addedBy, priority: priority ?? false })
   }
 
   function updateItem(id, { name, qty, aisle }) {
@@ -170,14 +180,14 @@ export const useShoppingStore = defineStore('shopping', () => {
       update.aisle = aisle
       update.aisleOrder = aisleObj?.order ?? 99
     }
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), update)
+    updateDoc(itemDoc(activeListId.value, id), update)
   }
 
   async function reorderItems(updates) {
     if (!activeListId.value) return
     const batch = writeBatch(db)
     for (const { id, ...fields } of updates) {
-      batch.update(doc(db, 'shoppingLists', activeListId.value, 'items', id), fields)
+      batch.update(itemDoc(activeListId.value, id), fields)
     }
     await batch.commit()
   }
@@ -187,7 +197,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     const resolvedAisle = aisle ?? activeAisles.value[0]?.name ?? 'Unknown'
     const aisleObj = activeAisles.value.find(a => a.name === resolvedAisle)
     const familyStore = useFamilyStore()
-    addDoc(collection(db, 'shoppingLists', activeListId.value, 'items'), {
+    addDoc(itemsCol(activeListId.value), {
       name,
       qty,
       aisle: resolvedAisle,
@@ -207,7 +217,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     item.qty = qty
     item.aisle = aisle
     item.aisleOrder = aisleObj?.order ?? 99
-    updateDoc(doc(db, 'shoppingLists', activeListId.value, 'items', id), {
+    updateDoc(itemDoc(activeListId.value, id), {
       done: false, qty, aisle, aisleOrder: aisleObj?.order ?? 99,
     })
     return true
@@ -221,7 +231,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     const destAisles = destList?.aisles ?? DEFAULT_AISLES
     const aisleObj = destAisles.find(a => a.name === item.aisle)
     const familyStore = useFamilyStore()
-    addDoc(collection(db, 'shoppingLists', destListId, 'items'), {
+    addDoc(itemsCol(destListId), {
       name: item.name,
       qty: item.qty ?? '',
       aisle: aisleObj ? item.aisle : 'Unknown',
@@ -234,13 +244,13 @@ export const useShoppingStore = defineStore('shopping', () => {
     })
     if (action === 'move') {
       items.value = items.value.filter(i => i.id !== itemId)
-      deleteDoc(doc(db, 'shoppingLists', activeListId.value, 'items', itemId))
+      deleteDoc(itemDoc(activeListId.value, itemId))
     }
   }
 
   async function saveAisles(aisles) {
     if (!activeListId.value) return
-    await updateDoc(doc(db, 'shoppingLists', activeListId.value), { aisles })
+    await updateDoc(listDoc(activeListId.value), { aisles })
   }
 
   async function deleteAisle(aisleName) {
@@ -249,12 +259,12 @@ export const useShoppingStore = defineStore('shopping', () => {
     const affectedItems = items.value.filter(i => i.aisle === aisleName)
     for (const item of affectedItems) {
       batch.update(
-        doc(db, 'shoppingLists', activeListId.value, 'items', item.id),
+        itemDoc(activeListId.value, item.id),
         { aisle: 'Unknown', aisleOrder: 99 },
       )
     }
     const newAisles = activeAisles.value.filter(a => a.name !== aisleName)
-    batch.update(doc(db, 'shoppingLists', activeListId.value), { aisles: newAisles })
+    batch.update(listDoc(activeListId.value), { aisles: newAisles })
     await batch.commit()
   }
 

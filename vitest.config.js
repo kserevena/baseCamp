@@ -20,12 +20,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**', 'scripts/**'],
-      // One-off Firestore migration/cleanup scripts (issue #137) are manual ops tooling
-      // exercised against the emulator, not app runtime — excluded like devtools/seed.js.
-      exclude: [
-        'src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js',
-        'scripts/migrate-shopping-lists.mjs', 'scripts/delete-old-shopping-lists.mjs',
-      ],
+      exclude: ['src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js'],
       thresholds: {
         statements: 86,
         branches: 83,

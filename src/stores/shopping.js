@@ -422,6 +422,9 @@ export const useShoppingStore = defineStore('shopping', () => {
   async function deleteSupermarket(id) {
     if (!currentFamilyId) return
     const batch = writeBatch(db)
+    // Only the active list's loaded items are stripped. Post-collapse there is a
+    // single list, so this covers every item; a dangling id in another list would
+    // simply filter to nothing until that list is merged.
     if (activeListId.value) {
       for (const item of items.value) {
         const ids = item.supermarketIds ?? []

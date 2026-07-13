@@ -108,6 +108,22 @@ describe('SupermarketManager', () => {
       await check.trigger('click')
       expect(shoppingStore.renameSupermarket).toHaveBeenCalledWith('sm-1', 'Costco')
     })
+
+    it('does not rename again with a null id when saveRename fires twice (Enter then blur)', async () => {
+      const wrapper = mountManager()
+      const pencil = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.html().includes('mdi-pencil-outline'))
+      await pencil.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.editingName = 'Costco'
+      // First call (Enter) commits the rename and clears editingId; the second
+      // call (blur, after the input unmounts) must be a no-op, not a null write.
+      wrapper.vm.saveRename()
+      wrapper.vm.saveRename()
+
+      expect(shoppingStore.renameSupermarket).toHaveBeenCalledTimes(1)
+      expect(shoppingStore.renameSupermarket).toHaveBeenCalledWith('sm-1', 'Costco')
+    })
   })
 
   describe('expand aisles', () => {

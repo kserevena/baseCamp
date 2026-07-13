@@ -42,6 +42,10 @@ function startRename(sm) {
 }
 
 function saveRename() {
+  // The field fires this on both Enter and blur; Enter removes the input (v-if),
+  // whose unmount triggers a second blur call. Guard against the null-id pass so
+  // we neither double-write nor call renameSupermarket with a null id.
+  if (editingId.value == null) return
   const name = editingName.value.trim()
   if (name) store.renameSupermarket(editingId.value, name)
   editingId.value = null

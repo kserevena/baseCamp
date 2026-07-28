@@ -1,20 +1,31 @@
 // One-off migration for issue #137 Part B (supermarket allocation & per-store
-// aisle ordering). Two additive, idempotent steps per family:
+// aisle ordering). Converts the old multi-list model into the new single-list +
+// supermarkets model, per family. Additive and idempotent.
 //
-//   1. Collapse multiple shopping lists into one. The newest list (by createdAt)
-//      survives; every other list's items are copied into it (copy-if-absent by
-//      id). With --delete-merged, the drained lists and their items are then
-//      removed. Without it, the extra lists are left in place (the app only shows
-//      the surviving list, so nothing is lost — cleanup can run later).
+//   1. Each existing shopping list becomes a supermarket. A supermarket document
+//      is created at supermarkets/{listId} (keyed by the list's id so re-runs are
+//      idempotent), carrying the list's name and its aisle ordering. Order is
+//      assigned oldest-list-first, so the oldest list is the default (order 0)
+//      that seeds the "All items" aisle axis — reorder in the app if you prefer.
 //
-//   2. Ensure a default supermarket exists. If the family has no supermarkets, one
-//      named "My supermarket" is created, seeded from the surviving list's aisles
-//      (or the built-in defaults). This matches the app's auto-provisioning, and
-//      covers families where no parent has opened the app since the update.
+//   2. All items collapse into one surviving list (the newest by createdAt) and
+//      are allocated to the supermarket derived from the list they came from:
+//      supermarketIds = [originListId]. Items already carrying an allocation are
+//      left as-is (so manual edits are never clobbered). Copies are copy-if-absent
+//      by item id.
 //
-// Existing items need no change: absent supermarketIds / allSupermarkets read as
-// "unallocated", which displays in every view. Nothing is deleted unless
-// --delete-merged is passed, and re-running is safe.
+//   With --delete-merged, the drained (non-surviving) lists and their items are
+//   removed afterwards; without it they are left in place (the app only shows the
+//   surviving list, so nothing is lost — cleanup can run later).
+//
+// A family with a single list yields one supermarket with all its items allocated
+// to it. Nothing is deleted unless --delete-merged is passed, and re-running is safe.
+//
+// Ordering note: run this BEFORE parents open the updated app. The app auto-
+// provisions a lone "My supermarket" for a family that has zero supermarkets; if
+// that already happened, this migration still creates the per-list supermarkets
+// (keyed by list id, no collision) and the empty "My supermarket" can be deleted
+// in the app afterwards.
 //
 // Auth / target selection:
 //   • Emulator  — set FIRESTORE_EMULATOR_HOST (e.g. localhost:8080). No creds needed.
@@ -71,73 +82,93 @@ console.log(
 )
 
 const millis = (ts) => (ts?.toMillis?.() ?? 0)
+const isUnallocated = (data) =>
+  !(data.allSupermarkets ?? false) && ((data.supermarketIds?.length ?? 0) === 0)
 
-let itemsMerged = 0
+let supermarketsCreated = 0
+let itemsAllocated = 0
 let itemsSkipped = 0
 let listsDeleted = 0
-let supermarketsCreated = 0
 const warnings = []
 
 const families = await db.collection('families').get()
 
 for (const familySnap of families.docs) {
   const familyId = familySnap.id
-  const listsRef = familySnap.ref.collection('shoppingLists')
-  const listSnaps = (await listsRef.get()).docs
+  const listSnaps = (await familySnap.ref.collection('shoppingLists').get()).docs
+  if (listSnaps.length === 0) continue
 
-  // Step 1 — collapse lists into the newest one.
-  let survivingList = null
-  if (listSnaps.length > 0) {
-    const sorted = [...listSnaps].sort((a, b) => millis(b.data().createdAt) - millis(a.data().createdAt))
-    survivingList = sorted[0]
-    const drained = sorted.slice(1)
-
-    for (const listSnap of drained) {
-      const items = (await listSnap.ref.collection('items').get()).docs
-      for (const itemSnap of items) {
-        const destRef = survivingList.ref.collection('items').doc(itemSnap.id)
-        if ((await destRef.get()).exists) {
-          itemsSkipped++
-        } else {
-          console.log(`  + item ${itemSnap.id}: ${listSnap.id} → ${survivingList.id} (family ${familyId})`)
-          if (!dryRun) await destRef.set(itemSnap.data())
-          itemsMerged++
-        }
-      }
-      if (deleteMerged) {
-        if (!dryRun) {
-          for (const itemSnap of items) await itemSnap.ref.delete()
-          await listSnap.ref.delete()
-        }
-        console.log(`  - drained list ${listSnap.id} deleted (family ${familyId})`)
-        listsDeleted++
-      }
-    }
-  }
-
-  // Step 2 — ensure a default supermarket exists.
+  // Oldest-first drives supermarket order; newest survives as the single list.
+  const byOldest = [...listSnaps].sort((a, b) => millis(a.data().createdAt) - millis(b.data().createdAt))
+  const surviving = [...listSnaps].sort((a, b) => millis(b.data().createdAt) - millis(a.data().createdAt))[0]
   const supermarketsRef = familySnap.ref.collection('supermarkets')
-  const existingSupermarkets = (await supermarketsRef.get()).docs
-  if (existingSupermarkets.length === 0) {
-    const seedAisles = survivingList?.data()?.aisles ?? DEFAULT_AISLES
-    console.log(`  + supermarket "My supermarket" for family ${familyId} (${seedAisles.length} aisles)`)
+
+  // 1. One supermarket per list, keyed by the list id (idempotent).
+  for (let i = 0; i < byOldest.length; i++) {
+    const listSnap = byOldest[i]
+    const smRef = supermarketsRef.doc(listSnap.id)
+    if ((await smRef.get()).exists) continue
+    const data = listSnap.data()
+    console.log(`  + supermarket "${data.name ?? 'Shopping'}" (from list ${listSnap.id}, family ${familyId})`)
     if (!dryRun) {
-      await supermarketsRef.add({
-        name: 'My supermarket',
-        aisles: seedAisles,
-        order: 0,
-        createdBy: survivingList?.data()?.createdBy ?? null,
-        createdAt: FieldValue.serverTimestamp(),
+      await smRef.set({
+        name: data.name ?? 'Shopping',
+        aisles: data.aisles ?? DEFAULT_AISLES,
+        order: i,
+        createdBy: data.createdBy ?? null,
+        createdAt: data.createdAt ?? FieldValue.serverTimestamp(),
       })
     }
     supermarketsCreated++
   }
+
+  // 2. Merge items into the surviving list and allocate to their origin supermarket.
+  for (const listSnap of listSnaps) {
+    const originId = listSnap.id
+    const items = (await listSnap.ref.collection('items').get()).docs
+
+    for (const itemSnap of items) {
+      const data = itemSnap.data()
+      // Preserve any existing allocation; otherwise allocate to the origin store.
+      const allocation = isUnallocated(data)
+        ? { supermarketIds: [originId], allSupermarkets: false }
+        : { supermarketIds: data.supermarketIds ?? [], allSupermarkets: data.allSupermarkets ?? false }
+
+      if (originId === surviving.id) {
+        // Already in the surviving list — only stamp allocation if unallocated.
+        if (isUnallocated(data)) {
+          if (!dryRun) await itemSnap.ref.update(allocation)
+          itemsAllocated++
+        } else {
+          itemsSkipped++
+        }
+      } else {
+        const destRef = surviving.ref.collection('items').doc(itemSnap.id)
+        if ((await destRef.get()).exists) {
+          itemsSkipped++
+        } else {
+          console.log(`  + item ${itemSnap.id}: ${originId} → ${surviving.id} @ store ${originId} (family ${familyId})`)
+          if (!dryRun) await destRef.set({ ...data, ...allocation })
+          itemsAllocated++
+        }
+      }
+    }
+
+    if (deleteMerged && originId !== surviving.id) {
+      if (!dryRun) {
+        for (const itemSnap of items) await itemSnap.ref.delete()
+        await listSnap.ref.delete()
+      }
+      console.log(`  - drained list ${originId} deleted (family ${familyId})`)
+      listsDeleted++
+    }
+  }
 }
 
 console.log(
-  `\n${dryRun ? 'Would merge' : 'Merged'}: ${itemsMerged} item(s) ` +
-  `(skipped ${itemsSkipped} already present). ` +
-  `${dryRun ? 'Would create' : 'Created'}: ${supermarketsCreated} default supermarket(s).` +
+  `\n${dryRun ? 'Would create' : 'Created'}: ${supermarketsCreated} supermarket(s). ` +
+  `${dryRun ? 'Would allocate' : 'Allocated'}: ${itemsAllocated} item(s) ` +
+  `(skipped ${itemsSkipped} already allocated/present).` +
   `${deleteMerged ? ` ${dryRun ? 'Would delete' : 'Deleted'}: ${listsDeleted} drained list(s).` : ''}`,
 )
 if (warnings.length) {

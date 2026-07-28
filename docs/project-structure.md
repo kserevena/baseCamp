@@ -65,7 +65,6 @@ baseCamp/
 ├── scripts/
 │   ├── check-dev-env.mjs            # Preflight guard run by deploy:dev (validates .env)
 │   ├── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
-│   ├── migrate-supermarkets.mjs     # One-off #137 Part B migration: each list → a supermarket, items allocated + merged into one list
 │   └── __tests__/
 │       └── check-dev-env.test.mjs   # Unit tests for check-dev-env validation logic
 ├── public/

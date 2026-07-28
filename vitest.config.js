@@ -20,10 +20,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**', 'scripts/**'],
-      // migrate-supermarkets.mjs is a one-off admin-SDK migration (issue #137
-      // Part B) run manually against a project — not unit-tested, like the other
-      // one-off scripts before it.
-      exclude: ['src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js', 'scripts/migrate-supermarkets.mjs'],
+      exclude: ['src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js'],
       thresholds: {
         statements: 86,
         branches: 83,

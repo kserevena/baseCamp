@@ -26,8 +26,19 @@ import AisleManager from '@/components/AisleManager.vue'
 
 const vuetify = createVuetify({ components, directives })
 
-function mountManager() {
+const SUPERMARKET = {
+  id: 'sm-1',
+  name: 'Tesco',
+  aisles: [
+    { name: 'Dairy', order: 1 },
+    { name: 'Meat', order: 2 },
+    { name: 'Dry goods', order: 3 },
+  ],
+}
+
+function mountManager(supermarket = SUPERMARKET) {
   return mount(AisleManager, {
+    props: { supermarket },
     global: { plugins: [vuetify] },
     attachTo: document.body,
   })
@@ -37,13 +48,8 @@ describe('AisleManager', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     shoppingStore = reactive({
-      activeAisles: [
-        { name: 'Dairy', order: 1 },
-        { name: 'Meat', order: 2 },
-        { name: 'Dry goods', order: 3 },
-      ],
-      saveAisles: vi.fn().mockResolvedValue(undefined),
-      deleteAisle: vi.fn().mockResolvedValue(undefined),
+      saveSupermarketAisles: vi.fn().mockResolvedValue(undefined),
+      deleteSupermarketAisle: vi.fn().mockResolvedValue(undefined),
     })
   })
 
@@ -52,16 +58,11 @@ describe('AisleManager', () => {
   })
 
   describe('rendering', () => {
-    it('renders all aisles from store.activeAisles', () => {
+    it('renders all aisles from the supermarket prop', () => {
       const wrapper = mountManager()
       expect(wrapper.text()).toContain('Dairy')
       expect(wrapper.text()).toContain('Meat')
       expect(wrapper.text()).toContain('Dry goods')
-    })
-
-    it('renders a title', () => {
-      const wrapper = mountManager()
-      expect(wrapper.text()).toContain('Manage aisles')
     })
   })
 
@@ -115,45 +116,33 @@ describe('AisleManager', () => {
       expect(saveBtn).toBeUndefined()
     })
 
-    it('does not show a Cancel button', () => {
-      const wrapper = mountManager()
-      const cancelBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text() === 'Cancel')
-      expect(cancelBtn).toBeUndefined()
-    })
-
-    it('emits close when the × button in the title bar is clicked', async () => {
-      const wrapper = mountManager()
-      const closeBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-close'))
-      await closeBtn.trigger('click')
-      expect(wrapper.emitted('close')).toBeTruthy()
-      expect(shoppingStore.saveAisles).not.toHaveBeenCalled()
-    })
-
-    it('calls store.saveAisles immediately when an aisle is added', async () => {
+    it('calls store.saveSupermarketAisles with the supermarket id when an aisle is added', async () => {
       const wrapper = mountManager()
       const input = wrapper.find('input[type="text"], input:not([type])')
       await input.setValue('Frozen')
       const addBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text() === 'Add')
       await addBtn.trigger('click')
       await wrapper.vm.$nextTick()
-      expect(shoppingStore.saveAisles).toHaveBeenCalledOnce()
-      const [saved] = shoppingStore.saveAisles.mock.calls[0]
+      expect(shoppingStore.saveSupermarketAisles).toHaveBeenCalledOnce()
+      const [id, saved] = shoppingStore.saveSupermarketAisles.mock.calls[0]
+      expect(id).toBe('sm-1')
       expect(saved).toHaveLength(4)
       expect(saved[3]).toEqual({ name: 'Frozen', order: 40 })
     })
 
-    it('calls store.saveAisles on drag end with normalised orders', async () => {
+    it('calls store.saveSupermarketAisles on drag end with normalised orders', async () => {
       const wrapper = mountManager()
       const draggable = wrapper.findComponent({ name: 'VueDraggable' })
       await draggable.vm.$emit('end')
       await wrapper.vm.$nextTick()
-      expect(shoppingStore.saveAisles).toHaveBeenCalledOnce()
-      const [saved] = shoppingStore.saveAisles.mock.calls[0]
-      expect(saved).toHaveLength(3)
-      expect(saved[0]).toEqual({ name: 'Dairy', order: 10 })
-      expect(saved[1]).toEqual({ name: 'Meat', order: 20 })
-      expect(saved[2]).toEqual({ name: 'Dry goods', order: 30 })
+      expect(shoppingStore.saveSupermarketAisles).toHaveBeenCalledOnce()
+      const [id, saved] = shoppingStore.saveSupermarketAisles.mock.calls[0]
+      expect(id).toBe('sm-1')
+      expect(saved).toEqual([
+        { name: 'Dairy', order: 10 },
+        { name: 'Meat', order: 20 },
+        { name: 'Dry goods', order: 30 },
+      ])
     })
   })
 
@@ -167,16 +156,17 @@ describe('AisleManager', () => {
       expect(document.body.textContent).toContain('Delete aisle?')
     })
 
-    it('shows the aisle name in the delete confirmation', async () => {
+    it('shows the aisle name and store name in the delete confirmation', async () => {
       const wrapper = mountManager()
       const deleteBtns = wrapper.findAllComponents({ name: 'VBtn' })
         .filter(b => b.html().includes('mdi-delete-outline'))
       await deleteBtns[0].trigger('click')
       await wrapper.vm.$nextTick()
       expect(document.body.textContent).toContain('Dairy')
+      expect(document.body.textContent).toContain('Tesco')
     })
 
-    it('calls store.deleteAisle with the correct name on confirm', async () => {
+    it('calls store.deleteSupermarketAisle with the store id and aisle name on confirm', async () => {
       const wrapper = mountManager()
       const deleteBtns = wrapper.findAllComponents({ name: 'VBtn' })
         .filter(b => b.html().includes('mdi-delete-outline'))
@@ -188,10 +178,10 @@ describe('AisleManager', () => {
       await confirmBtn.click()
       await wrapper.vm.$nextTick()
 
-      expect(shoppingStore.deleteAisle).toHaveBeenCalledWith('Dairy')
+      expect(shoppingStore.deleteSupermarketAisle).toHaveBeenCalledWith('sm-1', 'Dairy')
     })
 
-    it('does not call store.deleteAisle when cancel is clicked', async () => {
+    it('does not call store.deleteSupermarketAisle when cancel is clicked', async () => {
       const wrapper = mountManager()
       const deleteBtns = wrapper.findAllComponents({ name: 'VBtn' })
         .filter(b => b.html().includes('mdi-delete-outline'))
@@ -203,7 +193,7 @@ describe('AisleManager', () => {
       await cancelBtn.click()
       await wrapper.vm.$nextTick()
 
-      expect(shoppingStore.deleteAisle).not.toHaveBeenCalled()
+      expect(shoppingStore.deleteSupermarketAisle).not.toHaveBeenCalled()
     })
   })
 })

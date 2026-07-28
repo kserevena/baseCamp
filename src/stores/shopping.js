@@ -19,25 +19,104 @@ export const useShoppingStore = defineStore('shopping', () => {
   const items = ref([])
   const activeListId = ref(null)
 
-  const activeAisles = computed(() => {
-    const list = lists.value.find(l => l.id === activeListId.value)
-    return list?.aisles ?? DEFAULT_AISLES
-  })
+  // Supermarkets (issue #137 Part B). Each family defines its own supermarkets;
+  // each carries its own independent aisle ordering. selectedSupermarketId is
+  // local view state (null = "All items"), persisted per family in localStorage —
+  // it filters what is shown and which aisle ordering is used, and never rewrites
+  // item data or affects what other family members see.
+  const supermarkets = ref([])
+  const selectedSupermarketId = ref(null)
+  const supermarketsLoaded = ref(false)
+
   let currentFamilyId = null
   let unsubscribeLists = null
   let unsubscribeItems = null
+  let unsubscribeSupermarkets = null
+  // Guards so a client only auto-provisions the default supermarket once while the
+  // create write is in flight (before the snapshot echoes it back).
+  let provisioningSupermarket = false
 
-  // Firestore path helpers. Shopping lists live under the family document
-  // (families/{familyId}/shoppingLists/{listId}) so the family scope is carried
-  // by the path — there is no familyId field on the documents.
+  // Firestore path helpers. Shopping lists and supermarkets live under the family
+  // document so the family scope is carried by the path — there is no familyId
+  // field on the documents.
   const listsCol = () => collection(db, 'families', currentFamilyId, 'shoppingLists')
   const listDoc = (listId) => doc(db, 'families', currentFamilyId, 'shoppingLists', listId)
   const itemsCol = (listId) => collection(db, 'families', currentFamilyId, 'shoppingLists', listId, 'items')
   const itemDoc = (listId, itemId) => doc(db, 'families', currentFamilyId, 'shoppingLists', listId, 'items', itemId)
+  const supermarketsCol = () => collection(db, 'families', currentFamilyId, 'supermarkets')
+  const supermarketDoc = (id) => doc(db, 'families', currentFamilyId, 'supermarkets', id)
 
   function storageKey(familyId) {
     return `lastActiveListId_${familyId}`
   }
+  function supermarketStorageKey(familyId) {
+    return `selectedSupermarket_${familyId}`
+  }
+
+  // The "default" supermarket is the first one (lowest order). It seeds the
+  // aisle ordering for the "All items" view and is the one created by migration.
+  const defaultSupermarket = computed(() => supermarkets.value[0] ?? null)
+
+  const selectedSupermarket = computed(() =>
+    selectedSupermarketId.value
+      ? supermarkets.value.find(s => s.id === selectedSupermarketId.value) ?? null
+      : null
+  )
+
+  // Deduplicated union of aisle names across every supermarket, used as the aisle
+  // axis for the "All items" view. The default supermarket's order comes first;
+  // aisle names that only exist in other stores are appended alphabetically.
+  // Dedup is case-insensitive (keyed on the lowercased name), displaying the
+  // first-seen casing — so two stores that both have "Dairy" collapse to one.
+  function unionAisles() {
+    if (supermarkets.value.length === 0) return null
+    const seen = new Map() // lowerName -> { name, order }
+    let order = 0
+    for (const a of (defaultSupermarket.value?.aisles ?? [])) {
+      const key = a.name.toLowerCase()
+      if (!seen.has(key)) seen.set(key, { name: a.name, order: order++ })
+    }
+    const extras = []
+    for (const sm of supermarkets.value.slice(1)) {
+      for (const a of (sm.aisles ?? [])) {
+        const key = a.name.toLowerCase()
+        if (!seen.has(key) && !extras.some(e => e.key === key)) {
+          extras.push({ key, name: a.name })
+        }
+      }
+    }
+    extras.sort((a, b) => a.name.localeCompare(b.name))
+    for (const e of extras) seen.set(e.key, { name: e.name, order: order++ })
+    return Array.from(seen.values())
+  }
+
+  // Aisle ordering for the current view:
+  //  - a specific supermarket selected → that supermarket's aisles
+  //  - "All items" with supermarkets defined → the deduplicated union
+  //  - no supermarkets yet (old data / pre-provision) → the active list's aisles,
+  //    falling back to DEFAULT_AISLES (backward compatible with Part A documents)
+  const activeAisles = computed(() => {
+    if (supermarkets.value.length > 0) {
+      if (selectedSupermarket.value) return selectedSupermarket.value.aisles ?? DEFAULT_AISLES
+      return unionAisles() ?? DEFAULT_AISLES
+    }
+    const list = lists.value.find(l => l.id === activeListId.value)
+    return list?.aisles ?? DEFAULT_AISLES
+  })
+
+  // Items visible in the current view. "All items" (no selection) shows every
+  // item; a specific supermarket shows items allocated to it, allocated to all
+  // supermarkets, or unallocated (empty allocation). Fields are read defensively
+  // so pre-Part-B items (no allocation fields) behave as unallocated.
+  const visibleItems = computed(() => {
+    const s = selectedSupermarketId.value
+    if (!s) return items.value
+    return items.value.filter((i) => {
+      if (i.allSupermarkets ?? false) return true
+      const ids = i.supermarketIds ?? []
+      return ids.length === 0 || ids.includes(s)
+    })
+  })
 
   function activateList(listId) {
     if (unsubscribeItems) unsubscribeItems()
@@ -61,8 +140,21 @@ export const useShoppingStore = defineStore('shopping', () => {
     )
   }
 
+  function selectSupermarket(id) {
+    selectedSupermarketId.value = id || null
+    if (currentFamilyId) {
+      if (id) localStorage.setItem(supermarketStorageKey(currentFamilyId), id)
+      else localStorage.removeItem(supermarketStorageKey(currentFamilyId))
+    }
+  }
+
   function setup(familyId) {
     currentFamilyId = familyId
+    // Restore the persisted supermarket selection (validated once the snapshot
+    // arrives — a stale ID for a deleted store falls back to "All items").
+    selectedSupermarketId.value = localStorage.getItem(supermarketStorageKey(familyId)) || null
+
+    // Lists listener is registered first so it stays the first onSnapshot call.
     unsubscribeLists = onSnapshot(
       listsCol(),
       (snap) => {
@@ -85,17 +177,41 @@ export const useShoppingStore = defineStore('shopping', () => {
         }
       },
     )
+
+    unsubscribeSupermarkets = onSnapshot(
+      supermarketsCol(),
+      (snap) => {
+        supermarkets.value = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) =>
+            (a.order ?? 0) !== (b.order ?? 0)
+              ? (a.order ?? 0) - (b.order ?? 0)
+              : (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0)
+          )
+        supermarketsLoaded.value = true
+        if (selectedSupermarketId.value &&
+            !supermarkets.value.some(s => s.id === selectedSupermarketId.value)) {
+          selectSupermarket(null)
+        }
+      },
+    )
   }
 
   function teardown() {
     if (unsubscribeLists) unsubscribeLists()
     if (unsubscribeItems) unsubscribeItems()
+    if (unsubscribeSupermarkets) unsubscribeSupermarkets()
     unsubscribeLists = null
     unsubscribeItems = null
+    unsubscribeSupermarkets = null
     currentFamilyId = null
     lists.value = []
     items.value = []
     activeListId.value = null
+    supermarkets.value = []
+    supermarketsLoaded.value = false
+    selectedSupermarketId.value = null
+    provisioningSupermarket = false
   }
 
   async function deleteList() {
@@ -166,7 +282,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     updateDoc(itemDoc(activeListId.value, id), { done, addedBy, priority: priority ?? false })
   }
 
-  function updateItem(id, { name, qty, aisle }) {
+  function updateItem(id, { name, qty, aisle, supermarketIds, allSupermarkets }) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
     if (!item) return
@@ -180,6 +296,14 @@ export const useShoppingStore = defineStore('shopping', () => {
       update.aisle = aisle
       update.aisleOrder = aisleObj?.order ?? 99
     }
+    if (supermarketIds !== undefined) {
+      item.supermarketIds = supermarketIds
+      update.supermarketIds = supermarketIds
+    }
+    if (allSupermarkets !== undefined) {
+      item.allSupermarkets = allSupermarkets
+      update.allSupermarkets = allSupermarkets
+    }
     updateDoc(itemDoc(activeListId.value, id), update)
   }
 
@@ -192,7 +316,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  function addItem(name, qty = '', aisle = null) {
+  function addItem(name, qty = '', aisle = null, allocation = {}) {
     if (!activeListId.value) return
     const resolvedAisle = aisle ?? activeAisles.value[0]?.name ?? 'Unknown'
     const aisleObj = activeAisles.value.find(a => a.name === resolvedAisle)
@@ -204,6 +328,9 @@ export const useShoppingStore = defineStore('shopping', () => {
       aisleOrder: aisleObj?.order ?? 99,
       done: false,
       addedBy: familyStore.currentUser?.uid ?? '',
+      // Allocation: default unallocated (empty list, not "all") — shows in every view.
+      supermarketIds: allocation.supermarketIds ?? [],
+      allSupermarkets: allocation.allSupermarkets ?? false,
       createdAt: serverTimestamp(),
     })
   }
@@ -268,5 +395,101 @@ export const useShoppingStore = defineStore('shopping', () => {
     await batch.commit()
   }
 
-  return { lists, items, activeListId, activeAisles, setup, teardown, activateList, createList, deleteList, deleteItem, toggleDone, togglePriority, restoreToggleState, updateItem, addItem, restoreItem, reorderItems, saveAisles, deleteAisle, moveOrCopyItem }
+  // ── Supermarkets (Part B) ───────────────────────────────────────────────────
+
+  async function addSupermarket(name) {
+    if (!currentFamilyId) return
+    const familyStore = useFamilyStore()
+    const maxOrder = supermarkets.value.reduce((m, s) => Math.max(m, s.order ?? 0), -1)
+    await addDoc(supermarketsCol(), {
+      name: name.trim(),
+      aisles: DEFAULT_AISLES,
+      order: maxOrder + 1,
+      createdBy: familyStore.currentUser?.uid ?? '',
+      createdAt: serverTimestamp(),
+    })
+  }
+
+  async function renameSupermarket(id, name) {
+    if (!currentFamilyId) return
+    await updateDoc(supermarketDoc(id), { name: name.trim() })
+  }
+
+  // Deleting a supermarket strips its ID from every loaded item that references
+  // it; an item left with an empty allocation becomes unallocated (visible
+  // everywhere) rather than orphaned. The supermarket document is deleted in the
+  // same batch. If the deleted store was selected, the view resets to "All items".
+  async function deleteSupermarket(id) {
+    if (!currentFamilyId) return
+    const batch = writeBatch(db)
+    // Only the active list's loaded items are stripped. Post-collapse there is a
+    // single list, so this covers every item; a dangling id in another list would
+    // simply filter to nothing until that list is merged.
+    if (activeListId.value) {
+      for (const item of items.value) {
+        const ids = item.supermarketIds ?? []
+        if (ids.includes(id)) {
+          batch.update(itemDoc(activeListId.value, item.id), {
+            supermarketIds: ids.filter(x => x !== id),
+          })
+        }
+      }
+    }
+    batch.delete(supermarketDoc(id))
+    await batch.commit()
+    if (selectedSupermarketId.value === id) selectSupermarket(null)
+  }
+
+  async function saveSupermarketAisles(id, aisles) {
+    if (!currentFamilyId) return
+    await updateDoc(supermarketDoc(id), { aisles })
+  }
+
+  // Removing an aisle from a supermarket only drops it from that store's ordering.
+  // Unlike the list-level deleteAisle, it deliberately does NOT rewrite item.aisle —
+  // the same aisle name may still be used by another store, and items whose aisle
+  // is absent from the selected store already fall to the bottom of that view.
+  async function deleteSupermarketAisle(id, aisleName) {
+    if (!currentFamilyId) return
+    const sm = supermarkets.value.find(s => s.id === id)
+    if (!sm) return
+    const next = (sm.aisles ?? []).filter(a => a.name !== aisleName)
+    await updateDoc(supermarketDoc(id), { aisles: next })
+  }
+
+  // Auto-provision the family's default supermarket, seeded from the surviving
+  // list's aisles (or DEFAULT_AISLES). This is the automatic, additive migration
+  // for existing families: called by the view once a parent has loaded and no
+  // supermarket exists yet. Children never provision (rules would deny anyway);
+  // until a parent provisions, activeAisles falls back to the list's aisles.
+  async function ensureDefaultSupermarket() {
+    if (!currentFamilyId || provisioningSupermarket) return
+    if (!supermarketsLoaded.value || supermarkets.value.length > 0) return
+    provisioningSupermarket = true
+    const familyStore = useFamilyStore()
+    const survivingList = lists.value.find(l => l.id === activeListId.value) ?? lists.value[0]
+    const seedAisles = survivingList?.aisles ?? DEFAULT_AISLES
+    try {
+      await addDoc(supermarketsCol(), {
+        name: 'My supermarket',
+        aisles: seedAisles,
+        order: 0,
+        createdBy: familyStore.currentUser?.uid ?? '',
+        createdAt: serverTimestamp(),
+      })
+    } catch {
+      // Allow a later retry if the write was rejected (e.g. a child called this).
+      provisioningSupermarket = false
+    }
+  }
+
+  return {
+    lists, items, activeListId, activeAisles, visibleItems,
+    supermarkets, selectedSupermarketId, selectedSupermarket, defaultSupermarket, supermarketsLoaded,
+    setup, teardown, activateList, createList, deleteList, deleteItem,
+    toggleDone, togglePriority, restoreToggleState, updateItem, addItem, restoreItem,
+    reorderItems, saveAisles, deleteAisle, moveOrCopyItem,
+    selectSupermarket, addSupermarket, renameSupermarket, deleteSupermarket,
+    saveSupermarketAisles, deleteSupermarketAisle, ensureDefaultSupermarket,
+  }
 })

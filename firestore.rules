@@ -150,6 +150,14 @@ service cloud.firestore {
           allow delete: if isParent(familyId);
         }
       }
+
+      // Supermarkets — per-family stores, each with its own aisle ordering (#137 Part B).
+      // Any member can read (to switch the view and see aisle layout); all writes are
+      // parent-only, mirroring shopping-list and aisle management.
+      match /supermarkets/{supermarketId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update, delete: if isParent(familyId);
+      }
     }
 
   }

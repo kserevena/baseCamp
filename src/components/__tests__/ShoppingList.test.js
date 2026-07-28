@@ -64,6 +64,9 @@ describe('ShoppingList', () => {
     isParentRef = ref(true)
     shoppingStore = reactive({
       items: [],
+      // The component reads visibleItems (the supermarket-filtered view); with no
+      // supermarket selected it mirrors the full item list.
+      get visibleItems() { return this.items },
       activeAisles: [...DEFAULT_AISLES],
       reorderItems: vi.fn(),
       deleteItem: vi.fn(),

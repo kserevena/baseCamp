@@ -16,6 +16,7 @@ firebase deploy --only firestore:rules
 | `families/{familyId}/members/{uid}` | Family members | Parents (any member); the family `createdBy` user seating themselves as parent; a user seating themselves as `child` with a valid invite code; self-updates that don't change `role` |
 | `families/{familyId}/shoppingLists/{listId}` | Family members | Parents (create/update/delete) |
 | `families/{familyId}/shoppingLists/{listId}/items/{itemId}` | Family members | Parents only (create/update/delete); `name` capped at 80 chars (enforced in rules — keep in sync with `ITEM_NAME_MAX_LENGTH` in `src/constants/shopping.js`) |
+| `families/{familyId}/supermarkets/{supermarketId}` | Family members | Parents only (create/update/delete) |
 | `families/{familyId}/pocketMoney/{uid}` | Parents (any child); child (own only) | Parents only |
 | `families/{familyId}/pocketMoney/{uid}/transactions/{txnId}` | Parents (any child); child (own only) | Parents only |
 | `families/{familyId}/householdJobs/{jobId}` | Family members | Family members (create — must stamp own uid as suggestedBy, status=suggested, children cannot set priority/assignedTo); parents (update/delete); child who suggested it may update title/description only while status=suggested |

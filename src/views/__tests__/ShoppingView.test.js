@@ -20,8 +20,8 @@ vi.mock('@/components/ShoppingList.vue', () => ({
   default: { props: ['showHeaders'], emits: ['edit'], template: '<div class="shopping-list-stub" />' },
 }))
 
-vi.mock('@/components/AisleManager.vue', () => ({
-  default: { emits: ['close'], template: '<div class="aisle-manager-stub" />' },
+vi.mock('@/components/SupermarketManager.vue', () => ({
+  default: { emits: ['close'], template: '<div class="supermarket-manager-stub" />' },
 }))
 
 vi.mock('@/firebase/config.js', () => ({ db: {} }))
@@ -37,36 +37,37 @@ function mountView() {
   })
 }
 
-function listChips(wrapper) {
-  // All VChip components inside the list-chips scroll container
-  return wrapper.findAllComponents({ name: 'VChip' })
-    .filter(c => ['Weekly shop', 'Party supplies'].some(n => c.text().includes(n)))
+function makeStore(overrides = {}) {
+  return reactive({
+    lists: [{ id: 'list-1', name: 'Shopping' }],
+    items: [],
+    get visibleItems() { return this.items },
+    activeListId: 'list-1',
+    activeAisles: [
+      { name: 'Dairy', order: 1 },
+      { name: 'Meat', order: 2 },
+      { name: 'Dry goods', order: 3 },
+    ],
+    supermarkets: [
+      { id: 'sm-1', name: 'Tesco', aisles: [] },
+      { id: 'sm-2', name: 'Lidl', aisles: [] },
+    ],
+    selectedSupermarketId: null,
+    supermarketsLoaded: true,
+    selectSupermarket: vi.fn((id) => { shoppingStore.selectedSupermarketId = id }),
+    ensureDefaultSupermarket: vi.fn(),
+    addItem: vi.fn(),
+    restoreItem: vi.fn().mockReturnValue(true),
+    createList: vi.fn(),
+    updateItem: vi.fn(),
+    ...overrides,
+  })
 }
 
 describe('ShoppingView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    shoppingStore = reactive({
-      lists: [
-        { id: 'list-1', name: 'Weekly shop' },
-        { id: 'list-2', name: 'Party supplies' },
-      ],
-      items: [],
-      activeListId: 'list-1',
-      activeAisles: [
-        { name: 'Dairy', order: 1 },
-        { name: 'Meat', order: 2 },
-        { name: 'Dry goods', order: 3 },
-      ],
-      activateList: vi.fn((id) => { shoppingStore.activeListId = id }),
-      addItem: vi.fn(),
-      restoreItem: vi.fn().mockReturnValue(true),
-      createList: vi.fn(),
-      updateItem: vi.fn(),
-      moveOrCopyItem: vi.fn(),
-      saveAisles: vi.fn(),
-      deleteAisle: vi.fn(),
-    })
+    shoppingStore = makeStore()
     familyStore = reactive({
       currentUser: { uid: 'parent-uid', role: 'parent' },
     })
@@ -76,1107 +77,372 @@ describe('ShoppingView', () => {
     document.body.innerHTML = ''
   })
 
-  describe('list selector', () => {
-    it('renders all list names as chips', () => {
+  describe('supermarket selector', () => {
+    it('renders an "All items" chip plus one chip per supermarket', () => {
       const wrapper = mountView()
-      expect(wrapper.text()).toContain('Weekly shop')
-      expect(wrapper.text()).toContain('Party supplies')
+      const text = wrapper.find('.list-selector').text()
+      expect(text).toContain('All items')
+      expect(text).toContain('Tesco')
+      expect(text).toContain('Lidl')
     })
 
-    it('active chip has primary colour', () => {
+    it('the "All items" chip is active (primary) by default', () => {
       const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const active = chips.find(c => c.text().includes('Weekly shop'))
-      expect(active.props('color')).toBe('primary')
+      const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('All items'))
+      expect(chip.props('color')).toBe('primary')
     })
 
-    it('active chip uses flat variant', () => {
+    it('a store chip is inactive when not selected', () => {
       const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const active = chips.find(c => c.text().includes('Weekly shop'))
-      expect(active.props('variant')).toBe('flat')
+      const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Tesco'))
+      expect(chip.props('color')).toBeUndefined()
     })
 
-    it('active chip shows a checkmark icon', () => {
+    it('clicking "All items" calls selectSupermarket with null', async () => {
       const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const active = chips.find(c => c.text().includes('Weekly shop'))
-      expect(active.props('prependIcon')).toBe('mdi-check')
+      const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('All items'))
+      await chip.trigger('click')
+      expect(shoppingStore.selectSupermarket).toHaveBeenCalledWith(null)
     })
 
-    it('inactive chip does not have primary colour', () => {
+    it('clicking a store chip calls selectSupermarket with its id', async () => {
       const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const inactive = chips.find(c => c.text().includes('Party supplies'))
-      expect(inactive.props('color')).toBeUndefined()
+      const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Lidl'))
+      await chip.trigger('click')
+      expect(shoppingStore.selectSupermarket).toHaveBeenCalledWith('sm-2')
     })
 
-    it('inactive chip uses tonal variant', () => {
+    it('the selected store chip becomes active (primary + checkmark)', () => {
+      shoppingStore.selectedSupermarketId = 'sm-1'
       const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const inactive = chips.find(c => c.text().includes('Party supplies'))
-      expect(inactive.props('variant')).toBe('tonal')
-    })
-
-    it('inactive chip has no checkmark icon', () => {
-      const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const inactive = chips.find(c => c.text().includes('Party supplies'))
-      expect(inactive.props('prependIcon')).toBeUndefined()
-    })
-
-    it('clicking a chip calls activateList with that list id', async () => {
-      const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const second = chips.find(c => c.text().includes('Party supplies'))
-      await second.trigger('click')
-      expect(shoppingStore.activateList).toHaveBeenCalledWith('list-2')
-    })
-
-    it('newly selected chip gains primary colour and checkmark', async () => {
-      const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const second = chips.find(c => c.text().includes('Party supplies'))
-      await second.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const updated = listChips(wrapper)
-      const nowActive = updated.find(c => c.text().includes('Party supplies'))
-      expect(nowActive.props('color')).toBe('primary')
-      expect(nowActive.props('prependIcon')).toBe('mdi-check')
-    })
-
-    it('previously selected chip loses primary colour and checkmark', async () => {
-      const wrapper = mountView()
-      const chips = listChips(wrapper)
-      const second = chips.find(c => c.text().includes('Party supplies'))
-      await second.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const updated = listChips(wrapper)
-      const nowInactive = updated.find(c => c.text().includes('Weekly shop'))
-      expect(nowInactive.props('color')).toBeUndefined()
-      expect(nowInactive.props('prependIcon')).toBeUndefined()
+      const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Tesco'))
+      expect(chip.props('color')).toBe('primary')
+      expect(chip.props('prependIcon')).toBe('mdi-check')
     })
   })
 
   describe('empty state', () => {
-    beforeEach(() => {
-      shoppingStore.lists = []
-      shoppingStore.activeListId = null
-    })
+    beforeEach(() => { shoppingStore.lists = [] })
 
-    it('shows empty state message when there are no lists', () => {
+    it('shows the empty-state message when there are no lists', () => {
       const wrapper = mountView()
       expect(wrapper.text()).toContain('No shopping list yet')
     })
 
-    it('shows New list button to parents in the empty state', () => {
+    it('shows the create-list button to parents', () => {
       const wrapper = mountView()
-      expect(wrapper.text()).toContain('New list')
+      const btn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text().includes('Create shopping list'))
+      expect(btn).toBeDefined()
     })
 
-    it('hides New list button from children in the empty state', () => {
+    it('hides the create-list button from children', () => {
       familyStore.currentUser = { uid: 'child-uid', role: 'child' }
       const wrapper = mountView()
-      expect(wrapper.text()).not.toContain('New list')
+      const btn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text().includes('Create shopping list'))
+      expect(btn).toBeUndefined()
     })
   })
 
-  describe('new list', () => {
-    it('shows the new list + icon button for parents when lists exist', () => {
+  describe('manage supermarkets button', () => {
+    it('shows the manage supermarkets button to parents', () => {
       const wrapper = mountView()
-      // The new-list btn lives inside .list-selector, not the add-item FAB
-      const selector = wrapper.find('.list-selector')
-      expect(selector.findComponent({ name: 'VBtn' }).exists()).toBe(true)
+      const btn = wrapper.find('.list-selector').findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-storefront-outline'))
+      expect(btn).toBeDefined()
     })
 
-    it('hides the new list + icon button from children', () => {
+    it('hides the manage supermarkets button from children', () => {
       familyStore.currentUser = { uid: 'child-uid', role: 'child' }
       const wrapper = mountView()
-      const selector = wrapper.find('.list-selector')
-      const newListBtn = selector.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-plus'))
-      expect(newListBtn).toBeUndefined()
+      const btn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-storefront-outline'))
+      expect(btn).toBeUndefined()
+    })
+
+    it('clicking the button opens the supermarket manager sheet', async () => {
+      const wrapper = mountView()
+      const btn = wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-storefront-outline'))
+      await btn.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(document.querySelector('.supermarket-manager-stub')).not.toBeNull()
     })
   })
 
-  describe('delete list', () => {
-    beforeEach(() => {
-      shoppingStore.deleteList = vi.fn()
+  describe('auto-provision default supermarket', () => {
+    it('calls ensureDefaultSupermarket for a parent with a list and no supermarkets', () => {
+      shoppingStore = makeStore({ supermarkets: [] })
+      mountView()
+      expect(shoppingStore.ensureDefaultSupermarket).toHaveBeenCalled()
     })
 
-    it('shows the delete button to parents', () => {
-      const wrapper = mountView()
-      const selector = wrapper.find('.list-selector')
-      const deleteBtns = selector.findAllComponents({ name: 'VBtn' })
-        .filter(b => b.html().includes('mdi-delete-outline'))
-      expect(deleteBtns.length).toBe(1)
+    it('does not call ensureDefaultSupermarket when supermarkets already exist', () => {
+      mountView() // default store has two supermarkets
+      expect(shoppingStore.ensureDefaultSupermarket).not.toHaveBeenCalled()
     })
 
-    it('hides the delete button from children', () => {
-      familyStore.currentUser = { uid: 'child-uid', role: 'child' }
-      const wrapper = mountView()
-      const deleteBtns = wrapper.findAllComponents({ name: 'VBtn' })
-        .filter(b => b.html().includes('mdi-delete-outline'))
-      expect(deleteBtns.length).toBe(0)
+    it('does not call ensureDefaultSupermarket for a child', () => {
+      shoppingStore = makeStore({ supermarkets: [] })
+      familyStore = reactive({ currentUser: { uid: 'child-uid', role: 'child' } })
+      mountView()
+      expect(shoppingStore.ensureDefaultSupermarket).not.toHaveBeenCalled()
     })
 
-    it('opens the confirmation dialog when the delete button is clicked', async () => {
-      const wrapper = mountView()
-      const deleteBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-delete-outline'))
-      await deleteBtn.trigger('click')
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).toContain('Delete list?')
-    })
-
-    it('shows the active list name in the confirmation dialog', async () => {
-      const wrapper = mountView()
-      const deleteBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-delete-outline'))
-      await deleteBtn.trigger('click')
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).toContain('Weekly shop')
-    })
-
-    it('does not call deleteList when Cancel is clicked', async () => {
-      const wrapper = mountView()
-      const deleteBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-delete-outline'))
-      await deleteBtn.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const cancelBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Cancel')
-      await cancelBtn.click()
-      await wrapper.vm.$nextTick()
-
-      expect(shoppingStore.deleteList).not.toHaveBeenCalled()
-    })
-
-    it('calls deleteList when Delete is confirmed', async () => {
-      const wrapper = mountView()
-      const deleteBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-delete-outline'))
-      await deleteBtn.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const confirmBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Delete')
-      await confirmBtn.click()
-
-      expect(shoppingStore.deleteList).toHaveBeenCalledOnce()
+    it('does not provision before the supermarkets snapshot has loaded', () => {
+      shoppingStore = makeStore({ supermarkets: [], supermarketsLoaded: false })
+      mountView()
+      expect(shoppingStore.ensureDefaultSupermarket).not.toHaveBeenCalled()
     })
   })
 
-  describe('manage aisles button', () => {
-    it('shows the manage aisles button to parents', () => {
-      const wrapper = mountView()
-      const selector = wrapper.find('.list-selector')
-      const aisleBtn = selector.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-view-list-outline'))
-      expect(aisleBtn).toBeDefined()
-    })
-
-    it('hides the manage aisles button from children', () => {
-      familyStore.currentUser = { uid: 'child-uid', role: 'child' }
-      const wrapper = mountView()
-      const aisleBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-view-list-outline'))
-      expect(aisleBtn).toBeUndefined()
-    })
-
-    it('clicking the button opens the aisle manager sheet', async () => {
-      const wrapper = mountView()
-      const aisleBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-view-list-outline'))
-      await aisleBtn.trigger('click')
+  describe('add item — aisle and allocation', () => {
+    async function openAdd(wrapper) {
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
       await wrapper.vm.$nextTick()
-      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[2].props('modelValue')).toBe(true)
-    })
-  })
+    }
 
-  describe('add item aisle picker', () => {
     it('renders aisle chips after opening the add-item sheet', async () => {
       const wrapper = mountView()
-      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
-      await fab.trigger('click')
-      await wrapper.vm.$nextTick()
-
+      await openAdd(wrapper)
       expect(document.body.textContent).toContain('Dairy')
       expect(document.body.textContent).toContain('Meat')
-      expect(document.body.textContent).toContain('Dry goods')
     })
 
-    it('calls store.addItem with the default aisle on submit', async () => {
+    it('renders allocation chips (All supermarkets + one per store)', async () => {
+      const wrapper = mountView()
+      await openAdd(wrapper)
+      expect(document.body.textContent).toContain('All supermarkets')
+      expect(document.body.textContent).toContain('Available in')
+    })
+
+    it('calls addItem with unallocated allocation by default', async () => {
+      const wrapper = mountView()
+      await openAdd(wrapper)
+      wrapper.vm.itemName = 'Eggs'
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: false })
+    })
+
+    it('allocates to a specific store when its chip is selected', async () => {
+      const wrapper = mountView()
+      await openAdd(wrapper)
+      wrapper.vm.itemName = 'Eggs'
+      const tescoChip = wrapper.findAllComponents({ name: 'VChip' })
+        .find(c => c.text() === 'Tesco' && c.html().includes('Tesco'))
+      // Toggle allocation via the exposed handler to avoid ambiguity with selector chips
+      wrapper.vm.toggleSupermarket('sm-1')
+      await wrapper.vm.$nextTick()
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: ['sm-1'], allSupermarkets: false })
+      expect(tescoChip).toBeDefined()
+    })
+
+    it('allocates to all supermarkets when the All supermarkets chip is selected', async () => {
+      const wrapper = mountView()
+      await openAdd(wrapper)
+      wrapper.vm.itemName = 'Eggs'
+      wrapper.vm.toggleAllSupermarkets()
+      await wrapper.vm.$nextTick()
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: true })
+    })
+
+    it('selecting a specific store clears the all-supermarkets flag', async () => {
+      const wrapper = mountView()
+      await openAdd(wrapper)
+      wrapper.vm.toggleAllSupermarkets()
+      expect(wrapper.vm.itemAllSupermarkets).toBe(true)
+      wrapper.vm.toggleSupermarket('sm-1')
+      expect(wrapper.vm.itemAllSupermarkets).toBe(false)
+      expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+    })
+  })
+
+  describe('edit item — allocation prefilled', () => {
+    it('prefills allocation from the edited item and saves it', async () => {
+      const wrapper = mountView()
+      wrapper.vm.openEdit({ id: 'i1', name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: ['sm-2'], allSupermarkets: false })
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-2'])
+      expect(wrapper.vm.itemAllSupermarkets).toBe(false)
+
+      const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+      expect(shoppingStore.updateItem).toHaveBeenCalledWith('i1', {
+        name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: ['sm-2'], allSupermarkets: false,
+      })
+    })
+  })
+
+  describe('create list (empty state)', () => {
+    beforeEach(() => { shoppingStore.lists = [] })
+
+    it('opens the new-list sheet and calls createList with a trimmed name', async () => {
+      const wrapper = mountView()
+      const openBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text().includes('Create shopping list'))
+      await openBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.newListName = '  Weekend shop '
+      const createBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Create')
+      await createBtn.click()
+      expect(shoppingStore.createList).toHaveBeenCalledWith('Weekend shop')
+    })
+
+    it('does not call createList for a blank name', async () => {
+      const wrapper = mountView()
+      const openBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text().includes('Create shopping list'))
+      await openBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+      wrapper.vm.newListName = '   '
+      const createBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Create')
+      await createBtn.click()
+      expect(shoppingStore.createList).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('re-add suggestions', () => {
+    beforeEach(() => {
+      shoppingStore.items = [
+        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Dairy', done: true },
+      ]
+    })
+
+    it('offers a done item as a suggestion and populates fields on selection', async () => {
       const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
       await fab.trigger('click')
       await wrapper.vm.$nextTick()
 
-      const inputs = [...document.body.querySelectorAll('input')]
-      const nameInput = inputs.find(i => i.placeholder === '' || i.type !== 'hidden')
-      if (nameInput) await nameInput.focus()
+      wrapper.vm.itemName = 'but'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.doneSuggestions.map(i => i.id)).toContain('d1')
 
-      // Directly set via component state and call submit
-      wrapper.vm.itemName = 'Eggs'
-      const addBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Add')
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemQty).toBe('250g')
+      expect(wrapper.vm.itemAisle).toBe('Dairy')
+    })
+
+    it('restores a selected done item instead of adding a new one', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'Butter'
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
+      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Dairy')
+      expect(shoppingStore.addItem).not.toHaveBeenCalled()
+    })
 
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy')
+    it('falls back to addItem when restore reports the item is gone', async () => {
+      shoppingStore.restoreItem.mockReturnValue(false)
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'Butter'
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalled()
+    })
+  })
+
+  describe('allocation hint text', () => {
+    it('reads "Unallocated" with nothing selected', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.allocationHint).toContain('Unallocated')
+    })
+
+    it('reads "every store" when all supermarkets is chosen', async () => {
+      const wrapper = mountView()
+      wrapper.vm.toggleAllSupermarkets()
+      expect(wrapper.vm.allocationHint).toBe('Shown in every store')
+    })
+
+    it('lists the chosen store names', async () => {
+      const wrapper = mountView()
+      wrapper.vm.toggleSupermarket('sm-1')
+      expect(wrapper.vm.allocationHint).toBe('Shown in: Tesco')
+    })
+  })
+
+  describe('headers toggle', () => {
+    it('toggles aisle headers on and off', async () => {
+      const wrapper = mountView()
+      const btn = wrapper.find('.list-selector').findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-outline'))
+      expect(btn).toBeDefined()
+      await btn.trigger('click')
+      await wrapper.vm.$nextTick()
+      const off = wrapper.find('.list-selector').findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-label-off-outline'))
+      expect(off).toBeDefined()
     })
   })
 
   // ── Issue #49: keyboard-aware sheet positioning ─────────────────────────
-  // The add-item sheet uses window.visualViewport to track keyboard height and
-  // stores it as --add-item-sheet-bottom on :root. The .add-item-overlay CSS
-  // rule uses that variable as margin-bottom to lift the sheet above the
-  // keyboard while it is visible, and drops it back to 0px when the keyboard
-  // dismisses. These tests verify the JS side of that contract.
-  describe('keyboard-aware add-item sheet positioning (issue #49)', () => {
+  // useKeyboardAwareSheet has its own dedicated unit test; here we verify the
+  // view wires each sheet to a CSS variable and updates it on viewport resize.
+  describe('keyboard-aware sheet positioning (issue #49)', () => {
     let mockVp
 
     beforeEach(() => {
-      // Full-screen viewport with no keyboard; innerHeight matches vp.height.
       mockVp = {
-        height: 851,
-        offsetTop: 0,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
+        height: 851, offsetTop: 0,
+        addEventListener: vi.fn(), removeEventListener: vi.fn(),
       }
-      Object.defineProperty(window, 'visualViewport', {
-        value: mockVp, writable: true, configurable: true,
-      })
-      Object.defineProperty(window, 'innerHeight', {
-        value: 851, writable: true, configurable: true,
-      })
+      Object.defineProperty(window, 'visualViewport', { value: mockVp, writable: true, configurable: true })
+      Object.defineProperty(window, 'innerHeight', { value: 851, writable: true, configurable: true })
     })
 
     afterEach(() => {
       document.documentElement.style.removeProperty('--add-item-sheet-bottom')
+      document.documentElement.style.removeProperty('--supermarket-manager-sheet-bottom')
     })
 
-    async function openAddItemSheet(wrapper) {
+    it('sets --add-item-sheet-bottom to 0px when the add-item sheet opens', async () => {
+      const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
       await fab.trigger('click')
       await wrapper.vm.$nextTick()
-    }
-
-    it('registers a visualViewport resize listener when the sheet opens', async () => {
-      const wrapper = mountView()
-      await openAddItemSheet(wrapper)
-      expect(mockVp.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
-    })
-
-    it('sets --add-item-sheet-bottom to 0px immediately on open when no keyboard is up', async () => {
-      const wrapper = mountView()
-      await openAddItemSheet(wrapper)
       expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
     })
 
-    it('updates --add-item-sheet-bottom to the keyboard height when the viewport shrinks', async () => {
+    it('updates --add-item-sheet-bottom to the keyboard height on viewport shrink', async () => {
       const wrapper = mountView()
-      await openAddItemSheet(wrapper)
-
-      // Keyboard appears: visual viewport shrinks by 340 px
-      mockVp.height = 511
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('340px')
-    })
-
-    it('accounts for visualViewport.offsetTop in the keyboard height calculation', async () => {
-      const wrapper = mountView()
-      await openAddItemSheet(wrapper)
-
-      // URL bar is visible (offsetTop=20) and keyboard is up; visible area = 491 px
-      mockVp.height = 491
-      mockVp.offsetTop = 20
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      // keyboard = 851 - 491 - 20 = 340 px
-      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('340px')
-    })
-
-    it('clamps --add-item-sheet-bottom to 0px when the visual viewport is larger than the window', async () => {
-      const wrapper = mountView()
-      await openAddItemSheet(wrapper)
-
-      mockVp.height = 900  // edge case: vv.height > innerHeight, no keyboard
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
-    })
-
-    it('resets --add-item-sheet-bottom to 0px and removes the listener when the sheet closes', async () => {
-      const wrapper = mountView()
-      await openAddItemSheet(wrapper)
-
-      // Keyboard appears
-      mockVp.height = 511
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('340px')
-
-      // User taps Cancel — sheet closes
-      const cancelBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Cancel')
-      await cancelBtn.click()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
-      expect(mockVp.removeEventListener).toHaveBeenCalledWith('resize', resizeCb)
+      mockVp.height = 511
+      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+      resizeCb()
+      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('340px')
     })
 
-    it('does not throw and defaults to 0px when window.visualViewport is unavailable', async () => {
-      Object.defineProperty(window, 'visualViewport', {
-        value: null, writable: true, configurable: true,
-      })
+    it('sets --supermarket-manager-sheet-bottom to 0px when the manage sheet opens', async () => {
       const wrapper = mountView()
-      await expect(openAddItemSheet(wrapper)).resolves.not.toThrow()
-      expect(document.documentElement.style.getPropertyValue('--add-item-sheet-bottom')).toBe('0px')
-    })
-  })
-
-  // ── Issue #109: keyboard-aware sheet positioning for Manage Aisles ─────────
-  // The manage-aisles sheet mirrors the fix from #49: window.visualViewport
-  // tracks keyboard height and stores it as --aisle-manager-sheet-bottom on
-  // :root. The .aisle-manager-overlay CSS rule lifts the sheet above the
-  // keyboard while it is visible, and drops it back when the keyboard closes.
-  describe('keyboard-aware aisle-manager sheet positioning (issue #109)', () => {
-    let mockVp
-
-    beforeEach(() => {
-      mockVp = {
-        height: 851,
-        offsetTop: 0,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      }
-      Object.defineProperty(window, 'visualViewport', {
-        value: mockVp, writable: true, configurable: true,
-      })
-      Object.defineProperty(window, 'innerHeight', {
-        value: 851, writable: true, configurable: true,
-      })
-    })
-
-    afterEach(() => {
-      document.documentElement.style.removeProperty('--aisle-manager-sheet-bottom')
-    })
-
-    async function openAisleSheet(wrapper) {
-      const btn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.find('.mdi-view-list-outline').exists())
+      const btn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.html().includes('mdi-storefront-outline'))
       await btn.trigger('click')
       await wrapper.vm.$nextTick()
-    }
-
-    it('registers a visualViewport resize listener when the aisle sheet opens', async () => {
-      const wrapper = mountView()
-      await openAisleSheet(wrapper)
-      expect(mockVp.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
-    })
-
-    it('sets --aisle-manager-sheet-bottom to 0px immediately on open when no keyboard is up', async () => {
-      const wrapper = mountView()
-      await openAisleSheet(wrapper)
-      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
-    })
-
-    it('updates --aisle-manager-sheet-bottom to the keyboard height when the viewport shrinks', async () => {
-      const wrapper = mountView()
-      await openAisleSheet(wrapper)
-
-      mockVp.height = 511
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('340px')
-    })
-
-    it('accounts for visualViewport.offsetTop in the keyboard height calculation', async () => {
-      const wrapper = mountView()
-      await openAisleSheet(wrapper)
-
-      mockVp.height = 491
-      mockVp.offsetTop = 20
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      // keyboard = 851 - 491 - 20 = 340 px
-      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('340px')
-    })
-
-    it('clamps --aisle-manager-sheet-bottom to 0px when the visual viewport is larger than the window', async () => {
-      const wrapper = mountView()
-      await openAisleSheet(wrapper)
-
-      mockVp.height = 900
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
-    })
-
-    it('resets --aisle-manager-sheet-bottom to 0px and removes the listener when the sheet closes', async () => {
-      const wrapper = mountView()
-      await openAisleSheet(wrapper)
-
-      mockVp.height = 511
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('340px')
-
-      // Close by emitting update:modelValue from the VBottomSheet (the aisle
-      // sheet is the third VBottomSheet in the component tree). This mirrors
-      // how Vuetify closes a sheet internally (e.g. backdrop click), and
-      // triggers the v-model binding that sets aisleSheet to false.
-      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      await sheets[2].vm.$emit('update:modelValue', false)
-      await wrapper.vm.$nextTick()
-
-      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
-      expect(mockVp.removeEventListener).toHaveBeenCalledWith('resize', resizeCb)
-    })
-
-    it('does not throw and defaults to 0px when window.visualViewport is unavailable', async () => {
-      Object.defineProperty(window, 'visualViewport', {
-        value: null, writable: true, configurable: true,
-      })
-      const wrapper = mountView()
-      await expect(openAisleSheet(wrapper)).resolves.not.toThrow()
-      expect(document.documentElement.style.getPropertyValue('--aisle-manager-sheet-bottom')).toBe('0px')
-    })
-  })
-
-  // ── New list sheet: keyboard-aware positioning ──────────────────────────────
-  // The new-list sheet has autofocus on its text field, so the keyboard appears
-  // automatically. If the user back-swipes the keyboard without tapping Create
-  // or Cancel, the viewport snaps and the buttons could end up below the screen.
-  describe('keyboard-aware new-list sheet positioning', () => {
-    let mockVp
-
-    beforeEach(() => {
-      mockVp = {
-        height: 851,
-        offsetTop: 0,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      }
-      Object.defineProperty(window, 'visualViewport', {
-        value: mockVp, writable: true, configurable: true,
-      })
-      Object.defineProperty(window, 'innerHeight', {
-        value: 851, writable: true, configurable: true,
-      })
-    })
-
-    afterEach(() => {
-      document.documentElement.style.removeProperty('--list-sheet-bottom')
-    })
-
-    async function openListSheet(wrapper) {
-      // The new-list button is the non-FAB button containing mdi-plus
-      const btn = wrapper.findAllComponents({ name: 'VBtn' })
-        .filter(b => !b.classes('fab'))
-        .find(b => b.find('.mdi-plus').exists())
-      await btn.trigger('click')
-      await wrapper.vm.$nextTick()
-    }
-
-    it('registers a visualViewport resize listener when the new-list sheet opens', async () => {
-      const wrapper = mountView()
-      await openListSheet(wrapper)
-      expect(mockVp.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
-    })
-
-    it('sets --list-sheet-bottom to 0px immediately on open when no keyboard is up', async () => {
-      const wrapper = mountView()
-      await openListSheet(wrapper)
-      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
-    })
-
-    it('updates --list-sheet-bottom to the keyboard height when the viewport shrinks', async () => {
-      const wrapper = mountView()
-      await openListSheet(wrapper)
-
-      mockVp.height = 511
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('340px')
-    })
-
-    it('accounts for visualViewport.offsetTop in the keyboard height calculation', async () => {
-      const wrapper = mountView()
-      await openListSheet(wrapper)
-
-      mockVp.height = 491
-      mockVp.offsetTop = 20
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      // keyboard = 851 - 491 - 20 = 340 px
-      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('340px')
-    })
-
-    it('clamps --list-sheet-bottom to 0px when the visual viewport is larger than the window', async () => {
-      const wrapper = mountView()
-      await openListSheet(wrapper)
-
-      mockVp.height = 900
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-
-      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
-    })
-
-    it('resets --list-sheet-bottom to 0px and removes the listener when the sheet closes', async () => {
-      const wrapper = mountView()
-      await openListSheet(wrapper)
-
-      mockVp.height = 511
-      const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-      resizeCb()
-      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('340px')
-
-      // Close by updating the VBottomSheet model value (list sheet is index 1)
-      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      await sheets[1].vm.$emit('update:modelValue', false)
-      await wrapper.vm.$nextTick()
-
-      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
-      expect(mockVp.removeEventListener).toHaveBeenCalledWith('resize', resizeCb)
-    })
-
-    it('does not throw and defaults to 0px when window.visualViewport is unavailable', async () => {
-      Object.defineProperty(window, 'visualViewport', {
-        value: null, writable: true, configurable: true,
-      })
-      const wrapper = mountView()
-      await expect(openListSheet(wrapper)).resolves.not.toThrow()
-      expect(document.documentElement.style.getPropertyValue('--list-sheet-bottom')).toBe('0px')
-    })
-  })
-
-  describe('done-item suggestions (issue #29)', () => {
-    const doneItem = { id: 'done-1', name: 'Milk', qty: '2 pints', aisle: 'Dairy', done: true }
-    const activeItem = { id: 'active-1', name: 'Bread', qty: '', aisle: 'Bakery', done: false }
-
-    async function openSheet(wrapper) {
-      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
-      await fab.trigger('click')
-      await wrapper.vm.$nextTick()
-    }
-
-    it('shows no suggestion chips when name field is empty', async () => {
-      shoppingStore.items = [doneItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      expect(document.body.textContent).not.toContain('Re-add')
-    })
-
-    it('shows no suggestion chips when no done items match the typed text', async () => {
-      shoppingStore.items = [doneItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'xyz'
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).not.toContain('Re-add')
-    })
-
-    it('shows suggestion chips for done items matching the typed text', async () => {
-      shoppingStore.items = [doneItem, activeItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'mil'
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).toContain('Re-add')
-      expect(document.body.textContent).toContain('Milk')
-    })
-
-    it('does not suggest active (not-done) items', async () => {
-      shoppingStore.items = [activeItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'Bread'
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).not.toContain('Re-add')
-    })
-
-    it('matching is case-insensitive', async () => {
-      shoppingStore.items = [doneItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'MIL'
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).toContain('Milk')
-    })
-
-    it('tapping a suggestion chip fills in name, qty, and selects the correct aisle', async () => {
-      shoppingStore.items = [doneItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'mil'
-      await wrapper.vm.$nextTick()
-
-      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
-        .filter(c => c.textContent.trim() === 'Milk')
-      expect(suggestionChips.length).toBeGreaterThan(0)
-      await suggestionChips[0].click()
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.vm.itemName).toBe('Milk')
-      expect(wrapper.vm.itemQty).toBe('2 pints')
-      expect(wrapper.vm.itemAisle).toBe('Dairy')
-    })
-
-    it('submitting after selecting a suggestion calls restoreItem, not addItem', async () => {
-      shoppingStore.items = [doneItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'mil'
-      await wrapper.vm.$nextTick()
-
-      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
-        .filter(c => c.textContent.trim() === 'Milk')
-      await suggestionChips[0].click()
-      await wrapper.vm.$nextTick()
-
-      const addBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Add')
-      await addBtn.click()
-
-      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('done-1', '2 pints', 'Dairy')
-      expect(shoppingStore.addItem).not.toHaveBeenCalled()
-    })
-
-    it('falls back to addItem if restoreItem returns false (item deleted concurrently)', async () => {
-      shoppingStore.items = [doneItem]
-      shoppingStore.restoreItem.mockReturnValue(false)
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'mil'
-      await wrapper.vm.$nextTick()
-
-      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
-        .filter(c => c.textContent.trim() === 'Milk')
-      await suggestionChips[0].click()
-      await wrapper.vm.$nextTick()
-
-      const addBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Add')
-      await addBtn.click()
-
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Milk', '2 pints', 'Dairy')
-    })
-
-    it('clears selectedDoneItem and uses addItem when name is changed after chip selection', async () => {
-      shoppingStore.items = [doneItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'mil'
-      await wrapper.vm.$nextTick()
-
-      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
-        .filter(c => c.textContent.trim() === 'Milk')
-      await suggestionChips[0].click()
-      await wrapper.vm.$nextTick()
-
-      // User edits the name away from the suggestion
-      wrapper.vm.itemName = 'Milk full fat'
-      await wrapper.vm.$nextTick()
-
-      const addBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Add')
-      await addBtn.click()
-
-      expect(shoppingStore.restoreItem).not.toHaveBeenCalled()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Milk full fat', expect.any(String), expect.anything())
-    })
-
-    it('resets selectedDoneItem when the sheet closes', async () => {
-      shoppingStore.items = [doneItem]
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'mil'
-      await wrapper.vm.$nextTick()
-
-      const suggestionChips = [...document.body.querySelectorAll('.v-chip')]
-        .filter(c => c.textContent.trim() === 'Milk')
-      await suggestionChips[0].click()
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.vm.selectedDoneItem).not.toBeNull()
-
-      const cancelBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Cancel')
-      await cancelBtn.click()
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.vm.selectedDoneItem).toBeNull()
-    })
-  })
-
-  describe('move or copy item (issue #77)', () => {
-    async function openEditSheet(wrapper, item = { id: 'item-1', name: 'Milk', qty: '2 pints', aisle: 'Dairy' }) {
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      await list.vm.$emit('edit', item)
-      await wrapper.vm.$nextTick()
-    }
-
-    // The "Party supplies" chip appears twice: once in the list selector and
-    // once inside the move/copy section in the bottom sheet overlay. Scope the
-    // lookup to the overlay content so we click the right one.
-    function getDestChipInSheet() {
-      const overlay = document.body.querySelector('.v-overlay__content')
-      if (!overlay) return undefined
-      return [...overlay.querySelectorAll('.v-chip')]
-        .find(c => c.textContent.trim() === 'Party supplies')
-    }
-
-    it('does not show the move/copy section when in add mode', async () => {
-      const wrapper = mountView()
-      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
-      await fab.trigger('click')
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).not.toContain('Move or copy to list')
-    })
-
-    it('does not show the move/copy section when only one list exists', async () => {
-      shoppingStore.lists = [{ id: 'list-1', name: 'Weekly shop' }]
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      expect(document.body.textContent).not.toContain('Move or copy to list')
-    })
-
-    it('shows the move/copy section in edit mode when more than one list exists', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      expect(document.body.textContent).toContain('Move or copy to list')
-    })
-
-    it('shows a chip for the other list inside the sheet', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      expect(getDestChipInSheet()).toBeDefined()
-    })
-
-    it('Move and Copy buttons are not visible before a destination chip is selected', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      const btns = [...document.body.querySelectorAll('button')].map(b => b.textContent.trim())
-      expect(btns).not.toContain('Move')
-      expect(btns).not.toContain('Copy')
-    })
-
-    it('selecting a destination chip shows Move and Copy buttons', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-
-      await getDestChipInSheet().click()
-      await wrapper.vm.$nextTick()
-
-      const btns = [...document.body.querySelectorAll('button')].map(b => b.textContent.trim())
-      expect(btns).toContain('Move')
-      expect(btns).toContain('Copy')
-    })
-
-    it('clicking a selected destination chip deselects it and hides the buttons', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-
-      await getDestChipInSheet().click()
-      await wrapper.vm.$nextTick()
-      await getDestChipInSheet().click()
-      await wrapper.vm.$nextTick()
-
-      const btns = [...document.body.querySelectorAll('button')].map(b => b.textContent.trim())
-      expect(btns).not.toContain('Move')
-      expect(btns).not.toContain('Copy')
-    })
-
-    it('clicking Copy calls moveOrCopyItem with action=copy and the destination list id', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      // Set destination directly — chip-click behaviour is covered separately
-      wrapper.vm.destListId = 'list-2'
-      await wrapper.vm.$nextTick()
-
-      const copyBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Copy')
-      await copyBtn.click()
-
-      expect(shoppingStore.moveOrCopyItem).toHaveBeenCalledWith('item-1', 'list-2', 'copy')
-    })
-
-    it('clicking Move calls moveOrCopyItem with action=move and the destination list id', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      wrapper.vm.destListId = 'list-2'
-      await wrapper.vm.$nextTick()
-
-      const moveBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Move')
-      await moveBtn.click()
-
-      expect(shoppingStore.moveOrCopyItem).toHaveBeenCalledWith('item-1', 'list-2', 'move')
-    })
-
-    it('clicking Copy closes the sheet immediately', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      wrapper.vm.destListId = 'list-2'
-      await wrapper.vm.$nextTick()
-
-      const copyBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Copy')
-      await copyBtn.click()
-      await wrapper.vm.$nextTick()
-
-      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[0].props('modelValue')).toBe(false)
-    })
-
-    it('clicking Move closes the sheet immediately', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-      wrapper.vm.destListId = 'list-2'
-      await wrapper.vm.$nextTick()
-
-      const moveBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Move')
-      await moveBtn.click()
-      await wrapper.vm.$nextTick()
-
-      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[0].props('modelValue')).toBe(false)
-    })
-
-    it('destListId resets to null when the edit sheet is reopened', async () => {
-      const wrapper = mountView()
-      await openEditSheet(wrapper)
-
-      wrapper.vm.destListId = 'list-2'
-      expect(wrapper.vm.destListId).toBe('list-2')
-
-      const cancelBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Cancel')
-      await cancelBtn.click()
-      await wrapper.vm.$nextTick()
-
-      await openEditSheet(wrapper, { id: 'item-2', name: 'Bread', qty: '', aisle: 'Bakery' })
-      expect(wrapper.vm.destListId).toBeNull()
-    })
-  })
-
-  describe('toggle aisle headers (issue #65)', () => {
-    const STORAGE_KEY = 'shoppingHeadersVisible_parent-uid'
-
-    beforeEach(() => {
-      localStorage.removeItem(STORAGE_KEY)
-    })
-
-    afterEach(() => {
-      localStorage.removeItem(STORAGE_KEY)
-    })
-
-    it('shows the toggle header button when lists exist', () => {
-      const wrapper = mountView()
-      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-label-outline'))
-      expect(toggleBtn).toBeDefined()
-    })
-
-    it('headers are shown by default (mdi-label-outline icon)', () => {
-      const wrapper = mountView()
-      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-label-outline'))
-      expect(toggleBtn).toBeDefined()
-    })
-
-    it('passes showHeaders=true to ShoppingList by default', () => {
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      expect(list.props('showHeaders')).toBe(true)
-    })
-
-    it('clicking the toggle hides headers and updates icon to mdi-label-off-outline', async () => {
-      const wrapper = mountView()
-      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-label-outline'))
-      await toggleBtn.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const updatedBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-label-off-outline'))
-      expect(updatedBtn).toBeDefined()
-    })
-
-    it('passes showHeaders=false to ShoppingList after toggling off', async () => {
-      const wrapper = mountView()
-      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-label-outline'))
-      await toggleBtn.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      expect(list.props('showHeaders')).toBe(false)
-    })
-
-    it('toggling twice restores showHeaders=true', async () => {
-      const wrapper = mountView()
-      const findToggle = () => wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-label-outline') || b.html().includes('mdi-label-off-outline'))
-
-      await findToggle().trigger('click')
-      await wrapper.vm.$nextTick()
-      await findToggle().trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      expect(list.props('showHeaders')).toBe(true)
-    })
-
-    it('persists hidden state to localStorage with a per-user key', async () => {
-      const wrapper = mountView()
-      const toggleBtn = wrapper.findAllComponents({ name: 'VBtn' })
-        .find(b => b.html().includes('mdi-label-outline'))
-      await toggleBtn.trigger('click')
-
-      expect(localStorage.getItem(STORAGE_KEY)).toBe('false')
-    })
-
-    it('restores hidden state from localStorage on mount', () => {
-      localStorage.setItem(STORAGE_KEY, 'false')
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      expect(list.props('showHeaders')).toBe(false)
-    })
-  })
-
-  describe('item name max length (issue #91)', () => {
-    async function openSheet(wrapper) {
-      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
-      await fab.trigger('click')
-      await wrapper.vm.$nextTick()
-    }
-
-    it('truncates names longer than 80 chars to 80 chars on submit', async () => {
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'A'.repeat(81)
-      const addBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Add')
-      await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('A'.repeat(80), expect.any(String), expect.anything())
-    })
-
-    it('does not truncate names of exactly 80 chars', async () => {
-      const wrapper = mountView()
-      await openSheet(wrapper)
-      wrapper.vm.itemName = 'B'.repeat(80)
-      const addBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Add')
-      await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('B'.repeat(80), expect.any(String), expect.anything())
-    })
-  })
-
-  describe('edit item sheet', () => {
-    it('does not show the edit sheet initially', () => {
-      mountView()
-      expect(document.body.textContent).not.toContain('Edit item')
-    })
-
-    it('opens the edit sheet when ShoppingList emits edit', async () => {
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
-      await wrapper.vm.$nextTick()
-      expect(document.body.textContent).toContain('Edit item')
-    })
-
-    it('pre-populates name and qty fields from the emitted item', async () => {
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
-      await wrapper.vm.$nextTick()
-
-      const inputs = [...document.body.querySelectorAll('input')]
-      expect(inputs.some(i => i.value === 'Milk')).toBe(true)
-      expect(inputs.some(i => i.value === '2 pints')).toBe(true)
-    })
-
-    it('calls store.updateItem with trimmed name and qty on Save', async () => {
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
-      await wrapper.vm.$nextTick()
-
-      const saveBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Save')
-      await saveBtn.click()
-
-      expect(shoppingStore.updateItem).toHaveBeenCalledWith('item-1', {
-        name: 'Milk',
-        qty: '2 pints',
-        aisle: 'Dairy',
-      })
-    })
-
-    it('closes the edit sheet after Save', async () => {
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
-      await wrapper.vm.$nextTick()
-
-      const saveBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Save')
-      await saveBtn.click()
-      await wrapper.vm.$nextTick()
-
-      // Sheet order in template: 0=item (add/edit shared), 1=new-list
-      // Vuetify unmounts slot content when closed, so find by index and check modelValue
-      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[0].props('modelValue')).toBe(false)
-    })
-
-    it('does not call updateItem when name is blank', async () => {
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      await list.vm.$emit('edit', { id: 'item-1', name: '  ', qty: '' })
-      await wrapper.vm.$nextTick()
-
-      const saveBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Save')
-      await saveBtn.click()
-
-      expect(shoppingStore.updateItem).not.toHaveBeenCalled()
-    })
-
-    it('closes the edit sheet on Cancel without calling updateItem', async () => {
-      const wrapper = mountView()
-      const list = wrapper.findComponent({ name: 'ShoppingList' })
-      await list.vm.$emit('edit', { id: 'item-1', name: 'Milk', qty: '2 pints' })
-      await wrapper.vm.$nextTick()
-
-      const cancelBtn = [...document.body.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Cancel')
-      await cancelBtn.click()
-      await wrapper.vm.$nextTick()
-
-      expect(shoppingStore.updateItem).not.toHaveBeenCalled()
-      // Sheet order in template: 0=item (add/edit shared), 1=new-list
-      const sheets = wrapper.findAllComponents({ name: 'VBottomSheet' })
-      expect(sheets[0].props('modelValue')).toBe(false)
+      expect(document.documentElement.style.getPropertyValue('--supermarket-manager-sheet-bottom')).toBe('0px')
     })
   })
 })

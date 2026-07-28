@@ -17,6 +17,8 @@ const store = useShoppingStore()
 const { isParent } = useUserRole()
 
 const isPriority = computed(() => props.item.priority ?? false)
+// An item explicitly assigned to "All supermarkets" (distinct from unallocated).
+const isAllSupermarkets = computed(() => props.item.allSupermarkets ?? false)
 
 function onToggle() {
   // Capture the pre-toggle state so the list can offer a faithful undo —
@@ -49,6 +51,15 @@ function onToggle() {
 
     <v-list-item-title class="text-wrap" :class="{ 'text-decoration-line-through text-medium-emphasis': item.done }">
       {{ item.name }}
+      <v-chip
+        v-if="isAllSupermarkets"
+        size="x-small"
+        variant="tonal"
+        color="primary"
+        class="ml-1 all-stores-chip"
+      >
+        All stores
+      </v-chip>
     </v-list-item-title>
     <v-list-item-subtitle v-if="item.qty">{{ item.qty }}</v-list-item-subtitle>
 

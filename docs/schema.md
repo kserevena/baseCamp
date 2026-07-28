@@ -26,17 +26,33 @@ families/{familyId}/shoppingLists/{listId}   ← auto-generated ID; family scope
   createdAt: timestamp
   createdBy: uid
   aisles: Array<{ name: string, order: number }> | absent
-                              ← per-list aisle config; absent on old docs → store falls back
-                                to DEFAULT_AISLES. Written on list creation and by saveAisles().
+                              ← legacy per-list aisle config (kept for backward compat and to
+                                seed the default supermarket). Since #137 Part B, aisle ORDERING
+                                lives on supermarket documents; the store resolves aisle order
+                                from the selected supermarket, falling back to this / DEFAULT_AISLES.
   items/{itemId}
     name: string
     qty: string
-    aisle: string
-    aisleOrder: number        ← for sorting by store layout; 99 = Unknown (items from deleted aisles)
+    aisle: string             ← a single aisle NAME per item; each supermarket positions it
+    aisleOrder: number        ← denormalised default-store order; 99 = Unknown. No longer drives
+                                sorting (resolved per-supermarket at render); kept for old clients.
     done: boolean
     addedBy: uid
-    sortOrder: number | null  ← custom drag-drop position within aisle; absent = sort by name
+    supermarketIds: string[]  ← Part B allocation: specific stores. Absent/[] = unallocated
+                                (shown in every view). Read defensively.
+    allSupermarkets: boolean  ← Part B allocation: explicit "all stores" (distinct from
+                                unallocated). Absent = false. Read defensively.
+    sortOrder: number | null  ← custom drag-drop position within aisle (global); absent = sort by name
     createdAt: timestamp
+
+families/{familyId}/supermarkets/{supermarketId}   ← per-family stores (#137 Part B)
+  name: string                ← e.g. "Tesco"; parent-editable
+  aisles: Array<{ name: string, order: number }>
+                              ← this store's independent aisle ordering
+  order: number               ← chip display order; the migration/auto-provisioned default = 0.
+                                The first store (lowest order) seeds the "All items" aisle axis.
+  createdBy: uid
+  createdAt: timestamp
 
 families/{familyId}/pocketMoney/{uid}   ← config + running balance snapshot per child
   weeklyAmount: number                  ← amount added each payment day

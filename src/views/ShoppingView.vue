@@ -408,10 +408,13 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   display: flex;
   flex-wrap: wrap;
   gap: 6px 8px;
-  /* Cap the wrapped chip row at two lines (26px "small" chip height x2 plus
-     the row gap) so a family with many supermarkets doesn't push the list
-     down indefinitely — extra rows scroll instead. */
-  max-height: 58px;
+  /* Cap the wrapped chip row at two lines so a family with many supermarkets
+     doesn't push the list down indefinitely — extra rows scroll instead.
+     max-height is a border-box height, so it must include the container's
+     own padding: 2 x 26px "small" chip height + 6px row gap + 8px (4px top
+     + 4px bottom) padding = 66px. A bare 58px (chip content only) leaves no
+     room for the padding and triggers a scrollbar after just two lines. */
+  max-height: 66px;
   overflow-y: auto;
   padding: 4px 0;
 }

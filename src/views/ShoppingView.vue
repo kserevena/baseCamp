@@ -181,7 +181,6 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
             :variant="store.selectedSupermarketId === null ? 'flat' : 'tonal'"
             :prepend-icon="store.selectedSupermarketId === null ? 'mdi-check' : undefined"
             size="small"
-            class="mr-2"
             @click="store.selectSupermarket(null)"
           >
             All items
@@ -193,7 +192,6 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
             :variant="store.selectedSupermarketId === sm.id ? 'flat' : 'tonal'"
             :prepend-icon="store.selectedSupermarketId === sm.id ? 'mdi-check' : undefined"
             size="small"
-            class="mr-2"
             @click="store.selectSupermarket(sm.id)"
           >
             {{ sm.name }}
@@ -402,19 +400,20 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
 }
 .list-selector {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 .list-chips {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  /* Cap the wrapped chip row at two lines (26px "small" chip height x2 plus
+     the row gap) so a family with many supermarkets doesn't push the list
+     down indefinitely — extra rows scroll instead. */
+  max-height: 58px;
+  overflow-y: auto;
   padding: 4px 0;
-}
-.list-chips::-webkit-scrollbar {
-  display: none;
 }
 .empty-state {
   display: flex;

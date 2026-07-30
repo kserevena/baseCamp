@@ -4,6 +4,8 @@ import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { reactive } from 'vue'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
 let shoppingStore
 let familyStore
@@ -118,6 +120,37 @@ describe('ShoppingView', () => {
       const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Tesco'))
       expect(chip.props('color')).toBe('primary')
       expect(chip.props('prependIcon')).toBe('mdi-check')
+    })
+
+    // Issue #158: chips must wrap onto multiple lines instead of truncating
+    // in a single nowrap row.
+    it('renders every supermarket chip in full, unabbreviated, even with many stores', () => {
+      shoppingStore = makeStore({
+        supermarkets: [
+          { id: 'sm-1', name: 'Sainsburys', aisles: [] },
+          { id: 'sm-2', name: 'Marks & Spencer', aisles: [] },
+          { id: 'sm-3', name: 'Morrisons', aisles: [] },
+          { id: 'sm-4', name: 'Co-op', aisles: [] },
+          { id: 'sm-5', name: 'Waitrose', aisles: [] },
+        ],
+      })
+      const wrapper = mountView()
+      const chipTexts = wrapper.findAllComponents({ name: 'VChip' }).map(c => c.text())
+      expect(chipTexts).toContain('Sainsburys')
+      expect(chipTexts).toContain('Marks & Spencer')
+      expect(chipTexts).toContain('Morrisons')
+      expect(chipTexts).toContain('Co-op')
+      expect(chipTexts).toContain('Waitrose')
+    })
+
+    // jsdom doesn't apply scoped SFC styles, so wrapping can't be asserted via
+    // getComputedStyle here — read the source instead as a regression guard
+    // against reverting to the old single-line, horizontally-scrolling row.
+    it('the .list-chips rule wraps instead of scrolling on a single nowrap row', async () => {
+      const source = await readFile(resolve(process.cwd(), 'src/views/ShoppingView.vue'), 'utf-8')
+      const rule = source.match(/\.list-chips\s*\{([^}]*)\}/)[1]
+      expect(rule).toMatch(/flex-wrap:\s*wrap/)
+      expect(rule).not.toMatch(/overflow-x:\s*auto/)
     })
   })
 

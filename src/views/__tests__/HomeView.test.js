@@ -57,6 +57,9 @@ describe('HomeView', () => {
     })
     shoppingStore = reactive({
       lists: [],
+      activeListId: null,
+      supermarkets: [],
+      selectedSupermarket: null,
     })
     jobsStore = reactive({
       activeJobsByPriority: [],
@@ -90,6 +93,47 @@ describe('HomeView', () => {
       const cards = wrapper.findAllComponents({ name: 'VCard' })
       const shoppingCard = cards.find(c => c.text().includes('Shopping list'))
       expect(shoppingCard.props('to')).toBe('/shopping')
+    })
+
+    // ── Issue #159: the card must track what ShoppingView actually shows ──
+    describe('once supermarkets exist (issue #137 Part B)', () => {
+      beforeEach(() => {
+        shoppingStore.lists = [{ id: 'list-1', name: 'Weekend shop' }]
+        shoppingStore.activeListId = 'list-1'
+        shoppingStore.supermarkets = [
+          { id: 'sm-1', name: 'Tesco' },
+          { id: 'sm-2', name: 'Lidl' },
+        ]
+      })
+
+      it('shows the selected supermarket\'s name, not the list name', () => {
+        shoppingStore.selectedSupermarket = { id: 'sm-2', name: 'Lidl' }
+        const wrapper = mountView()
+        expect(wrapper.text()).toContain('Lidl')
+        expect(wrapper.text()).not.toContain('Weekend shop')
+      })
+
+      it('shows "All items" when no supermarket is selected', () => {
+        shoppingStore.selectedSupermarket = null
+        const wrapper = mountView()
+        expect(wrapper.text()).toContain('All items')
+      })
+    })
+
+    describe('before any supermarket has been provisioned (pre-migration)', () => {
+      it('falls back to the active list\'s name', () => {
+        shoppingStore.lists = [{ id: 'list-1', name: 'Weekend shop' }]
+        shoppingStore.activeListId = 'list-1'
+        const wrapper = mountView()
+        expect(wrapper.text()).toContain('Weekend shop')
+      })
+    })
+
+    it('shows nothing extra when no list is active yet', () => {
+      shoppingStore.lists = [{ id: 'list-1', name: 'Weekend shop' }]
+      shoppingStore.activeListId = null
+      const wrapper = mountView()
+      expect(wrapper.text()).not.toContain('Weekend shop')
     })
   })
 

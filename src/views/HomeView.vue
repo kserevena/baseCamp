@@ -8,11 +8,18 @@ import JobsPreview from '@/components/JobsPreview.vue'
 const family = useFamilyStore()
 const shopping = useShoppingStore()
 
-const lastActiveList = computed(() => {
-  if (!family.familyId) return null
-  const savedId = localStorage.getItem(`lastActiveListId_${family.familyId}`)
-  if (!savedId) return null
-  return shopping.lists.find(l => l.id === savedId) ?? null
+// Mirrors what ShoppingView actually shows: once a family has supermarkets
+// (issue #137 Part B), the meaningful "which view was I last in" state is the
+// selected supermarket (store.selectedSupermarketId, restored from
+// localStorage in shopping.js's setup()), not the underlying list — most
+// families only ever have one list. Pre-migration families with no
+// supermarkets yet fall back to the active list's name, as before.
+const shoppingSummary = computed(() => {
+  if (!shopping.activeListId) return null
+  if (shopping.supermarkets.length > 0) {
+    return shopping.selectedSupermarket?.name ?? 'All items'
+  }
+  return shopping.lists.find(l => l.id === shopping.activeListId)?.name ?? null
 })
 </script>
 
@@ -29,8 +36,8 @@ const lastActiveList = computed(() => {
           <v-icon color="primary" class="mr-2">mdi-cart</v-icon>
           <span class="text-subtitle-1 font-weight-medium">Shopping list</span>
         </div>
-        <div v-if="lastActiveList" class="text-body-2 text-medium-emphasis mt-1">
-          {{ lastActiveList.name }}
+        <div v-if="shoppingSummary" class="text-body-2 text-medium-emphasis mt-1">
+          {{ shoppingSummary }}
         </div>
       </v-card-text>
     </v-card>

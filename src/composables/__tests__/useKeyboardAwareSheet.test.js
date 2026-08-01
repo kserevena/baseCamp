@@ -122,6 +122,82 @@ describe('useKeyboardAwareSheet', () => {
     expect(document.documentElement.style.getPropertyValue(CSS_VAR)).toBe('0px')
   })
 
+  it('registers a focusin listener when the sheet opens and removes it on close', async () => {
+    const addSpy = vi.spyOn(document, 'addEventListener')
+    const removeSpy = vi.spyOn(document, 'removeEventListener')
+
+    const sheetOpen = makeSheetOpen()
+    sheetOpen.value = true
+    await nextTick()
+    expect(addSpy).toHaveBeenCalledWith('focusin', expect.any(Function))
+
+    sheetOpen.value = false
+    await nextTick()
+    expect(removeSpy).toHaveBeenCalledWith('focusin', expect.any(Function))
+
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  it('scrolls a focused text field into view when it receives focus while the sheet is open', async () => {
+    const sheetOpen = makeSheetOpen()
+    sheetOpen.value = true
+    await nextTick()
+
+    const input = document.createElement('input')
+    input.scrollIntoView = vi.fn()
+    document.body.appendChild(input)
+
+    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+
+    expect(input.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    document.body.removeChild(input)
+  })
+
+  it('does not scroll on focusin for non-field targets', async () => {
+    const sheetOpen = makeSheetOpen()
+    sheetOpen.value = true
+    await nextTick()
+
+    const div = document.createElement('div')
+    div.tabIndex = -1
+    div.scrollIntoView = vi.fn()
+    document.body.appendChild(div)
+
+    div.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+
+    expect(div.scrollIntoView).not.toHaveBeenCalled()
+    document.body.removeChild(div)
+  })
+
+  it('re-scrolls the currently focused field into view on subsequent viewport resizes', async () => {
+    const sheetOpen = makeSheetOpen()
+    sheetOpen.value = true
+    await nextTick()
+
+    const input = document.createElement('input')
+    input.scrollIntoView = vi.fn()
+    document.body.appendChild(input)
+    input.focus()
+
+    mockVp.height = 511
+    const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+    resizeCb()
+
+    expect(input.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    document.body.removeChild(input)
+  })
+
+  it('does not throw on resize when no field is focused', async () => {
+    const sheetOpen = makeSheetOpen()
+    sheetOpen.value = true
+    await nextTick()
+
+    mockVp.height = 511
+    const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
+    expect(resizeCb).not.toThrow()
+  })
+
   it('removes the listener and resets the CSS var when the host component unmounts while the sheet is open', async () => {
     const sheetOpen = ref(false)
     const wrapper = mount({

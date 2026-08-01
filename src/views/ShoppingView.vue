@@ -254,11 +254,13 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
     </div>
 
     <!-- Add/edit item bottom sheet (shared between both flows).
-         The card is a fixed header/scrollable body/fixed footer flex column
-         (#162) rather than one uniformly-scrolling block: the two text
-         fields (name, quantity) live in the header so the on-screen
-         keyboard can never scroll them out of view — only the tap-only
-         chip pickers below them scroll. -->
+         The whole card scrolls as one region (giving the browser a real
+         scrollable ancestor for its native focus-into-view behaviour —
+         without one, it was escalating to scrolling the outer page, which
+         is worse). .add-item-header / .add-item-footer are `position:
+         sticky` within that single scroll container so the text fields and
+         buttons can never scroll out of view regardless of how tall the
+         aisle/supermarket chip picker gets (#162). -->
     <v-bottom-sheet v-model="sheet" max-width="600" content-class="add-item-overlay">
       <v-card rounded="t-xl" class="add-item-card">
         <div class="add-item-header pa-4 pb-0">
@@ -284,7 +286,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
           />
         </div>
 
-        <div class="add-item-scroll px-4">
+        <div class="add-item-body px-4">
           <div v-if="doneSuggestions.length" class="mb-3">
             <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
             <div class="d-flex flex-wrap gap-1">
@@ -442,25 +444,31 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   max-height: 90dvh;
   overflow-y: auto;
 }
-/* Add/edit item card is a fixed header/scrollable body/fixed footer column
-   rather than one uniformly-scrolling block (#162): the header (name/qty
-   fields) and footer (buttons) are always visible above the keyboard;
-   only the tap-only chip pickers in the middle scroll. The card itself
-   does not scroll — overflow is hidden so only .add-item-scroll does. */
+/* Add/edit item card scrolls as ONE region — deliberately not split into a
+   separately-scrolling middle section (#162 history): with no scrollable
+   ancestor near the focused text field, the browser's native "scroll the
+   focused input into view" behaviour escalated to scrolling the outer page
+   instead, dragging the whole sheet off-screen. Keeping one scrollable
+   container gives it a legitimate, nearby target. .add-item-header /
+   .add-item-footer are `position: sticky` within that container so the
+   name/qty fields and the buttons stay visible no matter how far the
+   aisle/supermarket chip picker between them scrolls — sticky elements
+   can't be scrolled past regardless of what triggers the scroll. */
 .add-item-card {
   max-height: 90vh; /* fallback for browsers without dvh support */
   max-height: 90dvh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
 }
 .add-item-header,
 .add-item-footer {
-  flex: none;
+  position: sticky;
+  z-index: 1;
+  background: rgb(var(--v-theme-surface));
 }
-.add-item-scroll {
-  flex: 1 1 auto;
-  min-height: 0; /* let this flex child shrink below its content height so it scrolls instead of the card */
-  overflow-y: auto;
+.add-item-header {
+  top: 0;
+}
+.add-item-footer {
+  bottom: 0;
 }
 </style>

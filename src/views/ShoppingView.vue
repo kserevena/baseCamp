@@ -293,7 +293,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
         />
         <div class="mb-3">
           <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-          <div class="aisle-chips d-flex flex-wrap gap-1">
+          <div class="aisle-chips">
             <v-chip
               v-for="aisle in store.activeAisles"
               :key="aisle.name"
@@ -310,7 +310,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
         <!-- Supermarket allocation — only shown once the family has supermarkets -->
         <div v-if="store.supermarkets.length > 0" class="mb-3">
           <div class="text-caption text-medium-emphasis mb-2">Available in</div>
-          <div class="d-flex flex-wrap gap-1">
+          <div class="supermarket-alloc-chips">
             <v-chip
               :color="itemAllSupermarkets ? 'primary' : undefined"
               :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
@@ -424,6 +424,25 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   align-items: center;
   justify-content: center;
   padding-top: 100px;
+}
+/* Cap the Aisle / Available in chip pickers on the Add item sheet at two
+   lines each (same formula as .list-chips above) so the sheet's total
+   height stays small and predictable regardless of how many aisles or
+   supermarkets a family has configured — a family with 18 aisles and 5
+   supermarkets produces the same sheet height as one with 3 of each.
+   This is what keeps the on-screen keyboard from ever needing to cover
+   the Item name / Quantity fields above in the first place (#162) — see
+   issues #49/#109/#162 and this file's git history for approaches that
+   tried to react to the keyboard instead and didn't hold up on a real
+   Android device. */
+.aisle-chips,
+.supermarket-alloc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  max-height: 66px;
+  overflow-y: auto;
+  padding: 4px 0;
 }
 /* dvh shrinks when the Android keyboard is shown, keeping the cards visible
    above the keyboard. Both sheets that contain text inputs need this guard. */

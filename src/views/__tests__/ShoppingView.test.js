@@ -392,6 +392,36 @@ describe('ShoppingView', () => {
       await addBtn.click()
       expect(shoppingStore.addItem).toHaveBeenCalled()
     })
+
+    it('shrinks the chip-picker-section budget by the Re-add row height when suggestions appear', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.chipPickerMaxHeight).toBe(236)
+
+      wrapper.vm.itemName = 'but'
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.doneSuggestions.length).toBeGreaterThan(0)
+      expect(wrapper.vm.chipPickerMaxHeight).toBeLessThan(236)
+
+      wrapper.vm.itemName = ''
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.chipPickerMaxHeight).toBe(236)
+    })
+
+    it('floors the chip-picker-section budget instead of letting a large Re-add row collapse it', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.reAddSectionHeight = 500
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.chipPickerMaxHeight).toBe(58)
+    })
   })
 
   describe('allocation hint text', () => {

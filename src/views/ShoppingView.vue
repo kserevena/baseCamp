@@ -91,11 +91,22 @@ const doneSuggestions = computed(() => {
 // like the aisle/supermarket rows — so it's measured from the live DOM
 // rather than hard-coded, and the picker's budget shrinks by exactly that
 // much to keep the sheet's total height constant either way (#162).
+// CHIP_PICKER_MAX_HEIGHT itself is a one-time manual measurement (see
+// .chip-picker-section in <style>) tied to the current Vuetify "small" chip
+// size and mb-2/mb-3 spacing scale — re-measure it if either changes.
 const CHIP_PICKER_MAX_HEIGHT = 236 // px — see .chip-picker-section in <style>
 const RE_ADD_SECTION_MARGIN_BOTTOM = 8 // px — the mb-2 utility on the Re-add wrapper below
+// Floor so a large Re-add row (up to 5 suggestions, possibly wrapping to
+// 2-3 lines) can never shrink the picker below room for its "Aisle" label
+// plus one full row of chips: 24px label + 8px mb-2 gap + 26px "small" chip
+// row = 58px (measured).
+const CHIP_PICKER_MIN_HEIGHT = 58 // px — label + one chip row
 const reAddSectionEl = ref(null)
 const reAddSectionHeight = ref(0)
-const chipPickerMaxHeight = computed(() => Math.max(CHIP_PICKER_MAX_HEIGHT - reAddSectionHeight.value, 0))
+const chipPickerMaxHeight = computed(() => Math.max(
+  CHIP_PICKER_MAX_HEIGHT - reAddSectionHeight.value,
+  CHIP_PICKER_MIN_HEIGHT,
+))
 
 watch(doneSuggestions, async () => {
   await nextTick()

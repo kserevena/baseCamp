@@ -26,7 +26,7 @@
     "vue": "^3.5.39",
     "vue-draggable-plus": "^0.6.1",
     "vue-router": "^5.1.0",
-    "vuetify": "^4.1.4",
+    "vuetify": "^4.1.6",
     "workbox-window": "^7.4.1"
   },
   "devDependencies": {

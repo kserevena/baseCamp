@@ -253,87 +253,97 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
       </v-btn>
     </div>
 
-    <!-- Add/edit item bottom sheet (shared between both flows) -->
+    <!-- Add/edit item bottom sheet (shared between both flows).
+         The card is a fixed header/scrollable body/fixed footer flex column
+         (#162) rather than one uniformly-scrolling block: the two text
+         fields (name, quantity) live in the header so the on-screen
+         keyboard can never scroll them out of view — only the tap-only
+         chip pickers below them scroll. -->
     <v-bottom-sheet v-model="sheet" max-width="600" content-class="add-item-overlay">
-      <v-card rounded="t-xl" class="pa-4 add-item-card">
-        <div class="text-subtitle-1 font-weight-medium mb-3">
-          {{ itemMode === 'edit' ? 'Edit item' : 'Add item' }}
-        </div>
-        <v-text-field
-          v-model="itemName"
-          label="Item name"
-          variant="outlined"
-          autofocus
-          class="mb-2"
-          :maxlength="ITEM_NAME_MAX_LENGTH"
-          :counter="ITEM_NAME_MAX_LENGTH"
-          @keyup.enter="submit"
-        />
-        <div v-if="doneSuggestions.length" class="mb-2">
-          <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
-          <div class="d-flex flex-wrap gap-1">
-            <v-chip
-              v-for="item in doneSuggestions"
-              :key="item.id"
-              size="small"
-              variant="tonal"
-              color="primary"
-              @click="selectSuggestion(item)"
-            >
-              {{ item.name }}
-            </v-chip>
+      <v-card rounded="t-xl" class="add-item-card">
+        <div class="add-item-header pa-4 pb-0">
+          <div class="text-subtitle-1 font-weight-medium mb-3">
+            {{ itemMode === 'edit' ? 'Edit item' : 'Add item' }}
           </div>
+          <v-text-field
+            v-model="itemName"
+            label="Item name"
+            variant="outlined"
+            autofocus
+            class="mb-2"
+            :maxlength="ITEM_NAME_MAX_LENGTH"
+            :counter="ITEM_NAME_MAX_LENGTH"
+            @keyup.enter="submit"
+          />
+          <v-text-field
+            v-model="itemQty"
+            label="Quantity (optional)"
+            variant="outlined"
+            class="mb-2"
+            @keyup.enter="submit"
+          />
         </div>
-        <v-text-field
-          v-model="itemQty"
-          label="Quantity (optional)"
-          variant="outlined"
-          class="mb-2"
-          @keyup.enter="submit"
-        />
-        <div class="mb-3">
-          <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-          <div class="aisle-chips d-flex flex-wrap gap-1">
-            <v-chip
-              v-for="aisle in store.activeAisles"
-              :key="aisle.name"
-              :color="itemAisle === aisle.name ? 'primary' : undefined"
-              :variant="itemAisle === aisle.name ? 'flat' : 'tonal'"
-              size="small"
-              @click="itemAisle = aisle.name"
-            >
-              {{ aisle.name }}
-            </v-chip>
+
+        <div class="add-item-scroll px-4">
+          <div v-if="doneSuggestions.length" class="mb-3">
+            <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
+            <div class="d-flex flex-wrap gap-1">
+              <v-chip
+                v-for="item in doneSuggestions"
+                :key="item.id"
+                size="small"
+                variant="tonal"
+                color="primary"
+                @click="selectSuggestion(item)"
+              >
+                {{ item.name }}
+              </v-chip>
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
+            <div class="aisle-chips d-flex flex-wrap gap-1">
+              <v-chip
+                v-for="aisle in store.activeAisles"
+                :key="aisle.name"
+                :color="itemAisle === aisle.name ? 'primary' : undefined"
+                :variant="itemAisle === aisle.name ? 'flat' : 'tonal'"
+                size="small"
+                @click="itemAisle = aisle.name"
+              >
+                {{ aisle.name }}
+              </v-chip>
+            </div>
+          </div>
+
+          <!-- Supermarket allocation — only shown once the family has supermarkets -->
+          <div v-if="store.supermarkets.length > 0" class="mb-3">
+            <div class="text-caption text-medium-emphasis mb-2">Available in</div>
+            <div class="d-flex flex-wrap gap-1">
+              <v-chip
+                :color="itemAllSupermarkets ? 'primary' : undefined"
+                :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
+                size="small"
+                @click="toggleAllSupermarkets"
+              >
+                All supermarkets
+              </v-chip>
+              <v-chip
+                v-for="sm in store.supermarkets"
+                :key="sm.id"
+                :color="itemSupermarketIds.includes(sm.id) ? 'primary' : undefined"
+                :variant="itemSupermarketIds.includes(sm.id) ? 'flat' : 'tonal'"
+                size="small"
+                @click="toggleSupermarket(sm.id)"
+              >
+                {{ sm.name }}
+              </v-chip>
+            </div>
+            <div class="text-caption text-medium-emphasis mt-1">{{ allocationHint }}</div>
           </div>
         </div>
 
-        <!-- Supermarket allocation — only shown once the family has supermarkets -->
-        <div v-if="store.supermarkets.length > 0" class="mb-3">
-          <div class="text-caption text-medium-emphasis mb-2">Available in</div>
-          <div class="d-flex flex-wrap gap-1">
-            <v-chip
-              :color="itemAllSupermarkets ? 'primary' : undefined"
-              :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
-              size="small"
-              @click="toggleAllSupermarkets"
-            >
-              All supermarkets
-            </v-chip>
-            <v-chip
-              v-for="sm in store.supermarkets"
-              :key="sm.id"
-              :color="itemSupermarketIds.includes(sm.id) ? 'primary' : undefined"
-              :variant="itemSupermarketIds.includes(sm.id) ? 'flat' : 'tonal'"
-              size="small"
-              @click="toggleSupermarket(sm.id)"
-            >
-              {{ sm.name }}
-            </v-chip>
-          </div>
-          <div class="text-caption text-medium-emphasis mt-1">{{ allocationHint }}</div>
-        </div>
-
-        <div class="d-flex gap-2">
+        <div class="add-item-footer pa-4 pt-2 d-flex gap-2">
           <v-btn variant="text" @click="sheet = false">Cancel</v-btn>
           <v-spacer />
           <v-btn color="primary" variant="flat" @click="submit">
@@ -425,12 +435,32 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   justify-content: center;
   padding-top: 100px;
 }
-/* dvh shrinks when the Android keyboard is shown, keeping the cards visible
-   above the keyboard. Both sheets that contain text inputs need this guard. */
-.add-item-card,
+/* dvh shrinks when the Android keyboard is shown, keeping the card visible
+   above the keyboard. */
 .new-list-card {
   max-height: 90vh; /* fallback for browsers without dvh support */
   max-height: 90dvh;
+  overflow-y: auto;
+}
+/* Add/edit item card is a fixed header/scrollable body/fixed footer column
+   rather than one uniformly-scrolling block (#162): the header (name/qty
+   fields) and footer (buttons) are always visible above the keyboard;
+   only the tap-only chip pickers in the middle scroll. The card itself
+   does not scroll — overflow is hidden so only .add-item-scroll does. */
+.add-item-card {
+  max-height: 90vh; /* fallback for browsers without dvh support */
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.add-item-header,
+.add-item-footer {
+  flex: none;
+}
+.add-item-scroll {
+  flex: 1 1 auto;
+  min-height: 0; /* let this flex child shrink below its content height so it scrolls instead of the card */
   overflow-y: auto;
 }
 </style>

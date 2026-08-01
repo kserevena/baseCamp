@@ -5,21 +5,16 @@ import { useKeyboardAwareSheet } from '@/composables/useKeyboardAwareSheet.js'
 
 const CSS_VAR = '--test-sheet-bottom'
 
-let mountedWrappers = []
-
-// Mount a minimal host component that uses the composable. Tracked and
-// unmounted in afterEach so its document-level focusin listener doesn't
-// linger (and double-apply scroll corrections) in later tests.
+// Mount a minimal host component that uses the composable.
 function makeSheetOpen() {
   const sheetOpen = ref(false)
-  const wrapper = mount({
+  mount({
     setup() {
       useKeyboardAwareSheet(sheetOpen, CSS_VAR)
       return { sheetOpen }
     },
     template: '<div />',
   })
-  mountedWrappers.push(wrapper)
   return sheetOpen
 }
 
@@ -39,11 +34,9 @@ describe('useKeyboardAwareSheet', () => {
     Object.defineProperty(window, 'innerHeight', {
       value: 851, writable: true, configurable: true,
     })
-    mountedWrappers = []
   })
 
   afterEach(() => {
-    mountedWrappers.forEach(w => w.unmount())
     document.documentElement.style.removeProperty(CSS_VAR)
   })
 
@@ -127,161 +120,6 @@ describe('useKeyboardAwareSheet', () => {
     sheetOpen.value = true
     await nextTick()
     expect(document.documentElement.style.getPropertyValue(CSS_VAR)).toBe('0px')
-  })
-
-  it('does not throw when a text field receives focus and window.visualViewport is unavailable', async () => {
-    Object.defineProperty(window, 'visualViewport', {
-      value: null, writable: true, configurable: true,
-    })
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-
-    const input = document.createElement('input')
-    document.body.appendChild(input)
-
-    expect(() => input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))).not.toThrow()
-    document.body.removeChild(input)
-  })
-
-  it('registers a focusin listener when the sheet opens and removes it on close', async () => {
-    const addSpy = vi.spyOn(document, 'addEventListener')
-    const removeSpy = vi.spyOn(document, 'removeEventListener')
-
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-    expect(addSpy).toHaveBeenCalledWith('focusin', expect.any(Function))
-
-    sheetOpen.value = false
-    await nextTick()
-    expect(removeSpy).toHaveBeenCalledWith('focusin', expect.any(Function))
-
-    addSpy.mockRestore()
-    removeSpy.mockRestore()
-  })
-
-  // Field visibility is judged against window.visualViewport (which shrinks
-  // for the Android keyboard), not window.innerHeight (which doesn't) — see
-  // the composable's top comment / issue #162. These helpers build a real
-  // scrollable ancestor + field so we can assert on the resulting scrollTop
-  // rather than trusting a browser API (scrollIntoView) that gets this wrong.
-  function makeScrollContainer(initialScrollTop = 100) {
-    const container = document.createElement('div')
-    container.style.overflowY = 'auto'
-    Object.defineProperty(container, 'scrollHeight', { value: 2000, configurable: true })
-    Object.defineProperty(container, 'clientHeight', { value: 600, configurable: true })
-    container.scrollTop = initialScrollTop
-    document.body.appendChild(container)
-    return container
-  }
-
-  function makeField(container, { top, bottom }) {
-    const input = document.createElement('input')
-    input.getBoundingClientRect = () => ({ top, bottom, left: 0, right: 0, width: 100, height: bottom - top, x: 0, y: top })
-    container.appendChild(input)
-    return input
-  }
-
-  it('scrolls the container up when a focused field is above the visible viewport', async () => {
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-
-    const container = makeScrollContainer(100)
-    const input = makeField(container, { top: -50, bottom: 6 })
-
-    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-
-    // visibleTop (0) - rect.top (-50) + margin (12) = 62
-    expect(container.scrollTop).toBe(38)
-    document.body.removeChild(container)
-  })
-
-  it('scrolls the container down when a focused field is hidden below the keyboard', async () => {
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-    mockVp.height = 511 // keyboard up: visible bottom = 511
-
-    const container = makeScrollContainer(100)
-    const input = makeField(container, { top: 550, bottom: 606 })
-
-    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-
-    // rect.bottom (606) - visibleBottom (511) + margin (12) = 107
-    expect(container.scrollTop).toBe(207)
-    document.body.removeChild(container)
-  })
-
-  it('does not scroll when the focused field is already fully visible', async () => {
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-
-    const container = makeScrollContainer(100)
-    const input = makeField(container, { top: 100, bottom: 156 })
-
-    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-
-    expect(container.scrollTop).toBe(100)
-    document.body.removeChild(container)
-  })
-
-  it('does not scroll on focusin for non-field targets', async () => {
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-
-    const container = makeScrollContainer(100)
-    const div = document.createElement('div')
-    div.tabIndex = -1
-    container.appendChild(div)
-
-    div.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-
-    expect(container.scrollTop).toBe(100)
-    document.body.removeChild(container)
-  })
-
-  it('re-corrects the currently focused field on subsequent viewport resizes', async () => {
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-
-    const container = makeScrollContainer(100)
-    const input = makeField(container, { top: 550, bottom: 606 })
-    input.focus()
-
-    mockVp.height = 511
-    const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-    resizeCb()
-
-    expect(container.scrollTop).toBe(207)
-    document.body.removeChild(container)
-  })
-
-  it('does not throw on resize when no field is focused', async () => {
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-
-    mockVp.height = 511
-    const [, resizeCb] = mockVp.addEventListener.mock.calls.find(([e]) => e === 'resize')
-    expect(resizeCb).not.toThrow()
-  })
-
-  it('does not throw when a focused field has no scrollable ancestor', async () => {
-    const sheetOpen = makeSheetOpen()
-    sheetOpen.value = true
-    await nextTick()
-
-    const input = document.createElement('input')
-    input.getBoundingClientRect = () => ({ top: -50, bottom: 6, left: 0, right: 0, width: 100, height: 56, x: 0, y: -50 })
-    document.body.appendChild(input)
-
-    expect(() => input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))).not.toThrow()
-    document.body.removeChild(input)
   })
 
   it('removes the listener and resets the CSS var when the host component unmounts while the sheet is open', async () => {

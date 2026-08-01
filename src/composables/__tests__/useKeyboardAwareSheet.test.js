@@ -129,6 +129,21 @@ describe('useKeyboardAwareSheet', () => {
     expect(document.documentElement.style.getPropertyValue(CSS_VAR)).toBe('0px')
   })
 
+  it('does not throw when a text field receives focus and window.visualViewport is unavailable', async () => {
+    Object.defineProperty(window, 'visualViewport', {
+      value: null, writable: true, configurable: true,
+    })
+    const sheetOpen = makeSheetOpen()
+    sheetOpen.value = true
+    await nextTick()
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    expect(() => input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))).not.toThrow()
+    document.body.removeChild(input)
+  })
+
   it('registers a focusin listener when the sheet opens and removes it on close', async () => {
     const addSpy = vi.spyOn(document, 'addEventListener')
     const removeSpy = vi.spyOn(document, 'removeEventListener')

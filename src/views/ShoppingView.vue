@@ -291,46 +291,54 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
           class="mb-2"
           @keyup.enter="submit"
         />
-        <div class="mb-3">
-          <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-          <div class="aisle-chips">
-            <v-chip
-              v-for="aisle in store.activeAisles"
-              :key="aisle.name"
-              :color="itemAisle === aisle.name ? 'primary' : undefined"
-              :variant="itemAisle === aisle.name ? 'flat' : 'tonal'"
-              size="small"
-              @click="itemAisle = aisle.name"
-            >
-              {{ aisle.name }}
-            </v-chip>
+        <!-- Aisle + supermarket allocation share ONE scrollable region (#162)
+             sized to the same footprint the two independently-capped boxes
+             used to occupy together, rather than each having its own
+             two-line cap and scrollbar. Rows are unlimited here — the
+             region as a whole scrolls once its content exceeds that
+             footprint. -->
+        <div class="chip-picker-section mb-3">
+          <div class="mb-3">
+            <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
+            <div class="aisle-chips d-flex flex-wrap gap-1">
+              <v-chip
+                v-for="aisle in store.activeAisles"
+                :key="aisle.name"
+                :color="itemAisle === aisle.name ? 'primary' : undefined"
+                :variant="itemAisle === aisle.name ? 'flat' : 'tonal'"
+                size="small"
+                @click="itemAisle = aisle.name"
+              >
+                {{ aisle.name }}
+              </v-chip>
+            </div>
           </div>
-        </div>
 
-        <!-- Supermarket allocation — only shown once the family has supermarkets -->
-        <div v-if="store.supermarkets.length > 0" class="mb-3">
-          <div class="text-caption text-medium-emphasis mb-2">Available in</div>
-          <div class="supermarket-alloc-chips">
-            <v-chip
-              :color="itemAllSupermarkets ? 'primary' : undefined"
-              :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
-              size="small"
-              @click="toggleAllSupermarkets"
-            >
-              All supermarkets
-            </v-chip>
-            <v-chip
-              v-for="sm in store.supermarkets"
-              :key="sm.id"
-              :color="itemSupermarketIds.includes(sm.id) ? 'primary' : undefined"
-              :variant="itemSupermarketIds.includes(sm.id) ? 'flat' : 'tonal'"
-              size="small"
-              @click="toggleSupermarket(sm.id)"
-            >
-              {{ sm.name }}
-            </v-chip>
+          <!-- Supermarket allocation — only shown once the family has supermarkets -->
+          <div v-if="store.supermarkets.length > 0">
+            <div class="text-caption text-medium-emphasis mb-2">Available in</div>
+            <div class="supermarket-alloc-chips d-flex flex-wrap gap-1">
+              <v-chip
+                :color="itemAllSupermarkets ? 'primary' : undefined"
+                :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
+                size="small"
+                @click="toggleAllSupermarkets"
+              >
+                All supermarkets
+              </v-chip>
+              <v-chip
+                v-for="sm in store.supermarkets"
+                :key="sm.id"
+                :color="itemSupermarketIds.includes(sm.id) ? 'primary' : undefined"
+                :variant="itemSupermarketIds.includes(sm.id) ? 'flat' : 'tonal'"
+                size="small"
+                @click="toggleSupermarket(sm.id)"
+              >
+                {{ sm.name }}
+              </v-chip>
+            </div>
+            <div class="text-caption text-medium-emphasis mt-1">{{ allocationHint }}</div>
           </div>
-          <div class="text-caption text-medium-emphasis mt-1">{{ allocationHint }}</div>
         </div>
 
         <div class="d-flex gap-2">
@@ -425,24 +433,26 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   justify-content: center;
   padding-top: 100px;
 }
-/* Cap the Aisle / Available in chip pickers on the Add item sheet at two
-   lines each (same formula as .list-chips above) so the sheet's total
+/* .chip-picker-section caps the Aisle + Available in pickers to a single
+   shared scrolling region on the Add item sheet, so the sheet's total
    height stays small and predictable regardless of how many aisles or
-   supermarkets a family has configured — a family with 18 aisles and 5
-   supermarkets produces the same sheet height as one with 3 of each.
-   This is what keeps the on-screen keyboard from ever needing to cover
-   the Item name / Quantity fields above in the first place (#162) — see
-   issues #49/#109/#162 and this file's git history for approaches that
-   tried to react to the keyboard instead and didn't hold up on a real
-   Android device. */
+   supermarkets a family has configured (#162) — a family with 18 aisles
+   and 5 supermarkets produces the same sheet height as one with 3 of
+   each. Both chip rows wrap freely inside it (no per-row cap of their
+   own); only the combined region scrolls, as one scrollbar, once its
+   content exceeds 236px — the height the two independently-capped boxes
+   used to occupy together in an earlier version of this fix (measured:
+   98px Aisle box + 12px gap + 126px Available in box). See this file's
+   git history for approaches that tried to react to the on-screen
+   keyboard instead of bounding the sheet's height, and didn't hold up on
+   a real Android device (issues #49/#109/#162). */
+.chip-picker-section {
+  max-height: 236px;
+  overflow-y: auto;
+}
 .aisle-chips,
 .supermarket-alloc-chips {
-  display: flex;
-  flex-wrap: wrap;
   gap: 6px 8px;
-  max-height: 66px;
-  overflow-y: auto;
-  padding: 4px 0;
 }
 /* dvh shrinks when the Android keyboard is shown, keeping the cards visible
    above the keyboard. Both sheets that contain text inputs need this guard. */

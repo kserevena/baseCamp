@@ -253,99 +253,87 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
       </v-btn>
     </div>
 
-    <!-- Add/edit item bottom sheet (shared between both flows).
-         The whole card scrolls as one region (giving the browser a real
-         scrollable ancestor for its native focus-into-view behaviour —
-         without one, it was escalating to scrolling the outer page, which
-         is worse). .add-item-header / .add-item-footer are `position:
-         sticky` within that single scroll container so the text fields and
-         buttons can never scroll out of view regardless of how tall the
-         aisle/supermarket chip picker gets (#162). -->
+    <!-- Add/edit item bottom sheet (shared between both flows) -->
     <v-bottom-sheet v-model="sheet" max-width="600" content-class="add-item-overlay">
-      <v-card rounded="t-xl" class="add-item-card">
-        <div class="add-item-header pa-4 pb-0">
-          <div class="text-subtitle-1 font-weight-medium mb-3">
-            {{ itemMode === 'edit' ? 'Edit item' : 'Add item' }}
-          </div>
-          <v-text-field
-            v-model="itemName"
-            label="Item name"
-            variant="outlined"
-            autofocus
-            class="mb-2"
-            :maxlength="ITEM_NAME_MAX_LENGTH"
-            :counter="ITEM_NAME_MAX_LENGTH"
-            @keyup.enter="submit"
-          />
-          <v-text-field
-            v-model="itemQty"
-            label="Quantity (optional)"
-            variant="outlined"
-            class="mb-2"
-            @keyup.enter="submit"
-          />
+      <v-card rounded="t-xl" class="pa-4 add-item-card">
+        <div class="text-subtitle-1 font-weight-medium mb-3">
+          {{ itemMode === 'edit' ? 'Edit item' : 'Add item' }}
         </div>
-
-        <div class="add-item-body px-4">
-          <div v-if="doneSuggestions.length" class="mb-3">
-            <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
-            <div class="d-flex flex-wrap gap-1">
-              <v-chip
-                v-for="item in doneSuggestions"
-                :key="item.id"
-                size="small"
-                variant="tonal"
-                color="primary"
-                @click="selectSuggestion(item)"
-              >
-                {{ item.name }}
-              </v-chip>
-            </div>
+        <v-text-field
+          v-model="itemName"
+          label="Item name"
+          variant="outlined"
+          autofocus
+          class="mb-2"
+          :maxlength="ITEM_NAME_MAX_LENGTH"
+          :counter="ITEM_NAME_MAX_LENGTH"
+          @keyup.enter="submit"
+        />
+        <div v-if="doneSuggestions.length" class="mb-2">
+          <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
+          <div class="d-flex flex-wrap gap-1">
+            <v-chip
+              v-for="item in doneSuggestions"
+              :key="item.id"
+              size="small"
+              variant="tonal"
+              color="primary"
+              @click="selectSuggestion(item)"
+            >
+              {{ item.name }}
+            </v-chip>
           </div>
-          <div class="mb-3">
-            <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
-            <div class="aisle-chips d-flex flex-wrap gap-1">
-              <v-chip
-                v-for="aisle in store.activeAisles"
-                :key="aisle.name"
-                :color="itemAisle === aisle.name ? 'primary' : undefined"
-                :variant="itemAisle === aisle.name ? 'flat' : 'tonal'"
-                size="small"
-                @click="itemAisle = aisle.name"
-              >
-                {{ aisle.name }}
-              </v-chip>
-            </div>
-          </div>
-
-          <!-- Supermarket allocation — only shown once the family has supermarkets -->
-          <div v-if="store.supermarkets.length > 0" class="mb-3">
-            <div class="text-caption text-medium-emphasis mb-2">Available in</div>
-            <div class="d-flex flex-wrap gap-1">
-              <v-chip
-                :color="itemAllSupermarkets ? 'primary' : undefined"
-                :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
-                size="small"
-                @click="toggleAllSupermarkets"
-              >
-                All supermarkets
-              </v-chip>
-              <v-chip
-                v-for="sm in store.supermarkets"
-                :key="sm.id"
-                :color="itemSupermarketIds.includes(sm.id) ? 'primary' : undefined"
-                :variant="itemSupermarketIds.includes(sm.id) ? 'flat' : 'tonal'"
-                size="small"
-                @click="toggleSupermarket(sm.id)"
-              >
-                {{ sm.name }}
-              </v-chip>
-            </div>
-            <div class="text-caption text-medium-emphasis mt-1">{{ allocationHint }}</div>
+        </div>
+        <v-text-field
+          v-model="itemQty"
+          label="Quantity (optional)"
+          variant="outlined"
+          class="mb-2"
+          @keyup.enter="submit"
+        />
+        <div class="mb-3">
+          <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
+          <div class="aisle-chips d-flex flex-wrap gap-1">
+            <v-chip
+              v-for="aisle in store.activeAisles"
+              :key="aisle.name"
+              :color="itemAisle === aisle.name ? 'primary' : undefined"
+              :variant="itemAisle === aisle.name ? 'flat' : 'tonal'"
+              size="small"
+              @click="itemAisle = aisle.name"
+            >
+              {{ aisle.name }}
+            </v-chip>
           </div>
         </div>
 
-        <div class="add-item-footer pa-4 pt-2 d-flex gap-2">
+        <!-- Supermarket allocation — only shown once the family has supermarkets -->
+        <div v-if="store.supermarkets.length > 0" class="mb-3">
+          <div class="text-caption text-medium-emphasis mb-2">Available in</div>
+          <div class="d-flex flex-wrap gap-1">
+            <v-chip
+              :color="itemAllSupermarkets ? 'primary' : undefined"
+              :variant="itemAllSupermarkets ? 'flat' : 'tonal'"
+              size="small"
+              @click="toggleAllSupermarkets"
+            >
+              All supermarkets
+            </v-chip>
+            <v-chip
+              v-for="sm in store.supermarkets"
+              :key="sm.id"
+              :color="itemSupermarketIds.includes(sm.id) ? 'primary' : undefined"
+              :variant="itemSupermarketIds.includes(sm.id) ? 'flat' : 'tonal'"
+              size="small"
+              @click="toggleSupermarket(sm.id)"
+            >
+              {{ sm.name }}
+            </v-chip>
+          </div>
+          <div class="text-caption text-medium-emphasis mt-1">{{ allocationHint }}</div>
+        </div>
+
+        <div class="d-flex gap-2">
           <v-btn variant="text" @click="sheet = false">Cancel</v-btn>
           <v-spacer />
           <v-btn color="primary" variant="flat" @click="submit">
@@ -437,38 +425,12 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   justify-content: center;
   padding-top: 100px;
 }
-/* dvh shrinks when the Android keyboard is shown, keeping the card visible
-   above the keyboard. */
+/* dvh shrinks when the Android keyboard is shown, keeping the cards visible
+   above the keyboard. Both sheets that contain text inputs need this guard. */
+.add-item-card,
 .new-list-card {
   max-height: 90vh; /* fallback for browsers without dvh support */
   max-height: 90dvh;
   overflow-y: auto;
-}
-/* Add/edit item card scrolls as ONE region — deliberately not split into a
-   separately-scrolling middle section (#162 history): with no scrollable
-   ancestor near the focused text field, the browser's native "scroll the
-   focused input into view" behaviour escalated to scrolling the outer page
-   instead, dragging the whole sheet off-screen. Keeping one scrollable
-   container gives it a legitimate, nearby target. .add-item-header /
-   .add-item-footer are `position: sticky` within that container so the
-   name/qty fields and the buttons stay visible no matter how far the
-   aisle/supermarket chip picker between them scrolls — sticky elements
-   can't be scrolled past regardless of what triggers the scroll. */
-.add-item-card {
-  max-height: 90vh; /* fallback for browsers without dvh support */
-  max-height: 90dvh;
-  overflow-y: auto;
-}
-.add-item-header,
-.add-item-footer {
-  position: sticky;
-  z-index: 1;
-  background: rgb(var(--v-theme-surface));
-}
-.add-item-header {
-  top: 0;
-}
-.add-item-footer {
-  bottom: 0;
 }
 </style>

@@ -8,15 +8,6 @@ import { watch, onUnmounted } from 'vue'
 // CSS rule uses that variable as margin-bottom to keep the sheet visible.
 // See issues #49 and #109 for background. v-dialog is NOT affected (it uses
 // centered positioning rather than bottom-anchored).
-//
-// Keeping a focused field itself visible above the keyboard while a sheet
-// scrolls internally (#162) is deliberately NOT handled here — two JS
-// approaches (Element.scrollIntoView(), then a manual visualViewport-based
-// scrollTop correction) both proved unreliable on real Android devices. The
-// robust fix is structural instead: sheets with tall, scrollable content put
-// their text fields in a fixed header outside the scrolling region (see
-// ShoppingView.vue's Add item sheet), so there is nothing for the keyboard
-// to scroll them behind in the first place.
 export function useKeyboardAwareSheet(sheetOpen, cssVar) {
   function sync() {
     const vv = window.visualViewport

@@ -118,6 +118,10 @@ watch(doneSuggestions, async () => {
 watch(itemName, (val) => {
   if (selectedDoneItem.value && val.trim() !== selectedDoneItem.value.name) {
     selectedDoneItem.value = null
+    // Otherwise the abandoned suggestion's allocation would silently carry
+    // over onto whatever new item the user ends up adding.
+    itemAllSupermarkets.value = false
+    itemSupermarketIds.value = []
   }
 })
 

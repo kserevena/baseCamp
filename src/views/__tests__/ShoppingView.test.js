@@ -388,6 +388,33 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.itemSupermarketIds).toEqual([])
     })
 
+    it('clears the picker when a selected suggestion is abandoned by editing the name', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+
+      wrapper.vm.itemName = 'Bread'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.selectedDoneItem).toBeNull()
+      expect(wrapper.vm.itemAllSupermarkets).toBe(false)
+      expect(wrapper.vm.itemSupermarketIds).toEqual([])
+
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      // itemQty/itemAisle are left over from the abandoned suggestion (pre-existing,
+      // unrelated to this fix) — the point under test is the allocation, which must
+      // NOT carry over from the abandoned suggestion.
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Bread', '250g', 'Dairy', {
+        supermarketIds: [],
+        allSupermarkets: false,
+      })
+    })
+
     it('restores a selected done item instead of adding a new one, including its allocation', async () => {
       const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))

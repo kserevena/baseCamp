@@ -355,6 +355,56 @@ describe('shopping store', () => {
 
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ aisleOrder: 99 }))
     })
+
+    it('leaves supermarketIds/allSupermarkets untouched when allocation is not supplied', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, aisle: 'Dairy', aisleOrder: 1, supermarketIds: ['sm-1'], allSupermarkets: false })] })
+
+      store.restoreItem('item-1', '1 pint', 'Dairy')
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1,
+      })
+      const item = store.items.find(i => i.id === 'item-1')
+      expect(item.supermarketIds).toEqual(['sm-1'])
+      expect(item.allSupermarkets).toBe(false)
+    })
+
+    it('writes the supplied supermarketIds/allSupermarkets allocation', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, aisle: 'Dairy', aisleOrder: 1, supermarketIds: ['sm-1'], allSupermarkets: false })] })
+
+      store.restoreItem('item-1', '1 pint', 'Dairy', { supermarketIds: ['sm-2'], allSupermarkets: false })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, supermarketIds: ['sm-2'], allSupermarkets: false,
+      })
+      const item = store.items.find(i => i.id === 'item-1')
+      expect(item.supermarketIds).toEqual(['sm-2'])
+    })
+
+    it('writes allSupermarkets:true and clears supermarketIds when the whole family selects "All supermarkets"', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, aisle: 'Dairy', aisleOrder: 1 })] })
+
+      store.restoreItem('item-1', '1 pint', 'Dairy', { supermarketIds: [], allSupermarkets: true })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, supermarketIds: [], allSupermarkets: true,
+      })
+    })
   })
 
   describe('togglePriority', () => {
@@ -480,6 +530,25 @@ describe('shopping store', () => {
 
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: false, addedBy: 'unchecking-uid' })
       expect(store.items[0].addedBy).toBe('unchecking-uid')
+    })
+
+    it('preserves supermarketIds/allSupermarkets when unchecking a done item', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+      mockUseFamilyStore.mockReturnValue({ currentUser: { uid: 'unchecking-uid' } })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, addedBy: 'original-uid', supermarketIds: ['sm-1'], allSupermarkets: false })] })
+
+      store.toggleDone('item-1')
+
+      // The update payload never mentions allocation fields, so a plain
+      // uncheck (as opposed to re-adding via the suggestions chip) leaves
+      // the item's existing supermarket allocation exactly as it was.
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { done: false, addedBy: 'unchecking-uid' })
+      expect(store.items[0].supermarketIds).toEqual(['sm-1'])
+      expect(store.items[0].allSupermarkets).toBe(false)
     })
   })
 

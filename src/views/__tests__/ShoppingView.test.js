@@ -341,7 +341,7 @@ describe('ShoppingView', () => {
   describe('re-add suggestions', () => {
     beforeEach(() => {
       shoppingStore.items = [
-        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Dairy', done: true },
+        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Dairy', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
       ]
     })
 
@@ -361,7 +361,34 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.itemAisle).toBe('Dairy')
     })
 
-    it('restores a selected done item instead of adding a new one', async () => {
+    it('restores the selected done item\'s supermarket allocation into the picker', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemAllSupermarkets).toBe(false)
+      expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+    })
+
+    it('defaults the picker to unallocated when the done item has no allocation', async () => {
+      shoppingStore.items = [
+        { id: 'd2', name: 'Bread', qty: '', aisle: 'Bakery', done: true },
+      ]
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemAllSupermarkets).toBe(false)
+      expect(wrapper.vm.itemSupermarketIds).toEqual([])
+    })
+
+    it('restores a selected done item instead of adding a new one, including its allocation', async () => {
       const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
       await fab.trigger('click')
@@ -373,7 +400,10 @@ describe('ShoppingView', () => {
 
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Dairy')
+      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Dairy', {
+        supermarketIds: ['sm-1'],
+        allSupermarkets: false,
+      })
       expect(shoppingStore.addItem).not.toHaveBeenCalled()
     })
 

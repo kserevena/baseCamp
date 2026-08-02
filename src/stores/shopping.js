@@ -250,6 +250,10 @@ export const useShoppingStore = defineStore('shopping', () => {
     updateDoc(itemDoc(activeListId.value, id), { priority: item.priority })
   }
 
+  // Deliberately does not touch supermarketIds/allSupermarkets — a plain
+  // check/uncheck in the list (as opposed to re-adding a done item via the
+  // Add item sheet's suggestions) always keeps the item's existing store
+  // allocation, since the item document itself never left.
   function toggleDone(id) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
@@ -335,7 +339,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     })
   }
 
-  function restoreItem(id, qty, aisle) {
+  function restoreItem(id, qty, aisle, allocation = {}) {
     if (!activeListId.value) return false
     const item = items.value.find(i => i.id === id)
     if (!item) return false
@@ -344,9 +348,22 @@ export const useShoppingStore = defineStore('shopping', () => {
     item.qty = qty
     item.aisle = aisle
     item.aisleOrder = aisleObj?.order ?? 99
-    updateDoc(itemDoc(activeListId.value, id), {
+    const update = {
       done: false, qty, aisle, aisleOrder: aisleObj?.order ?? 99,
-    })
+    }
+    // Optional: the re-add sheet passes the item's own allocation back
+    // (round-tripped through its UI state, possibly edited by the user).
+    // Undefined means "not supplied" — leave the document's existing
+    // allocation untouched, same convention as updateItem.
+    if (allocation.supermarketIds !== undefined) {
+      item.supermarketIds = allocation.supermarketIds
+      update.supermarketIds = allocation.supermarketIds
+    }
+    if (allocation.allSupermarkets !== undefined) {
+      item.allSupermarkets = allocation.allSupermarkets
+      update.allSupermarkets = allocation.allSupermarkets
+    }
+    updateDoc(itemDoc(activeListId.value, id), update)
     return true
   }
 

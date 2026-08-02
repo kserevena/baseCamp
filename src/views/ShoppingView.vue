@@ -118,6 +118,10 @@ watch(doneSuggestions, async () => {
 watch(itemName, (val) => {
   if (selectedDoneItem.value && val.trim() !== selectedDoneItem.value.name) {
     selectedDoneItem.value = null
+    // Otherwise the abandoned suggestion's allocation would silently carry
+    // over onto whatever new item the user ends up adding.
+    itemAllSupermarkets.value = false
+    itemSupermarketIds.value = []
   }
 })
 
@@ -126,6 +130,10 @@ function selectSuggestion(item) {
   itemName.value = item.name
   itemQty.value = item.qty ?? ''
   itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+  // Restore the item's own supermarket allocation into the picker so it
+  // reflects reality instead of showing openAdd's "unallocated" default.
+  itemAllSupermarkets.value = item.allSupermarkets ?? false
+  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
 }
 
 function openAdd() {
@@ -166,7 +174,7 @@ function submit() {
       ...allocation,
     })
   } else if (selectedDoneItem.value) {
-    const restored = store.restoreItem(selectedDoneItem.value.id, itemQty.value.trim(), itemAisle.value || null)
+    const restored = store.restoreItem(selectedDoneItem.value.id, itemQty.value.trim(), itemAisle.value || null, allocation)
     if (!restored) store.addItem(name, itemQty.value.trim(), itemAisle.value || null, allocation)
   } else {
     store.addItem(name, itemQty.value.trim(), itemAisle.value || null, allocation)

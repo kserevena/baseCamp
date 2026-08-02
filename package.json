@@ -42,7 +42,8 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "protobufjs": "7.6.5"
+    "protobufjs": "7.6.5",
+    "uuid": "^11.1.1"
   },
-  "_overridesNote": "protobufjs pinned to fix GHSA-j3f2-48v5-ccww (DoS via infinite loop in .proto option parsing). Transitive dependency: firebase → @firebase/firestore → @grpc/proto-loader. Can be removed once @grpc/proto-loader requires protobufjs>=7.6.5. Verify with: npm ls protobufjs"
+  "_overridesNote": "protobufjs pinned to fix GHSA-j3f2-48v5-ccww (DoS via infinite loop in .proto option parsing). Transitive dependency: firebase → @firebase/firestore → @grpc/proto-loader. Can be removed once @grpc/proto-loader requires protobufjs>=7.6.5. Verify with: npm ls protobufjs. uuid pinned to fix GHSA-w5hq-g745-h8pq (missing buffer bounds check). Transitive dependency: firebase-admin → @google-cloud/storage → gaxios/teeny-request. Can be removed once Google Cloud SDK updates uuid."
 }

@@ -74,10 +74,7 @@ const doneSuggestions = computed(() => {
   const q = itemName.value.trim().toLowerCase()
   if (!q) return []
   const seen = new Set()
-  // visibleItems (not items) so suggestions are scoped to the currently
-  // selected supermarket, same as the list itself — don't offer to re-add
-  // an item that was never allocated to the store currently being shopped.
-  return store.visibleItems
+  return store.items
     .filter(i => {
       if (!i.done || !i.name.toLowerCase().includes(q)) return false
       const key = i.name.toLowerCase()

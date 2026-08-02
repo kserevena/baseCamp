@@ -361,30 +361,6 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.itemAisle).toBe('Dairy')
     })
 
-    it('only suggests done items visible under the currently selected supermarket', async () => {
-      const allItems = [
-        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Dairy', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
-        { id: 'd2', name: 'Butterscotch', qty: '', aisle: 'Dry goods', done: true, supermarketIds: ['sm-2'], allSupermarkets: false },
-      ]
-      // makeStore's default visibleItems getter just mirrors `items` unfiltered, so
-      // override it directly here to stand in for the store's real allocation-based
-      // filtering (d1 is allocated to sm-1, d2 to sm-2 — only d1 should be visible).
-      shoppingStore = makeStore({
-        items: allItems,
-        visibleItems: [allItems[0]],
-        selectedSupermarketId: 'sm-1',
-      })
-      const wrapper = mountView()
-      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
-      await fab.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      wrapper.vm.itemName = 'butt'
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.vm.doneSuggestions.map(i => i.id)).toEqual(['d1'])
-    })
-
     it('restores the selected done item\'s supermarket allocation into the picker', async () => {
       const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))

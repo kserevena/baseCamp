@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
@@ -83,36 +83,6 @@ const doneSuggestions = computed(() => {
       return true
     })
     .slice(0, 5)
-})
-
-// The chip-picker-section's max-height budget (see CSS comment) assumes no
-// Re-add row above it. When one is showing, its height varies with how many
-// suggestions matched and how long their names are — not a fixed quantity
-// like the aisle/supermarket rows — so it's measured from the live DOM
-// rather than hard-coded, and the picker's budget shrinks by exactly that
-// much to keep the sheet's total height constant either way (#162).
-// CHIP_PICKER_MAX_HEIGHT itself is a one-time manual measurement (see
-// .chip-picker-section in <style>) tied to the current Vuetify "small" chip
-// size and mb-2/mb-3 spacing scale — re-measure it if either changes.
-const CHIP_PICKER_MAX_HEIGHT = 236 // px — see .chip-picker-section in <style>
-const RE_ADD_SECTION_MARGIN_BOTTOM = 8 // px — the mb-2 utility on the Re-add wrapper below
-// Floor so a large Re-add row (up to 5 suggestions, possibly wrapping to
-// 2-3 lines) can never shrink the picker below room for its "Aisle" label
-// plus one full row of chips: 24px label + 8px mb-2 gap + 26px "small" chip
-// row = 58px (measured).
-const CHIP_PICKER_MIN_HEIGHT = 58 // px — label + one chip row
-const reAddSectionEl = ref(null)
-const reAddSectionHeight = ref(0)
-const chipPickerMaxHeight = computed(() => Math.max(
-  CHIP_PICKER_MAX_HEIGHT - reAddSectionHeight.value,
-  CHIP_PICKER_MIN_HEIGHT,
-))
-
-watch(doneSuggestions, async () => {
-  await nextTick()
-  reAddSectionHeight.value = reAddSectionEl.value
-    ? reAddSectionEl.value.offsetHeight + RE_ADD_SECTION_MARGIN_BOTTOM
-    : 0
 })
 
 watch(itemName, (val) => {
@@ -307,7 +277,7 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
           :counter="ITEM_NAME_MAX_LENGTH"
           @keyup.enter="submit"
         />
-        <div v-if="doneSuggestions.length" ref="reAddSectionEl" class="mb-2">
+        <div v-if="doneSuggestions.length" class="mb-2">
           <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
           <div class="d-flex flex-wrap gap-1">
             <v-chip
@@ -329,15 +299,13 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
           class="mb-2"
           @keyup.enter="submit"
         />
-        <!-- Aisle + supermarket allocation share ONE scrollable region (#162)
-             sized to the same footprint the two independently-capped boxes
-             used to occupy together, rather than each having its own
-             two-line cap and scrollbar. Rows are unlimited here — the
-             region as a whole scrolls once its content exceeds that
-             footprint. The footprint itself shrinks by the Re-add row's
-             height when it's showing, above, so the sheet's total height
-             stays constant either way. -->
-        <div class="chip-picker-section mb-3" :style="{ maxHeight: `${chipPickerMaxHeight}px` }">
+        <!-- Aisle + supermarket allocation share ONE scrollable region. It is
+             the sheet's flex-grow child, so it absorbs whatever vertical space
+             is left once the fields, the Re-add row and the buttons have taken
+             theirs — no measuring, no budget. When the keyboard opens the card
+             shrinks (dvh) and this region gives up the space; when it closes
+             the region takes it back. See .chip-picker-section in <style>. -->
+        <div class="chip-picker-section mb-3">
           <div class="mb-3">
             <div class="text-caption text-medium-emphasis mb-2">Aisle</div>
             <div class="aisle-chips d-flex flex-wrap gap-1">
@@ -423,9 +391,26 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
      to <body> and therefore outside this component's scoped CSS reach.
      Each CSS var is driven by useKeyboardAwareSheet (#49, #109). -->
 <style>
+/* The Add item sheet fills the screen (less a strip showing the scrim, so it
+   still reads as a sheet rather than a page) and shrinks to match when the
+   keyboard opens.
+
+   The height must live here, on Vuetify's .v-overlay__content wrapper, rather
+   than on the card: the wrapper is a flex container whose own height is
+   content-driven, so a dvh height set on the card alone is ignored and the
+   sheet stays content-sized. The card then takes height:100% of this.
+
+   This works *only* because index.html sets interactive-widget=resizes-content:
+   under the browser default (resizes-visual) the on-screen keyboard shrinks the
+   visual viewport but leaves the layout viewport — and therefore vh/dvh — at
+   full height, so this rule would let the sheet extend underneath the keyboard.
+   Do not remove that meta tag. dvh alone does NOT account for the keyboard;
+   it accounts for retracting browser UI such as the address bar. */
 .add-item-overlay {
   margin-bottom: var(--add-item-sheet-bottom, 0px);
   transition: margin-bottom 0.15s ease;
+  height: 92vh; /* fallback for browsers without dvh support */
+  height: 92dvh;
 }
 .list-sheet-overlay {
   margin-bottom: var(--list-sheet-bottom, 0px);
@@ -473,36 +458,52 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   justify-content: center;
   padding-top: 100px;
 }
-/* .chip-picker-section caps the Aisle + Available in pickers to a single
-   shared scrolling region on the Add item sheet, so the sheet's total
-   height stays small and predictable regardless of how many aisles or
-   supermarkets a family has configured (#162) — a family with 18 aisles
-   and 5 supermarkets produces the same sheet height as one with 3 of
-   each. Both chip rows wrap freely inside it (no per-row cap of their
-   own); only the combined region scrolls, as one scrollbar, once its
-   content exceeds its max-height budget — 236px normally (the height the
-   two independently-capped boxes used to occupy together in an earlier
-   version of this fix: 98px Aisle box + 12px gap + 126px Available in
-   box), reduced by the Re-add row's live-measured height when it's
-   showing above (see CHIP_PICKER_MAX_HEIGHT / chipPickerMaxHeight in
-   <script setup>) so the sheet's total height stays constant either way.
-   max-height itself is bound inline from the script, not set here. See
-   this file's git history for approaches that tried to react to the
-   on-screen keyboard instead of bounding the sheet's height, and didn't
-   hold up on a real Android device (issues #49/#109/#162). */
-.chip-picker-section {
+/* .chip-picker-section holds the Aisle + Available in pickers in a single
+   shared scrolling region. It is the flex-grow child of .add-item-card, so
+   it takes whatever height is left after the fixed-height parts of the sheet
+   (title, two text fields, the optional Re-add row, the button row) and
+   scrolls internally when the family has more aisles/supermarkets than fit.
+   min-height: 0 is required — without it a flex child refuses to shrink
+   below its content size and the card overflows instead of the region
+   scrolling.
+
+   Earlier versions of this fix (#162) instead capped this region at a
+   hard-coded 236px budget, measured by hand and reduced at runtime by the
+   Re-add row's live offsetHeight, purely to keep the sheet short enough that
+   the keyboard never covered the Item name field. That is no longer
+   necessary: the card is sized in dvh and the viewport itself now shrinks
+   for the keyboard (see interactive-widget in index.html), so the sheet
+   simply cannot extend under the keyboard and there is nothing to budget
+   for. */
+.add-item-card > .chip-picker-section {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 .aisle-chips,
 .supermarket-alloc-chips {
   gap: 6px 8px;
 }
-/* dvh shrinks when the Android keyboard is shown, keeping the cards visible
-   above the keyboard. Both sheets that contain text inputs need this guard. */
-.add-item-card,
+/* Fills the .add-item-overlay wrapper, which carries the dvh height (see the
+   unscoped block above for why the height cannot live here). */
+.add-item-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* the chip-picker-section is the only scrolling part */
+}
+/* Everything except the chip picker keeps its natural height, so the picker is
+   the only thing that gives way as the card shrinks. Without this the text
+   fields and the Cancel/Add row would shrink too and the buttons could be
+   squashed out of reach. */
+.add-item-card > * {
+  flex: 0 0 auto;
+}
+/* The New list sheet has a single field and no variable-length content, so it
+   stays content-sized and only needs the cap. */
 .new-list-card {
-  max-height: 90vh; /* fallback for browsers without dvh support */
-  max-height: 90dvh;
+  max-height: 92vh; /* fallback for browsers without dvh support */
+  max-height: 92dvh;
   overflow-y: auto;
 }
 </style>

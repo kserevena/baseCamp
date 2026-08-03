@@ -450,34 +450,23 @@ describe('ShoppingView', () => {
       expect(shoppingStore.addItem).toHaveBeenCalled()
     })
 
-    it('shrinks the chip-picker-section budget by the Re-add row height when suggestions appear', async () => {
+    it('does not resize the chip picker when the Re-add row appears', async () => {
       const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
       await fab.trigger('click')
       await wrapper.vm.$nextTick()
-      expect(wrapper.vm.chipPickerMaxHeight).toBe(236)
+
+      const section = () => document.body.querySelector('.chip-picker-section')
+      expect(section().getAttribute('style')).toBeNull()
 
       wrapper.vm.itemName = 'but'
       await wrapper.vm.$nextTick()
       await wrapper.vm.$nextTick()
+
+      // The Re-add row is showing, and the picker is still driven purely by
+      // flex — no inline max-height budget recalculated from its height.
       expect(wrapper.vm.doneSuggestions.length).toBeGreaterThan(0)
-      expect(wrapper.vm.chipPickerMaxHeight).toBeLessThan(236)
-
-      wrapper.vm.itemName = ''
-      await wrapper.vm.$nextTick()
-      await wrapper.vm.$nextTick()
-      expect(wrapper.vm.chipPickerMaxHeight).toBe(236)
-    })
-
-    it('floors the chip-picker-section budget instead of letting a large Re-add row collapse it', async () => {
-      const wrapper = mountView()
-      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
-      await fab.trigger('click')
-      await wrapper.vm.$nextTick()
-
-      wrapper.vm.reAddSectionHeight = 500
-      await wrapper.vm.$nextTick()
-      expect(wrapper.vm.chipPickerMaxHeight).toBe(58)
+      expect(section().getAttribute('style')).toBeNull()
     })
   })
 
@@ -563,6 +552,93 @@ describe('ShoppingView', () => {
       await btn.trigger('click')
       await wrapper.vm.$nextTick()
       expect(document.documentElement.style.getPropertyValue('--supermarket-manager-sheet-bottom')).toBe('0px')
+    })
+  })
+
+  // ── Issue #162: keyboard-aware sheet sizing ─────────────────────────────
+  //
+  // IMPORTANT — what these tests can and cannot prove.
+  //
+  // They CANNOT prove the sheet behaves correctly with a real on-screen
+  // keyboard, and no test in this suite can. A real Android keyboard shrinks
+  // only the *visual* viewport, leaving the layout viewport (window.innerHeight,
+  // vh, dvh) untouched; that divergence is the entire bug. Every way of faking
+  // a keyboard in jsdom, Playwright or Chrome DevTools — resizing the window,
+  // Emulation.setDeviceMetricsOverride — shrinks BOTH viewports together, which
+  // removes the very discrepancy under test and makes broken code pass. Chrome
+  // exposes no way to drive env(keyboard-inset-height) either. Assume any local
+  // "keyboard test" is a false pass; this change must be verified on a physical
+  // Android device.
+  //
+  // What they DO guard is the wiring that the device-verified behaviour rests
+  // on, all of which is silently removable: the viewport meta tag that makes
+  // dvh keyboard-aware in the first place, the dvh sizing on the card, and the
+  // flex chain that lets the card shrink without hiding its buttons. Breaking
+  // any one of those reintroduces the bug with no other visible symptom.
+  describe('keyboard-aware sheet sizing (issue #162)', () => {
+    let source
+
+    beforeEach(async () => {
+      source = await readFile(resolve(process.cwd(), 'src/views/ShoppingView.vue'), 'utf-8')
+    })
+
+    it('declares interactive-widget=resizes-content so the keyboard shrinks the layout viewport', async () => {
+      const html = await readFile(resolve(process.cwd(), 'index.html'), 'utf-8')
+      const viewport = html.match(/<meta\s+name="viewport"\s+content="([^"]*)"/)[1]
+      // Without this the browser default (resizes-visual) leaves vh/dvh at full
+      // height when the keyboard opens and .add-item-card extends underneath it.
+      expect(viewport).toMatch(/interactive-widget=resizes-content/)
+    })
+
+    it('sizes the add-item sheet in dvh so it fills the screen and shrinks with the viewport', () => {
+      // The height must be on the overlay wrapper, not the card: Vuetify's
+      // .v-overlay__content is a flex container with a content-driven height,
+      // so a dvh height on the card alone is ignored and the sheet stays
+      // content-sized (measured in Chromium: 540px instead of 776px on an
+      // 844px viewport). Asserting the location, not just the value, is what
+      // makes this a real guard.
+      const overlay = source.match(/\.add-item-overlay\s*\{([^}]*)\}/)[1]
+      // height, not max-height: the sheet should fill the screen when no
+      // keyboard is present, not merely be capped.
+      expect(overlay).toMatch(/(^|[^-])height:\s*92dvh/)
+      expect(overlay).toMatch(/(^|[^-])height:\s*92vh/) // fallback without dvh
+
+      const card = source.match(/\.add-item-card\s*\{([^}]*)\}/)[1]
+      expect(card).toMatch(/(^|[^-])height:\s*100%/)
+      expect(card).toMatch(/flex-direction:\s*column/)
+    })
+
+    it('lets only the chip picker absorb the height change, so the buttons stay reachable', () => {
+      const rule = source.match(/\.add-item-card\s*>\s*\.chip-picker-section\s*\{([^}]*)\}/)[1]
+      expect(rule).toMatch(/flex:\s*1 1 auto/)
+      // Without min-height:0 a flex child won't shrink below its content and
+      // the card overflows instead of the picker scrolling.
+      expect(rule).toMatch(/min-height:\s*0/)
+
+      const siblings = source.match(/\.add-item-card\s*>\s*\*\s*\{([^}]*)\}/)[1]
+      expect(siblings).toMatch(/flex:\s*0 0 auto/)
+    })
+
+    it('measures nothing in JS — the layout is declarative', () => {
+      const script = source.match(/<script setup>([\s\S]*?)<\/script>/)[1]
+      // The four approaches tried before this one all measured the DOM or the
+      // viewport and corrected the layout imperatively; none survived contact
+      // with a real device. Keep this file free of that pattern.
+      expect(script).not.toMatch(/offsetHeight|scrollIntoView|scrollTop|getBoundingClientRect/)
+      expect(script).not.toMatch(/CHIP_PICKER_(MAX|MIN)_HEIGHT|chipPickerMaxHeight/)
+    })
+
+    it('renders every aisle and supermarket without a height budget capping them', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const section = document.body.querySelector('.chip-picker-section')
+      const chipTexts = [...section.querySelectorAll('.v-chip')].map(c => c.textContent.trim())
+      for (const aisle of shoppingStore.activeAisles) expect(chipTexts).toContain(aisle.name)
+      for (const sm of shoppingStore.supermarkets) expect(chipTexts).toContain(sm.name)
+      expect(section.getAttribute('style')).toBeNull()
     })
   })
 })

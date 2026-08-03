@@ -600,12 +600,30 @@ describe('ShoppingView', () => {
       const overlay = source.match(/\.add-item-overlay\s*\{([^}]*)\}/)[1]
       // height, not max-height: the sheet should fill the screen when no
       // keyboard is present, not merely be capped.
-      expect(overlay).toMatch(/(^|[^-])height:\s*92dvh/)
+      expect(overlay).toMatch(/(^|[^-])height:\s*min\(\s*92dvh\s*,/)
       expect(overlay).toMatch(/(^|[^-])height:\s*92vh/) // fallback without dvh
 
       const card = source.match(/\.add-item-card\s*\{([^}]*)\}/)[1]
       expect(card).toMatch(/(^|[^-])height:\s*100%/)
       expect(card).toMatch(/flex-direction:\s*column/)
+    })
+
+    it('subtracts the keyboard height from the sheet height so the two never stack', () => {
+      // On engines that ignore interactive-widget (WebKit; Chromium < 108, which
+      // some Fire tablets still ship as Silk) dvh stays at full height while
+      // useKeyboardAwareSheet keeps reporting the real keyboard height into
+      // --add-item-sheet-bottom. Without this subtraction the fixed height and
+      // the margin-bottom stack and push the sheet off the top of the screen —
+      // measured at overlay top -268px on an 844px viewport with a 336px
+      // keyboard, which is issue #162's original symptom and worse than the
+      // content-sized card this replaced. With it, the sheet lands at top 0.
+      const overlay = source.match(/\.add-item-overlay\s*\{([^}]*)\}/)[1]
+      expect(overlay).toMatch(/margin-bottom:\s*var\(--add-item-sheet-bottom/)
+      // The same variable must appear inside the height calculation, not only
+      // as the margin — that pairing is what makes them compose rather than add.
+      expect(overlay).toMatch(
+        /height:\s*min\([^)]*92dvh[^;]*calc\(\s*100dvh\s*-\s*var\(--add-item-sheet-bottom,\s*0px\)\s*\)\s*\)/,
+      )
     })
 
     it('lets only the chip picker absorb the height change, so the buttons stay reachable', () => {

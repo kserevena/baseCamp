@@ -400,17 +400,28 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
    content-driven, so a dvh height set on the card alone is ignored and the
    sheet stays content-sized. The card then takes height:100% of this.
 
-   This works *only* because index.html sets interactive-widget=resizes-content:
+   The 92dvh is what index.html's interactive-widget=resizes-content buys us:
    under the browser default (resizes-visual) the on-screen keyboard shrinks the
    visual viewport but leaves the layout viewport — and therefore vh/dvh — at
-   full height, so this rule would let the sheet extend underneath the keyboard.
-   Do not remove that meta tag. dvh alone does NOT account for the keyboard;
-   it accounts for retracting browser UI such as the address bar. */
+   full height. Do not remove that meta tag. dvh alone does NOT account for the
+   keyboard; it accounts for retracting browser UI such as the address bar.
+
+   The min()/calc() is the safety net for engines that ignore the meta tag
+   (WebKit, and Chromium before 108 — some Fire tablets ship older Silk). There,
+   dvh stays at full height while useKeyboardAwareSheet still reports the real
+   keyboard height in --add-item-sheet-bottom, and the two would otherwise
+   *stack*: a 92dvh-tall sheet pushed up by a 336px margin overflows an 844px
+   viewport and drives the title and Item name field off the top (measured:
+   overlay top at -268px — issue #162's exact symptom, and worse than the
+   content-sized card this replaced). Subtracting the keyboard height inside
+   min() makes the two compose instead: the sheet lands flush at the top of the
+   remaining space. Where the meta tag *is* honoured the variable is 0px, so
+   this resolves to plain 92dvh and nothing changes. */
 .add-item-overlay {
   margin-bottom: var(--add-item-sheet-bottom, 0px);
   transition: margin-bottom 0.15s ease;
   height: 92vh; /* fallback for browsers without dvh support */
-  height: 92dvh;
+  height: min(92dvh, calc(100dvh - var(--add-item-sheet-bottom, 0px)));
 }
 .list-sheet-overlay {
   margin-bottom: var(--list-sheet-bottom, 0px);

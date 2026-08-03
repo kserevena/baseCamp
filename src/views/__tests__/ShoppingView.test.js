@@ -582,6 +582,17 @@ describe('ShoppingView', () => {
       source = await readFile(resolve(process.cwd(), 'src/views/ShoppingView.vue'), 'utf-8')
     })
 
+    // Returns a rule's declarations with CSS comments removed. These rules carry
+    // long comments that quote the very properties being asserted against (the
+    // approaches they replaced), so matching raw text gives false results in
+    // both directions.
+    const declarationsOf = (selector) => {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      return source
+        .match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))[1]
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+    }
+
     it('declares interactive-widget=resizes-content so the keyboard shrinks the layout viewport', async () => {
       const html = await readFile(resolve(process.cwd(), 'index.html'), 'utf-8')
       const viewport = html.match(/<meta\s+name="viewport"\s+content="([^"]*)"/)[1]
@@ -635,6 +646,21 @@ describe('ShoppingView', () => {
 
       const siblings = source.match(/\.add-item-card\s*>\s*\*\s*\{([^}]*)\}/)[1]
       expect(siblings).toMatch(/flex:\s*0 0 auto/)
+    })
+
+    it('keeps a scroll escape hatch on the card so the Add button is never trapped', () => {
+      // The chip picker normally absorbs the height change, but below roughly
+      // 320px of layout viewport (landscape with the keyboard up, split-screen)
+      // it is already at 0 and the fixed-height fields and button row still
+      // overflow. `overflow: hidden` clipped them and made Add unreachable —
+      // measured at a 250px viewport, a real wheel gesture moved scrollTop 0px
+      // and the button stayed off-screen. `auto` scrolls 86px and reaches it.
+      // Strip CSS comments first — this rule's comment explains the
+      // `overflow: hidden` it replaced, which would otherwise satisfy a naive
+      // negative match against the raw text.
+      const card = declarationsOf('.add-item-card')
+      expect(card).toMatch(/overflow-y:\s*auto/)
+      expect(card).not.toMatch(/overflow:\s*hidden/)
     })
 
     it('measures nothing in JS — the layout is declarative', () => {

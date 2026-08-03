@@ -501,7 +501,17 @@ watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
   height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* the chip-picker-section is the only scrolling part */
+  /* In normal use the chip picker below absorbs the height change and this
+     never scrolls. It is the escape hatch for viewports too short even for the
+     picker to give any more: below roughly 320px of layout viewport — landscape
+     with the keyboard up, or split-screen — the picker is already at 0 and the
+     fixed-height fields and button row still overflow. With `overflow: hidden`
+     they were simply clipped and the Add button became unreachable (measured at
+     a 250px viewport: a real wheel gesture moved scrollTop 0px and the button
+     stayed off-screen; with auto it scrolls 86px and the button is reachable).
+     Nested scrolling with the picker is acceptable — it only occurs in that
+     squeeze, and an unreachable submit button is not. */
+  overflow-y: auto;
 }
 /* Everything except the chip picker keeps its natural height, so the picker is
    the only thing that gives way as the card shrinks. Without this the text

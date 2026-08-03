@@ -44,6 +44,10 @@ const itemName = ref('')
 const itemQty = ref('')
 const itemAisle = ref('')
 const selectedDoneItem = ref(null)
+// Snapshot of qty/aisle/allocation taken the moment a suggestion is first
+// selected, so an abandoned suggestion restores what was there before it
+// rather than resetting to openAdd's defaults.
+const preSuggestionSnapshot = ref(null)
 // Item → supermarket allocation. Empty ids + allSupermarkets false = unallocated.
 const itemAllSupermarkets = ref(false)
 const itemSupermarketIds = ref([])
@@ -88,14 +92,30 @@ const doneSuggestions = computed(() => {
 watch(itemName, (val) => {
   if (selectedDoneItem.value && val.trim() !== selectedDoneItem.value.name) {
     selectedDoneItem.value = null
-    // Otherwise the abandoned suggestion's allocation would silently carry
-    // over onto whatever new item the user ends up adding.
-    itemAllSupermarkets.value = false
-    itemSupermarketIds.value = []
+    // Restore whatever qty/aisle/allocation was there before the suggestion
+    // was applied, rather than resetting to openAdd's defaults — otherwise
+    // the abandoned suggestion's values would silently carry over, or the
+    // user's own in-progress edits would be lost.
+    const snapshot = preSuggestionSnapshot.value
+    preSuggestionSnapshot.value = null
+    itemQty.value = snapshot?.qty ?? ''
+    itemAisle.value = snapshot?.aisle ?? store.activeAisles[0]?.name ?? ''
+    itemAllSupermarkets.value = snapshot?.allSupermarkets ?? false
+    itemSupermarketIds.value = snapshot ? [...snapshot.supermarketIds] : []
   }
 })
 
 function selectSuggestion(item) {
+  // Only snapshot on the first suggestion pick — switching directly from one
+  // suggestion to another must not overwrite it with already-applied values.
+  if (!selectedDoneItem.value) {
+    preSuggestionSnapshot.value = {
+      qty: itemQty.value,
+      aisle: itemAisle.value,
+      allSupermarkets: itemAllSupermarkets.value,
+      supermarketIds: [...itemSupermarketIds.value],
+    }
+  }
   selectedDoneItem.value = item
   itemName.value = item.name
   itemQty.value = item.qty ?? ''
@@ -112,6 +132,7 @@ function openAdd() {
   itemQty.value = ''
   itemAisle.value = store.activeAisles[0]?.name ?? ''
   selectedDoneItem.value = null
+  preSuggestionSnapshot.value = null
   // New items default to unallocated (visible everywhere).
   itemAllSupermarkets.value = false
   itemSupermarketIds.value = []
@@ -126,6 +147,7 @@ function openEdit(item) {
   itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
   itemAllSupermarkets.value = item.allSupermarkets ?? false
   itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+  preSuggestionSnapshot.value = null
   sheet.value = true
 }
 
@@ -173,7 +195,12 @@ useKeyboardAwareSheet(sheet, '--add-item-sheet-bottom')
 useKeyboardAwareSheet(listSheet, '--list-sheet-bottom')
 useKeyboardAwareSheet(supermarketSheet, '--supermarket-manager-sheet-bottom')
 
-watch(sheet, (open) => { if (!open) selectedDoneItem.value = null })
+watch(sheet, (open) => {
+  if (!open) {
+    selectedDoneItem.value = null
+    preSuggestionSnapshot.value = null
+  }
+})
 </script>
 
 <template>

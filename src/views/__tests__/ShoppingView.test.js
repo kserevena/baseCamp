@@ -341,7 +341,7 @@ describe('ShoppingView', () => {
   describe('re-add suggestions', () => {
     beforeEach(() => {
       shoppingStore.items = [
-        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Dairy', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
+        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Meat', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
       ]
     })
 
@@ -358,7 +358,7 @@ describe('ShoppingView', () => {
       wrapper.vm.selectSuggestion(shoppingStore.items[0])
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.itemQty).toBe('250g')
-      expect(wrapper.vm.itemAisle).toBe('Dairy')
+      expect(wrapper.vm.itemAisle).toBe('Meat')
     })
 
     it('restores the selected done item\'s supermarket allocation into the picker', async () => {
@@ -403,16 +403,73 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.selectedDoneItem).toBeNull()
       expect(wrapper.vm.itemAllSupermarkets).toBe(false)
       expect(wrapper.vm.itemSupermarketIds).toEqual([])
+      // The abandoned suggestion's quantity and aisle must not carry over either —
+      // here they restore to openAdd's defaults, since that's what was in place
+      // before the suggestion was selected (see the next test for the case where
+      // the user had already typed something of their own).
+      expect(wrapper.vm.itemQty).toBe('')
+      expect(wrapper.vm.itemAisle).toBe('Dairy')
 
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      // itemQty/itemAisle are left over from the abandoned suggestion (pre-existing,
-      // unrelated to this fix) — the point under test is the allocation, which must
-      // NOT carry over from the abandoned suggestion.
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Bread', '250g', 'Dairy', {
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Bread', '', 'Dairy', {
         supermarketIds: [],
         allSupermarkets: false,
       })
+    })
+
+    it('restores the user\'s own qty/aisle/allocation when a suggestion is abandoned', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // The user had already filled in their own values before tapping the suggestion.
+      wrapper.vm.itemQty = '2 loaves'
+      wrapper.vm.itemAisle = 'Dry goods'
+      wrapper.vm.toggleSupermarket('sm-2')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemQty).toBe('250g')
+      expect(wrapper.vm.itemAisle).toBe('Meat')
+      expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+
+      wrapper.vm.itemName = 'Bread'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.selectedDoneItem).toBeNull()
+      expect(wrapper.vm.itemQty).toBe('2 loaves')
+      expect(wrapper.vm.itemAisle).toBe('Dry goods')
+      expect(wrapper.vm.itemAllSupermarkets).toBe(false)
+      expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-2'])
+    })
+
+    it('does not overwrite the original snapshot when switching directly between suggestions', async () => {
+      shoppingStore.items = [
+        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Meat', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
+        { id: 'd2', name: 'Buns', qty: '6', aisle: 'Bakery', done: true, supermarketIds: ['sm-2'], allSupermarkets: false },
+      ]
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemQty = '2 loaves'
+      wrapper.vm.itemAisle = 'Dry goods'
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.selectSuggestion(shoppingStore.items[0])
+      await wrapper.vm.$nextTick()
+      wrapper.vm.selectSuggestion(shoppingStore.items[1])
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemQty).toBe('6')
+      expect(wrapper.vm.itemAisle).toBe('Bakery')
+
+      wrapper.vm.itemName = 'Bread'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemQty).toBe('2 loaves')
+      expect(wrapper.vm.itemAisle).toBe('Dry goods')
     })
 
     it('restores a selected done item instead of adding a new one, including its allocation', async () => {
@@ -427,7 +484,7 @@ describe('ShoppingView', () => {
 
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Dairy', {
+      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Meat', {
         supermarketIds: ['sm-1'],
         allSupermarkets: false,
       })

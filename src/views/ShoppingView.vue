@@ -88,8 +88,10 @@ const doneSuggestions = computed(() => {
 watch(itemName, (val) => {
   if (selectedDoneItem.value && val.trim() !== selectedDoneItem.value.name) {
     selectedDoneItem.value = null
-    // Otherwise the abandoned suggestion's allocation would silently carry
-    // over onto whatever new item the user ends up adding.
+    // Otherwise the abandoned suggestion's quantity, aisle, and allocation
+    // would silently carry over onto whatever new item the user ends up adding.
+    itemQty.value = ''
+    itemAisle.value = store.activeAisles[0]?.name ?? ''
     itemAllSupermarkets.value = false
     itemSupermarketIds.value = []
   }

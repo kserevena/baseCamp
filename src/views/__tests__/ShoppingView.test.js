@@ -341,7 +341,7 @@ describe('ShoppingView', () => {
   describe('re-add suggestions', () => {
     beforeEach(() => {
       shoppingStore.items = [
-        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Dairy', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
+        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Meat', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
       ]
     })
 
@@ -358,7 +358,7 @@ describe('ShoppingView', () => {
       wrapper.vm.selectSuggestion(shoppingStore.items[0])
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.itemQty).toBe('250g')
-      expect(wrapper.vm.itemAisle).toBe('Dairy')
+      expect(wrapper.vm.itemAisle).toBe('Meat')
     })
 
     it('restores the selected done item\'s supermarket allocation into the picker', async () => {
@@ -403,13 +403,14 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.selectedDoneItem).toBeNull()
       expect(wrapper.vm.itemAllSupermarkets).toBe(false)
       expect(wrapper.vm.itemSupermarketIds).toEqual([])
+      // The abandoned suggestion's quantity and aisle must not carry over either —
+      // aisle falls back to the same default openAdd would use.
+      expect(wrapper.vm.itemQty).toBe('')
+      expect(wrapper.vm.itemAisle).toBe('Dairy')
 
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      // itemQty/itemAisle are left over from the abandoned suggestion (pre-existing,
-      // unrelated to this fix) — the point under test is the allocation, which must
-      // NOT carry over from the abandoned suggestion.
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Bread', '250g', 'Dairy', {
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Bread', '', 'Dairy', {
         supermarketIds: [],
         allSupermarkets: false,
       })
@@ -427,7 +428,7 @@ describe('ShoppingView', () => {
 
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Dairy', {
+      expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Meat', {
         supermarketIds: ['sm-1'],
         allSupermarkets: false,
       })

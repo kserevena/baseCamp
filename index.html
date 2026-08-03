@@ -3,7 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- interactive-widget=resizes-content makes the Android on-screen keyboard
+         shrink the *layout* viewport, not just the visual one (the default,
+         resizes-visual, leaves window.innerHeight and dvh units unchanged when
+         the keyboard opens). This is what makes `dvh` genuinely keyboard-aware,
+         which the bottom sheets in ShoppingView rely on to stay above the
+         keyboard without measuring anything in JS. See issues #49/#109/#162 and
+         the "Bottom sheets with text inputs" section in CLAUDE.md. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#1D9E75" />
     <title>BaseCamp</title>
   </head>

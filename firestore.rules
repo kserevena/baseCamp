@@ -165,8 +165,14 @@ service cloud.firestore {
         // unfiltered, so every family device downloads whatever is written.
         // Optional fields are read with get(..., null) so an absent field
         // passes and only a present, oversized one is rejected.
+        // ownerUid must be present and a string on create. Without this the
+        // `|| isParent(familyId)` branch below short-circuits before ownerUid
+        // is ever required, and an item created without one can never be
+        // updated again — the update rule reads resource.data.ownerUid and
+        // denies, leaving the item permanently un-tickable.
         function wishItemFieldsValid(data) {
-          return data.name is string
+          return data.ownerUid is string
+            && data.name is string
             && data.name.size() <= 80
             && (data.get('note', null) == null ||
                 (data.get('note', null) is string && data.get('note', null).size() <= 300))

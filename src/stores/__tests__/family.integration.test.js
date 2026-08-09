@@ -1555,6 +1555,29 @@ describe('Firestore security rules', () => {
 
       // note and link are capped too — the store loads the whole collection,
       // so an oversized field is downloaded by every family device.
+      // Without this, the `|| isParent(...)` branch lets a parent create an
+      // ownerUid-less item that the update rule can then never accept.
+      it('denies a parent creating an item with no ownerUid', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertFails(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'), {
+            name: 'Ownerless', note: null, link: null, done: false,
+            doneBy: null, addedBy: 'parent-uid',
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a create with a non-string ownerUid', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { ownerUid: 42 })
+          )
+        )
+      })
+
       it('denies a note longer than 300 characters', async () => {
         const ctx = testEnv.authenticatedContext('child-uid')
         await assertFails(

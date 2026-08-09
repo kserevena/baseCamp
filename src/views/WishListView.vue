@@ -40,7 +40,12 @@ watch(
   { deep: true },
 )
 
-const isOwnList = computed(() => selectedUid.value === family.currentUser?.uid)
+// Both sides can be null during the cold-load window (familyId resolves before
+// the members snapshot arrives), and null === undefined would read as "someone
+// else's list" — hence the explicit null guard.
+const isOwnList = computed(() =>
+  selectedUid.value !== null && selectedUid.value === family.currentUser?.uid
+)
 // You manage your own list; parents can also manage anyone's. Mirrors the
 // wishListItems security rules — the UI hides what the rules would reject.
 const canWrite = computed(() => isOwnList.value || isParent.value)
@@ -167,8 +172,12 @@ function submitItem() {
       </div>
     </div>
 
-    <!-- ── empty state ── -->
-    <div v-if="visibleItems.length === 0" class="text-center text-medium-emphasis py-8">
+    <!-- ── empty state — suppressed until a member is selected, otherwise the
+         cold-load window renders " hasn't added anything yet" with no name ── -->
+    <div
+      v-if="selectedUid && visibleItems.length === 0"
+      class="text-center text-medium-emphasis py-8"
+    >
       <v-icon size="48" class="mb-2">mdi-gift-outline</v-icon>
       <p class="text-body-1">
         {{ isOwnList ? 'Nothing on your wish list yet' : `${selectedName} hasn't added anything yet` }}

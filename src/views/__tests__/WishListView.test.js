@@ -141,6 +141,17 @@ describe('WishListView', () => {
   // ── sections ──────────────────────────────────────────────────────────────
 
   describe('item sections', () => {
+    it('shows no empty state during the cold-load window, before a member is selected', () => {
+      // familyId resolves before the members snapshot arrives, so currentUser
+      // (and therefore selectedUid) is null on every cold navigation.
+      familyStore.currentUser = null
+      familyStore.members = []
+      const wrapper = mountView()
+      expect(wrapper.vm.selectedUid).toBeNull()
+      expect(wrapper.text()).not.toContain("hasn't added anything yet")
+      expect(wrapper.text()).not.toContain('Nothing on your wish list yet')
+    })
+
     it('shows an empty state for your own empty list', () => {
       const wrapper = mountView()
       expect(wrapper.text()).toContain('Nothing on your wish list yet')

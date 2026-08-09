@@ -22,10 +22,10 @@ export default defineConfig({
       include: ['src/**', 'scripts/**'],
       exclude: ['src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js'],
       thresholds: {
-        statements: 86,
-        branches: 83,
+        statements: 88,
+        branches: 84,
         functions: 84,
-        lines: 87,
+        lines: 89,
       },
     },
   },

@@ -151,6 +151,32 @@ service cloud.firestore {
         }
       }
 
+      // Wish lists — one flat collection per family; ownerUid names whose list
+      // each item belongs to. Every family member can read every list (that is
+      // the point of the feature). Writes are gated on ownership, not role:
+      // you manage your own list, and parents can also add to and tick any
+      // member's list. ownerUid is immutable on update, so an item can never be
+      // moved onto someone else's list.
+      match /wishListItems/{itemId} {
+        allow read: if isFamilyMember(familyId);
+
+        // name capped at 80 chars — keep in sync with WISH_ITEM_NAME_MAX_LENGTH
+        // in src/constants/wishList.js
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 80
+          && (request.resource.data.ownerUid == request.auth.uid || isParent(familyId));
+
+        allow update: if isFamilyMember(familyId)
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 80
+          && (resource.data.ownerUid == request.auth.uid || isParent(familyId));
+
+        allow delete: if isFamilyMember(familyId)
+          && (resource.data.ownerUid == request.auth.uid || isParent(familyId));
+      }
+
       // Supermarkets — per-family stores, each with its own aisle ordering (#137 Part B).
       // Any member can read (to switch the view and see aisle layout); all writes are
       // parent-only, mirroring shopping-list and aisle management.

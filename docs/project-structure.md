@@ -15,6 +15,7 @@ baseCamp/
 │   │   ├── JobCard.vue              # Single job card — collapsed summary + expanded controls; parent-gated actions
 │   │   ├── JobsPreview.vue          # Compact home-screen card — top 3 active jobs by priority, +N overflow, links to /jobs
 │   │   ├── JobSubtasks.vue          # Subtask checklist per job; checkbox available to all; drag/add/delete parent-only
+│   │   ├── WishListItem.vue         # Single wish list item (checkbox, name, note, link, edit/delete)
 │   │   └── __tests__/
 │   ├── views/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top jobs preview, family avatars
@@ -23,6 +24,7 @@ baseCamp/
 │   │   ├── ShoppingView.vue         # Shopping list — supermarket selector, add-item FAB, allocation, manage supermarkets
 │   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
 │   │   ├── JobsView.vue             # Household jobs — status sections, category filter, FAB add dialog
+│   │   ├── WishListView.vue         # Wish lists — member selector, outstanding/ticked sections, FAB add dialog
 │   │   ├── CLAUDE.md                # UI design principles; PocketMoneyView complexity notes
 │   │   └── __tests__/
 │   ├── composables/
@@ -32,7 +34,8 @@ baseCamp/
 │   │   └── __tests__/
 │   ├── constants/
 │   │   ├── roles.js                  # ROLE_PARENT / ROLE_CHILD — the Firestore role string contract
-│   │   └── jobs.js                   # JOB_STATUSES / JOB_STATUS_LABELS / JOB_PRIORITIES — Firestore string contract
+│   │   ├── jobs.js                   # JOB_STATUSES / JOB_STATUS_LABELS / JOB_PRIORITIES — Firestore string contract
+│   │   └── wishList.js               # WISH_ITEM_NAME_MAX_LENGTH — mirrors the 80-char cap in firestore.rules
 │   ├── utils/
 │   │   ├── currency.js               # formatGBP() — formats a number as "£x.xx"
 │   │   ├── date.js                   # formatDate() — formats a Timestamp/Date as "9 Jun 2026"
@@ -47,6 +50,7 @@ baseCamp/
 │   │   ├── shopping.js              # Shopping list items + supermarkets (allocation, per-store aisle order, list CRUD)
 │   │   ├── pocketMoney.js           # Pocket money snapshots, auto-payment calc, withdrawal recording
 │   │   ├── jobs.js                  # Household jobs + subtasks; two onSnapshot listeners (jobs + collectionGroup subtasks)
+│   │   ├── wishList.js              # Per-member wish lists; one onSnapshot on the family's flat wishListItems collection
 │   │   ├── CLAUDE.md                # pocketMoney UTC math + transaction safety; shopping store internals; jobs store internals
 │   │   └── __tests__/
 │   ├── router/

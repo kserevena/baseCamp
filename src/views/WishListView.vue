@@ -4,6 +4,7 @@ import { useFamilyStore } from '@/stores/family.js'
 import { useWishListStore } from '@/stores/wishList.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import { WISH_ITEM_NAME_MAX_LENGTH } from '@/constants/wishList.js'
+import { normaliseHttpUrl } from '@/utils/url.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import WishListItem from '@/components/WishListItem.vue'
 
@@ -65,6 +66,7 @@ const formName = ref('')
 const formNote = ref('')
 const formLink = ref('')
 const nameError = ref('')
+const linkError = ref('')
 
 function openAdd() {
   editingId.value = null
@@ -72,6 +74,7 @@ function openAdd() {
   formNote.value = ''
   formLink.value = ''
   nameError.value = ''
+  linkError.value = ''
   itemDialog.value = true
 }
 
@@ -81,6 +84,7 @@ function openEdit(item) {
   formNote.value = item.note ?? ''
   formLink.value = item.link ?? ''
   nameError.value = ''
+  linkError.value = ''
   itemDialog.value = true
 }
 
@@ -97,7 +101,18 @@ function submitItem() {
     return
   }
   const note = formNote.value.trim() || null
-  const link = formLink.value.trim() || null
+
+  // A link is stored as an href. normaliseHttpUrl adds https:// to a schemeless
+  // entry (otherwise it resolves relative to /wish-lists) and rejects anything
+  // that is not a web address.
+  let link = null
+  if (formLink.value.trim()) {
+    link = normaliseHttpUrl(formLink.value)
+    if (!link) {
+      linkError.value = 'Enter a web address, e.g. https://example.com'
+      return
+    }
+  }
 
   if (editingId.value) {
     store.updateItem(editingId.value, { name, note, link })
@@ -241,6 +256,8 @@ function submitItem() {
             variant="outlined"
             density="compact"
             type="url"
+            :error-messages="linkError"
+            @input="linkError = ''"
           />
         </v-card-text>
         <v-card-actions>

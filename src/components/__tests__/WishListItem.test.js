@@ -80,6 +80,21 @@ describe('WishListItem', () => {
     expect(withLink.find('a[href="https://example.com"]').attributes('rel')).toContain('noopener')
   })
 
+  describe('unsafe stored links', () => {
+    // The view normalises on input, but an older client or an offline-cached
+    // document may hold anything — never bind it to an href unchecked.
+    it.each([
+      ['javascript:alert(1)'],
+      ['data:text/html,<script>alert(1)</script>'],
+      ['mailto:someone@example.com'],
+      ['amazon.co.uk/dp/B0123'],
+    ])('does not render a link button for %s', (link) => {
+      const wrapper = mountItem({ item: makeItem({ link }) })
+      expect(wrapper.html()).not.toContain('mdi-open-in-new')
+      expect(wrapper.find('a[href]').exists()).toBe(false)
+    })
+  })
+
   // ── who ticked it ─────────────────────────────────────────────────────────
 
   describe('doneBy avatar', () => {

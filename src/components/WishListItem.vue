@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import FamilyAvatar from './FamilyAvatar.vue'
 import { useWishListStore } from '@/stores/wishList.js'
+import { isHttpUrl } from '@/utils/url.js'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -11,6 +12,11 @@ const props = defineProps({
 
 const emit = defineEmits(['edit', 'delete'])
 const store = useWishListStore()
+
+// Never bind a stored link to an href without checking it is a web address —
+// the view normalises on input, but a document written by an older client (or
+// an offline-cached one) may hold anything.
+const safeLink = computed(() => (isHttpUrl(props.item.link) ? props.item.link.trim() : null))
 
 // Only shown on someone else's list — on your own list every avatar would be
 // yours, which tells the reader nothing.
@@ -48,11 +54,11 @@ const showDoneBy = computed(() =>
     <template #append>
       <div class="d-flex align-center gap-2">
         <v-btn
-          v-if="item.link"
+          v-if="safeLink"
           icon
           size="small"
           variant="plain"
-          :href="item.link"
+          :href="safeLink"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Open link"

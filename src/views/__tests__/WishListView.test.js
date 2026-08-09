@@ -229,6 +229,26 @@ describe('WishListView', () => {
       })
     })
 
+    it('adds https:// to a schemeless link rather than storing a relative path', async () => {
+      const wrapper = mountView()
+      await wrapper.find('.fab').trigger('click')
+      wrapper.vm.formName = 'Bike'
+      wrapper.vm.formLink = 'amazon.co.uk/dp/B0123'
+      wrapper.vm.submitItem()
+      expect(wrapperStoreCall(wrapper).link).toBe('https://amazon.co.uk/dp/B0123')
+    })
+
+    it('rejects a non-web link, shows an error, and keeps the dialog open', async () => {
+      const wrapper = mountView()
+      await wrapper.find('.fab').trigger('click')
+      wrapper.vm.formName = 'Bike'
+      wrapper.vm.formLink = 'javascript:alert(1)'
+      wrapper.vm.submitItem()
+      expect(wishListStore.addItem).not.toHaveBeenCalled()
+      expect(wrapper.vm.linkError).toContain('web address')
+      expect(wrapper.vm.itemDialog).toBe(true)
+    })
+
     it('rejects an empty name and shows an error', () => {
       const wrapper = mountView()
       wrapper.vm.formName = '   '

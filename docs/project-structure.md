@@ -41,6 +41,7 @@ baseCamp/
 │   │   ├── date.js                   # formatDate() — formats a Timestamp/Date as "9 Jun 2026"
 │   │   ├── env.js                    # isDev — true when VITE_USE_EMULATOR=true or project ID contains "dev"
 │   │   ├── paymentSchedule.js        # pendingPaymentDates() — pure UTC date math for pocket money accrual
+│   │   ├── url.js                    # isHttpUrl() / normaliseHttpUrl() — validates user-entered links before use as an href
 │   │   └── __tests__/
 │   ├── styles/
 │   │   └── utilities.css             # Shared CSS utilities (flex gap classes), imported in main.js

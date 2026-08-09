@@ -1,13 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-// Stub all view components so Vue Router doesn't need to render them
+// Stub all view components so Vue Router doesn't need to render them.
+// Every route component in src/router/index.js needs a stub here: importing the
+// real one pulls in its stores and therefore src/firebase/config.js, which calls
+// getAuth() at module scope and throws auth/invalid-api-key without a real .env
+// (CI has none). Add a stub here whenever a route is added.
 vi.mock('@/views/HomeView.vue',     () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/ShoppingView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/LoginView.vue',    () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/SetupView.vue',      () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/PocketMoneyView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/views/JobsView.vue',        () => ({ default: { template: '<div />' } }))
+vi.mock('@/views/WishListView.vue',    () => ({ default: { template: '<div />' } }))
 
 // Mutable store state — tests update these to simulate auth scenarios
 const authState = {

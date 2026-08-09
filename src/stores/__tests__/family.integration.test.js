@@ -1552,6 +1552,58 @@ describe('Firestore security rules', () => {
           )
         )
       })
+
+      // note and link are capped too — the store loads the whole collection,
+      // so an oversized field is downloaded by every family device.
+      it('denies a note longer than 300 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { note: 'x'.repeat(301) })
+          )
+        )
+      })
+
+      it('allows a note of exactly 300 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { note: 'x'.repeat(300) })
+          )
+        )
+      })
+
+      it('denies a link longer than 500 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { link: `https://example.com/${'x'.repeat(500)}` })
+          )
+        )
+      })
+
+      it('denies a non-string note', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { note: 42 })
+          )
+        )
+      })
+
+      it('allows a create that omits the optional note and link entirely', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          setDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-minimal'),
+            { ownerUid: 'child-uid', name: 'Minimal', done: false }
+          )
+        )
+      })
     })
 
     // ── updates ───────────────────────────────────────────────────────────────
@@ -1607,6 +1659,33 @@ describe('Firestore security rules', () => {
         await assertFails(
           updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
             ownerUid: 'parent-uid', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an update that pushes the note over 300 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            note: 'x'.repeat(301), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an update that pushes the link over 500 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            link: `https://example.com/${'x'.repeat(500)}`, updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('allows clearing the note back to null', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            note: null, updatedAt: serverTimestamp(),
           })
         )
       })

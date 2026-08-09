@@ -265,6 +265,24 @@ describe('WishListView', () => {
       expect(wrapper.vm.nameError).toContain('80 characters or fewer')
     })
 
+    it('rejects a note longer than the 300-character rules cap', () => {
+      const wrapper = mountView()
+      wrapper.vm.formName = 'Bike'
+      wrapper.vm.formNote = 'x'.repeat(301)
+      wrapper.vm.submitItem()
+      expect(wishListStore.addItem).not.toHaveBeenCalled()
+      expect(wrapper.vm.noteError).toContain('300 characters or fewer')
+    })
+
+    it('rejects a link longer than the 500-character rules cap', () => {
+      const wrapper = mountView()
+      wrapper.vm.formName = 'Bike'
+      wrapper.vm.formLink = `https://example.com/${'x'.repeat(500)}`
+      wrapper.vm.submitItem()
+      expect(wishListStore.addItem).not.toHaveBeenCalled()
+      expect(wrapper.vm.linkError).toContain('500 characters or fewer')
+    })
+
     it('updates instead of adding when editing an existing item', async () => {
       items.push(makeItem({ id: 'w-1', name: 'Lego set', note: 'Old note' }))
       const wrapper = mountView()

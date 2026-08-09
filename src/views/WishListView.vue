@@ -3,7 +3,9 @@ import { ref, computed, watch } from 'vue'
 import { useFamilyStore } from '@/stores/family.js'
 import { useWishListStore } from '@/stores/wishList.js'
 import { useUserRole } from '@/composables/useUserRole.js'
-import { WISH_ITEM_NAME_MAX_LENGTH } from '@/constants/wishList.js'
+import {
+  WISH_ITEM_NAME_MAX_LENGTH, WISH_ITEM_NOTE_MAX_LENGTH, WISH_ITEM_LINK_MAX_LENGTH,
+} from '@/constants/wishList.js'
 import { normaliseHttpUrl } from '@/utils/url.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import WishListItem from '@/components/WishListItem.vue'
@@ -66,6 +68,7 @@ const formName = ref('')
 const formNote = ref('')
 const formLink = ref('')
 const nameError = ref('')
+const noteError = ref('')
 const linkError = ref('')
 
 function openAdd() {
@@ -74,6 +77,7 @@ function openAdd() {
   formNote.value = ''
   formLink.value = ''
   nameError.value = ''
+  noteError.value = ''
   linkError.value = ''
   itemDialog.value = true
 }
@@ -84,6 +88,7 @@ function openEdit(item) {
   formNote.value = item.note ?? ''
   formLink.value = item.link ?? ''
   nameError.value = ''
+  noteError.value = ''
   linkError.value = ''
   itemDialog.value = true
 }
@@ -101,6 +106,10 @@ function submitItem() {
     return
   }
   const note = formNote.value.trim() || null
+  if (note && note.length > WISH_ITEM_NOTE_MAX_LENGTH) {
+    noteError.value = `Note must be ${WISH_ITEM_NOTE_MAX_LENGTH} characters or fewer`
+    return
+  }
 
   // A link is stored as an href. normaliseHttpUrl adds https:// to a schemeless
   // entry (otherwise it resolves relative to /wish-lists) and rejects anything
@@ -110,6 +119,10 @@ function submitItem() {
     link = normaliseHttpUrl(formLink.value)
     if (!link) {
       linkError.value = 'Enter a web address, e.g. https://example.com'
+      return
+    }
+    if (link.length > WISH_ITEM_LINK_MAX_LENGTH) {
+      linkError.value = `Link must be ${WISH_ITEM_LINK_MAX_LENGTH} characters or fewer`
       return
     }
   }
@@ -236,6 +249,7 @@ function submitItem() {
             density="compact"
             :error-messages="nameError"
             :counter="WISH_ITEM_NAME_MAX_LENGTH"
+            :maxlength="WISH_ITEM_NAME_MAX_LENGTH"
             class="mb-2"
             autofocus
             @input="nameError = ''"
@@ -249,6 +263,10 @@ function submitItem() {
             rows="2"
             auto-grow
             class="mb-2"
+            :counter="WISH_ITEM_NOTE_MAX_LENGTH"
+            :maxlength="WISH_ITEM_NOTE_MAX_LENGTH"
+            :error-messages="noteError"
+            @input="noteError = ''"
           />
           <v-text-field
             v-model="formLink"
@@ -256,6 +274,7 @@ function submitItem() {
             variant="outlined"
             density="compact"
             type="url"
+            :maxlength="WISH_ITEM_LINK_MAX_LENGTH"
             :error-messages="linkError"
             @input="linkError = ''"
           />

@@ -158,19 +158,31 @@ service cloud.firestore {
       // member's list. ownerUid is immutable on update, so an item can never be
       // moved onto someone else's list.
       match /wishListItems/{itemId} {
+        // Field length caps — keep in sync with the WISH_ITEM_*_MAX_LENGTH
+        // constants in src/constants/wishList.js. note and link are capped as
+        // well as name: this is the only collection where a non-parent writes
+        // free-form text, and the store subscribes to the whole collection
+        // unfiltered, so every family device downloads whatever is written.
+        // Optional fields are read with get(..., null) so an absent field
+        // passes and only a present, oversized one is rejected.
+        function wishItemFieldsValid(data) {
+          return data.name is string
+            && data.name.size() <= 80
+            && (data.get('note', null) == null ||
+                (data.get('note', null) is string && data.get('note', null).size() <= 300))
+            && (data.get('link', null) == null ||
+                (data.get('link', null) is string && data.get('link', null).size() <= 500));
+        }
+
         allow read: if isFamilyMember(familyId);
 
-        // name capped at 80 chars — keep in sync with WISH_ITEM_NAME_MAX_LENGTH
-        // in src/constants/wishList.js
         allow create: if isFamilyMember(familyId)
-          && request.resource.data.name is string
-          && request.resource.data.name.size() <= 80
+          && wishItemFieldsValid(request.resource.data)
           && (request.resource.data.ownerUid == request.auth.uid || isParent(familyId));
 
         allow update: if isFamilyMember(familyId)
           && request.resource.data.ownerUid == resource.data.ownerUid
-          && request.resource.data.name is string
-          && request.resource.data.name.size() <= 80
+          && wishItemFieldsValid(request.resource.data)
           && (resource.data.ownerUid == request.auth.uid || isParent(familyId));
 
         allow delete: if isFamilyMember(familyId)

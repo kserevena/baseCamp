@@ -179,11 +179,7 @@ describe('wishList store', () => {
     })
   })
 
-  describe('activeCountFor() and myActiveCount', () => {
-    beforeEach(() => {
-      mockFamilyStore.currentUser = { uid: 'child-uid' }
-    })
-
+  describe('activeCountFor()', () => {
     it('counts only outstanding items for that member', () => {
       const store = setupStore()
       fireSnapshot([
@@ -196,20 +192,10 @@ describe('wishList store', () => {
       expect(store.activeCountFor('nobody')).toBe(0)
     })
 
-    it('myActiveCount tracks the current user', () => {
-      const store = setupStore()
-      fireSnapshot([
-        { id: 'w-1', data: { ownerUid: 'child-uid', name: 'A', done: false } },
-        { id: 'w-2', data: { ownerUid: 'child-uid', name: 'B', done: false } },
-      ])
-      expect(store.myActiveCount).toBe(2)
-    })
-
-    it('myActiveCount is 0 when there is no current user', () => {
-      mockFamilyStore.currentUser = null
+    it('returns 0 for a null uid', () => {
       const store = setupStore()
       fireSnapshot([{ id: 'w-1', data: { ownerUid: 'child-uid', name: 'A', done: false } }])
-      expect(store.myActiveCount).toBe(0)
+      expect(store.activeCountFor(null)).toBe(0)
     })
   })
 

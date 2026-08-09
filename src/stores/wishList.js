@@ -48,13 +48,9 @@ export const useWishListStore = defineStore('wishList', () => {
   )
 
   // Count of outstanding (not ticked) wishes for a member — drives the badge on
-  // the member selector and the home-screen preview card.
+  // WishListView's member selector.
   const activeCountFor = computed(() => (uid) =>
     items.value.filter(i => i.ownerUid === uid && !i.done).length
-  )
-
-  const myActiveCount = computed(() =>
-    activeCountFor.value(familyStore.currentUser?.uid ?? null)
   )
 
   // ── setup / teardown ───────────────────────────────────────────────────────
@@ -144,7 +140,6 @@ export const useWishListStore = defineStore('wishList', () => {
     items,
     itemsFor,
     activeCountFor,
-    myActiveCount,
     setup,
     teardown,
     addItem,

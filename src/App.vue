@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { usePocketMoneyStore } from '@/stores/pocketMoney.js'
 import { useJobsStore } from '@/stores/jobs.js'
+import { useWishListStore } from '@/stores/wishList.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import { useServiceWorkerUpdate } from '@/composables/useServiceWorkerUpdate.js'
 import { isDev } from '@/utils/env.js'
@@ -18,6 +19,7 @@ const auth = useAuthStore()
 const shopping = useShoppingStore()
 const pocketMoney = usePocketMoneyStore()
 const jobs = useJobsStore()
+const wishList = useWishListStore()
 
 const userMenu = ref(false)
 const { bannerVisible, applyUpdate, snooze } = useServiceWorkerUpdate()
@@ -26,9 +28,11 @@ watch(() => family.familyId, (id, prevId) => {
   if (id) {
     shopping.setup(id)
     jobs.setup(id)
+    wishList.setup(id)
   } else if (prevId) {
     shopping.teardown()
     jobs.teardown()
+    wishList.teardown()
   }
 })
 
@@ -51,6 +55,7 @@ onUnmounted(() => {
   shopping.teardown()
   pocketMoney.teardown()
   jobs.teardown()
+  wishList.teardown()
 })
 
 async function signOut() {
@@ -65,6 +70,7 @@ const navItems = [
   { label: 'Shopping', icon: 'mdi-cart',                    path: '/shopping' },
   { label: 'Money',    icon: 'mdi-piggy-bank-outline',      path: '/pocket-money' },
   { label: 'Jobs',     icon: 'mdi-clipboard-check-outline', path: '/jobs' },
+  { label: 'Wishes',   icon: 'mdi-gift-outline',            path: '/wish-lists' },
 ]
 
 const activeTab = ref(route.path)

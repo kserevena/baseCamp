@@ -151,6 +151,50 @@ service cloud.firestore {
         }
       }
 
+      // Wish lists — one flat collection per family; ownerUid names whose list
+      // each item belongs to. Every family member can read every list (that is
+      // the point of the feature). Writes are gated on ownership, not role:
+      // you manage your own list, and parents can also add to and tick any
+      // member's list. ownerUid is immutable on update, so an item can never be
+      // moved onto someone else's list.
+      match /wishListItems/{itemId} {
+        // Field length caps — keep in sync with the WISH_ITEM_*_MAX_LENGTH
+        // constants in src/constants/wishList.js. note and link are capped as
+        // well as name: this is the only collection where a non-parent writes
+        // free-form text, and the store subscribes to the whole collection
+        // unfiltered, so every family device downloads whatever is written.
+        // Optional fields are read with get(..., null) so an absent field
+        // passes and only a present, oversized one is rejected.
+        // ownerUid must be present and a string on create. Without this the
+        // `|| isParent(familyId)` branch below short-circuits before ownerUid
+        // is ever required, and an item created without one can never be
+        // updated again — the update rule reads resource.data.ownerUid and
+        // denies, leaving the item permanently un-tickable.
+        function wishItemFieldsValid(data) {
+          return data.ownerUid is string
+            && data.name is string
+            && data.name.size() <= 80
+            && (data.get('note', null) == null ||
+                (data.get('note', null) is string && data.get('note', null).size() <= 300))
+            && (data.get('link', null) == null ||
+                (data.get('link', null) is string && data.get('link', null).size() <= 500));
+        }
+
+        allow read: if isFamilyMember(familyId);
+
+        allow create: if isFamilyMember(familyId)
+          && wishItemFieldsValid(request.resource.data)
+          && (request.resource.data.ownerUid == request.auth.uid || isParent(familyId));
+
+        allow update: if isFamilyMember(familyId)
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && wishItemFieldsValid(request.resource.data)
+          && (resource.data.ownerUid == request.auth.uid || isParent(familyId));
+
+        allow delete: if isFamilyMember(familyId)
+          && (resource.data.ownerUid == request.auth.uid || isParent(familyId));
+      }
+
       // Supermarkets — per-family stores, each with its own aisle ordering (#137 Part B).
       // Any member can read (to switch the view and see aisle layout); all writes are
       // parent-only, mirroring shopping-list and aisle management.

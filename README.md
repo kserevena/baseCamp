@@ -251,6 +251,8 @@ Pocket money config, balances, and transactions live under `families/{familyId}/
 
 Household jobs live under `families/{familyId}/householdJobs/{jobId}` (and their `subtasks/` subcollection). Subtasks carry a `familyId` field so they can be queried via a Firestore collection-group listener.
 
+Wish lists live under `families/{familyId}/wishListItems/{itemId}` — one flat collection per family, with an `ownerUid` field naming whose list each item belongs to. Every family member can read every list; you write to your own list, and parents can write to anyone's.
+
 See `docs/schema.md` for the full field-level schema and `docs/security-rules.md` for security rules.
 
 > **Pocket money runs in UTC.** Payment-day accrual is computed using UTC day boundaries so the amount can never double-count or skip a week when a device changes timezone. A payment therefore posts on UTC midnight rather than local midnight (cosmetic for a UK family; the amount is always correct). Supporting a family's own non-UTC timezone is tracked in [issue #15](https://github.com/kserevena/baseCamp/issues/15).

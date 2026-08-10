@@ -24,6 +24,14 @@ The Add item bottom sheet fills the screen (`height: 92dvh`) and shrinks when th
 
 Nothing here measures the DOM or the viewport in JS — earlier attempts that did are documented in the root `CLAUDE.md`. **Changes to this sheet's sizing cannot be validated locally** (simulated keyboards shrink both viewports and mask the bug); verify on a physical Android device.
 
+## WishListView.vue
+
+One list per family member, selected from a row of `FamilyAvatar` chips badged with each member's outstanding count. `selectedUid` is local view state only — it never touches Firestore — and it defaults to the current user (following `family.currentUser` once the members snapshot arrives, since `familyId` becomes non-null before member documents load) and falls back to your own list if the member being viewed leaves the family.
+
+`canWrite` is `own list || isParent`, mirroring the `wishListItems` security rules: the FAB, the checkbox, and the edit/delete buttons all hang off it, so the UI never offers a write the rules would reject. Ticked items are collapsed behind a "Ticked off" header and de-emphasised.
+
+The add/edit form is a `v-dialog`, not a `v-bottom-sheet` — `v-dialog` is centred and unaffected by the Android keyboard handling described in the root `CLAUDE.md`, so none of `useKeyboardAwareSheet` applies here. Writes are fire-and-forget: validate synchronously, fire, close the dialog immediately.
+
 ## PocketMoneyView.vue
 
 461 lines — the largest view in the codebase. It serves two completely different UIs from a single component: a parent overview (child list, per-child detail sheet, settings dialog, withdrawal dialog, transaction history) and a child read-only view (own balance, own history). Key notes:

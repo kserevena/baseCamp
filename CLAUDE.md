@@ -48,18 +48,20 @@ Understanding this flow is essential for any work on auth, routing, or store set
 
 ## Store lifecycle
 
-The data stores (`family`, `shopping`, `pocketMoney`) all follow the same pattern:
+The data stores (`family`, `shopping`, `pocketMoney`, `jobs`, `wishList`) all follow the same pattern:
 
 - `setup(...)` — subscribes to Firestore via `onSnapshot`, populates reactive state
 - `teardown()` — unsubscribes the listener, clears state
 
-`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping` and `jobs` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
+`App.vue` watches `familyId` and calls `setup`/`teardown` on `shopping`, `jobs`, and `wishList` when it changes. Always call `teardown()` in `onUnmounted` when adding new listeners to a store.
 
 **`pocketMoney` store exception:** `pocketMoney.setup(familyId, currentUser)` requires the user's `role` to decide whether to subscribe to the whole collection (parent) or a single document (child). `role` is only available after the `families/{familyId}/members` snapshot fires — which happens asynchronously after `familyId` becomes non-null. `App.vue` therefore watches `family.currentUser` (not `familyId`) to set up the pocketMoney store.
 
 **`pocketMoney` write semantics and UTC date math** — payment accrual is UTC-anchored (do not change to local time; tracked in GitHub issue #15). Full detail in `src/stores/CLAUDE.md`.
 
 **`shopping` store internals** — see `src/stores/CLAUDE.md`.
+
+**`wishList` store** — one flat collection per family (`wishListItems`) with an `ownerUid` field, deliberately not a per-member subcollection. See `src/stores/CLAUDE.md`.
 
 ---
 
@@ -99,6 +101,10 @@ npm run test:watch        # unit tests in watch mode during development
 
 Integration tests load the real `firestore.rules` file into the emulator. They verify that the rules you will deploy are actually enforced — if you change `firestore.rules`, the integration tests will catch any unintended access regressions.
 
+**CI runs with no `.env` — and that makes one class of breakage invisible locally.** `.github/workflows/ci.yml` never writes a `.env`, but `src/firebase/config.js` calls `getAuth()` at module scope, so it throws `auth/invalid-api-key` the moment a test imports it — even transitively, through a store, a view, or the router. Every developer machine has a `.env` from the README setup, so a test that reaches `config.js` passes locally and fails only in CI, and the whole test *file* fails to load rather than an individual assertion (the run reports a failed suite and a reduced test count, not a failed test).
+
+**So: any unit test whose import graph can reach a store, a view, or `src/router/index.js` must mock the config module** — `vi.mock('@/firebase/config.js', () => ({ auth: {}, db: {} }))`. Do not "fix" a local reproduction by creating a `.env`; that hides the failure instead of showing it. To reproduce what CI sees, move your `.env` aside and run `npm run test:coverage`. `guard.test.js` also stubs every route component, which keeps the router's view modules out of the test, but the config mock is what makes it safe to add a route without touching the test (issue seen when `/wish-lists` was added). Deploy workflows do write a `.env` from a secret, so they never hit this.
+
 **Coverage thresholds** are configured in `vitest.config.js` and enforced by CI via `npm run test:coverage`. Thresholds are set to the measured baseline and must only ever be raised, never lowered — if CI goes red after a legitimate refactor, add tests in the same PR rather than dropping the floor. When raising thresholds, do it in the same PR as the tests that justify the increase.
 
 ---
@@ -129,6 +135,7 @@ Update documentation in the same commit as the change that makes it stale.
 | Auth or store lifecycle changed | Relevant section here + subdirectory `CLAUDE.md` |
 | Env vars changed | `.env` block in `README.md` steps 3 & 6 |
 | npm scripts changed | **Development workflow** here + `README.md` |
+| Route added to `src/router/index.js` | Add a view stub in `src/router/__tests__/guard.test.js` (see **Testing**) + `docs/project-structure.md` |
 
 **What goes where:** `README.md` — setup guide only · `CLAUDE.md` (root) — architecture, conventions · `docs/project-structure.md` — annotated file tree · `docs/schema.md` — data model + migration pattern · `docs/security-rules.md` — access table · `src/stores/CLAUDE.md` — store internals · `src/views/CLAUDE.md` — UI principles · `src/firebase/CLAUDE.md` — App Check, emulator · `docs/cloud-screenshots.md` — cloud session screenshot guide
 
@@ -144,7 +151,9 @@ Update documentation in the same commit as the change that makes it stale.
 
 **Issue linking.** If a PR fully resolves a GitHub issue, include `Closes #NNN` in the PR body — this auto-closes the issue on merge. Only use `Closes` when the PR completely addresses the issue; if unsure, confirm with the user before adding it. For PRs that relate to but don't fully fix an issue, reference it with `Related to #NNN` instead.
 
-**Deploy workflows.** Dev: add `deploy-to-dev` label to any open PR (removed on success; `on-dev` added, and automatically removed if a new commit is pushed to that PR, since dev would then be running stale code). Prod: auto-deploys on every push to `main` (i.e. every merged PR). Both workflows run: env preflight check → `npm run deploy:checks` (ci + unit + integration tests) → `firebase deploy --only hosting,firestore:rules,firestore:indexes`. See `.github/workflows/` for full implementation detail.
+**Deploy workflows.** Dev: add `deploy-to-dev` label to any open PR (removed on success; `on-dev` added, and automatically removed if a new commit is pushed to that PR, since dev would then be running stale code). Prod: auto-deploys on every push to `main` (i.e. every merged PR). Both write a `.env` from a repository secret, then run an env preflight check, then `firebase deploy --only hosting,firestore:rules,firestore:indexes`.
+
+**The two workflows differ on tests, and it matters.** `deploy-prod.yml` runs `npm test` and `npm run test:integration` before deploying (and refuses to run off `main`). **`deploy-dev.yml` runs no tests at all** — it builds and deploys. A dev deploy therefore succeeds while CI on the same PR is red, so a green `on-dev` label is not a statement about test health; check the PR's CI separately. (This is the GitHub Actions path only — the local `npm run deploy:dev` script does run `deploy:checks`.) See `.github/workflows/` for full implementation detail.
 
 **Always ask the user before deploying to any environment.** Never run `npm run deploy:*` or `firebase deploy` without explicit confirmation first. **Merging a PR to `main` triggers an automatic prod deploy** — treat "merge this PR" as equivalent to "deploy to prod" and get explicit confirmation before merging.
 

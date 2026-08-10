@@ -19,6 +19,7 @@ firebase deploy --only firestore:rules
 | `families/{familyId}/supermarkets/{supermarketId}` | Family members | Parents only (create/update/delete) |
 | `families/{familyId}/pocketMoney/{uid}` | Parents (any child); child (own only) | Parents only |
 | `families/{familyId}/pocketMoney/{uid}/transactions/{txnId}` | Parents (any child); child (own only) | Parents only |
+| `families/{familyId}/wishListItems/{itemId}` | Family members (every member can see every list) | The item's owner (`ownerUid == uid`) and parents (create/update/delete); `ownerUid` is immutable on update; `name`/`note`/`link` capped at 80/300/500 chars (keep in sync with the `WISH_ITEM_*_MAX_LENGTH` constants in `src/constants/wishList.js`) |
 | `families/{familyId}/householdJobs/{jobId}` | Family members | Family members (create — must stamp own uid as suggestedBy, status=suggested, children cannot set priority/assignedTo); parents (update/delete); child who suggested it may update title/description only while status=suggested |
 | `families/{familyId}/householdJobs/{jobId}/subtasks/{subtaskId}` | Family members (also via collection-group wildcard rule) | Parents (create/delete/full update); any family member (update done+updatedAt only) |
 

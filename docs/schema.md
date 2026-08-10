@@ -72,6 +72,20 @@ families/{familyId}/pocketMoney/{uid}/transactions/{txnId}
   recordedBy: uid | null                ← null for auto-payments; parent uid for withdrawals
   note: string | null                   ← optional; used for withdrawals
 
+families/{familyId}/wishListItems/{itemId}   ← one flat collection per family; ownerUid
+                                               names whose list the item belongs to
+  ownerUid: uid               ← immutable after create (enforced in the rules), so an item
+                                can never be moved onto another member's list
+  name: string                ← capped at 80 chars in the rules
+  note: string | null         ← optional detail ("the blue one"); capped at 300 chars
+  link: string | null         ← optional http(s) URL; capped at 500 chars. Validated and
+                                normalised client-side before write (src/utils/url.js)
+  done: boolean               ← ticked = bought, or no longer wanted
+  doneBy: uid | null          ← who ticked it; cleared when un-ticked
+  addedBy: uid                ← usually the owner; differs when a parent adds for a child
+  createdAt: timestamp
+  updatedAt: timestamp
+
 families/{familyId}/householdJobs/{jobId}
   title: string
   description: string | null

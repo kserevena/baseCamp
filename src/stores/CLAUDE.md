@@ -46,4 +46,14 @@ See root `CLAUDE.md` for the setup/teardown pattern and pocketMoney write semant
 
 ---
 
+## wishList store
+
+**One flat collection, not a subcollection per member.** Items live in `families/{familyId}/wishListItems` with an `ownerUid` field naming whose list each belongs to, so a single `onSnapshot` loads every member's list and `itemsFor(uid)` / `activeCountFor(uid)` group them in memory (`activeCountFor` backs the member-selector badge in `WishListView`). A `wishLists/{uid}/items/{itemId}` shape would have forced a `collectionGroup` listener plus a top-level wildcard read rule and a collection-group index (the jobs/subtasks arrangement) to answer the same question — everyone can see everyone's list, so there is nothing to gain from the nesting at family scale.
+
+**Writes are gated on ownership, not role.** You write to your own list; parents can also add to, tick, and delete on any member's list (they are usually the ones buying). Siblings are read-only on each other's lists. The `wishListItems` rules enforce all of this, and `WishListView`'s `canWrite` mirrors it so the UI never offers a write the rules would reject. `ownerUid` is immutable on update — `toggleDone` and `updateItem` deliberately write only the fields they change, so neither can trip that condition.
+
+**`itemsFor(uid)`** sorts outstanding items before ticked ones, each group newest-first. `createdAt` is `null` until an optimistic write syncs, so the tie-break guards with `?.toMillis?.() ?? 0`; it also `slice()`s before sorting so the getter never reorders `items` itself. `toggleDone` stamps `doneBy` with the current user when ticking and clears it when un-ticking — unlike the shopping store's `toggleDone`, it is a clean inverse of itself, so no undo-restore helper is needed.
+
+---
+
 See root `CLAUDE.md` → **Firebase data structure** for the full Firestore schema, and **Firestore schema evolution** for migration patterns before any database change.

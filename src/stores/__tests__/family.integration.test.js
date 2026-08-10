@@ -1386,4 +1386,411 @@ describe('Firestore security rules', () => {
       })
     })
   })
+
+  // ── wishListItems ───────────────────────────────────────────────────────────
+
+  describe('wishListItems subcollection', () => {
+    async function seedWishItem(familyId, itemId, data = {}) {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), 'families', familyId, 'wishListItems', itemId),
+          {
+            ownerUid:  'child-uid',
+            name:      'Lego set',
+            note:      null,
+            link:      null,
+            done:      false,
+            doneBy:    null,
+            addedBy:   'child-uid',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            ...data,
+          }
+        )
+      })
+    }
+
+    // A well-formed create payload for the given owner.
+    const wishItemPayload = (ownerUid, overrides = {}) => ({
+      ownerUid,
+      name:      'New wish',
+      note:      null,
+      link:      null,
+      done:      false,
+      doneBy:    null,
+      addedBy:   ownerUid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...overrides,
+    })
+
+    beforeEach(async () => {
+      await seedFamily('fam-1', [
+        { uid: 'parent-uid',  name: 'Parent',  role: 'parent' },
+        { uid: 'child-uid',   name: 'Child',   role: 'child' },
+        { uid: 'sibling-uid', name: 'Sibling', role: 'child' },
+      ])
+      await seedWishItem('fam-1', 'wish-1')
+    })
+
+    // ── reads ─────────────────────────────────────────────────────────────────
+
+    describe('wishListItems reads', () => {
+      it('allows the owner to read their own item', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+
+      it('allows a sibling to read another member\'s item', async () => {
+        const ctx = testEnv.authenticatedContext('sibling-uid')
+        await assertSucceeds(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+
+      it('allows a member to list the whole family collection', async () => {
+        const ctx = testEnv.authenticatedContext('sibling-uid')
+        await assertSucceeds(
+          getDocs(collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'))
+        )
+      })
+
+      it('denies a non-member reading an item', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+
+      it('denies an unauthenticated user reading an item', async () => {
+        const ctx = testEnv.unauthenticatedContext()
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+
+      it('cross-family: a member of fam-2 cannot read fam-1 wish items', async () => {
+        await seedFamily('fam-2', [{ uid: 'other-uid', name: 'Other', role: 'parent' }])
+        const ctx = testEnv.authenticatedContext('other-uid')
+        await assertFails(
+          getDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+    })
+
+    // ── creates ───────────────────────────────────────────────────────────────
+
+    describe('wishListItems creates', () => {
+      it('allows a member to add to their own list', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid')
+          )
+        )
+      })
+
+      it('allows a parent to add to a child\'s list', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { addedBy: 'parent-uid' })
+          )
+        )
+      })
+
+      it('denies a child adding to a sibling\'s list', async () => {
+        const ctx = testEnv.authenticatedContext('sibling-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { addedBy: 'sibling-uid' })
+          )
+        )
+      })
+
+      it('denies a non-member adding an item', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('outsider-uid')
+          )
+        )
+      })
+
+      it('denies a name longer than 80 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { name: 'x'.repeat(81) })
+          )
+        )
+      })
+
+      it('allows a name of exactly 80 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { name: 'x'.repeat(80) })
+          )
+        )
+      })
+
+      it('denies a create with a non-string name', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { name: 42 })
+          )
+        )
+      })
+
+      // note and link are capped too — the store loads the whole collection,
+      // so an oversized field is downloaded by every family device.
+      // Without this, the `|| isParent(...)` branch lets a parent create an
+      // ownerUid-less item that the update rule can then never accept.
+      it('denies a parent creating an item with no ownerUid', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertFails(
+          addDoc(collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'), {
+            name: 'Ownerless', note: null, link: null, done: false,
+            doneBy: null, addedBy: 'parent-uid',
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a create with a non-string ownerUid', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { ownerUid: 42 })
+          )
+        )
+      })
+
+      it('denies a note longer than 300 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { note: 'x'.repeat(301) })
+          )
+        )
+      })
+
+      it('allows a note of exactly 300 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { note: 'x'.repeat(300) })
+          )
+        )
+      })
+
+      it('denies a link longer than 500 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { link: `https://example.com/${'x'.repeat(500)}` })
+          )
+        )
+      })
+
+      it('denies a non-string note', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          addDoc(
+            collection(ctx.firestore(), 'families', 'fam-1', 'wishListItems'),
+            wishItemPayload('child-uid', { note: 42 })
+          )
+        )
+      })
+
+      it('allows a create that omits the optional note and link entirely', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          setDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-minimal'),
+            { ownerUid: 'child-uid', name: 'Minimal', done: false }
+          )
+        )
+      })
+    })
+
+    // ── updates ───────────────────────────────────────────────────────────────
+
+    describe('wishListItems updates', () => {
+      it('allows the owner to tick their own item', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            done: true, doneBy: 'child-uid', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('allows the owner to edit the name and note', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            name: 'Lego Technic set', note: 'The big one', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('allows a parent to tick a child\'s item', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            done: true, doneBy: 'parent-uid', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a sibling ticking another child\'s item', async () => {
+        const ctx = testEnv.authenticatedContext('sibling-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            done: true, doneBy: 'sibling-uid', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies moving an item onto someone else\'s list', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            ownerUid: 'sibling-uid', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a parent reassigning ownerUid', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            ownerUid: 'parent-uid', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an update that pushes the note over 300 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            note: 'x'.repeat(301), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an update that pushes the link over 500 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            link: `https://example.com/${'x'.repeat(500)}`, updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('allows clearing the note back to null', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            note: null, updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an update that pushes the name over 80 characters', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            name: 'x'.repeat(81), updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies a non-member updating an item', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'), {
+            done: true, updatedAt: serverTimestamp(),
+          })
+        )
+      })
+
+      it('denies an ex-member updating an item they still own', async () => {
+        await seedWishItem('fam-1', 'wish-ex', { ownerUid: 'ex-member-uid', addedBy: 'ex-member-uid' })
+        const ctx = testEnv.authenticatedContext('ex-member-uid')
+        await assertFails(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-ex'), {
+            done: true, updatedAt: serverTimestamp(),
+          })
+        )
+      })
+    })
+
+    // ── deletes ───────────────────────────────────────────────────────────────
+
+    describe('wishListItems deletes', () => {
+      it('allows the owner to delete their own item', async () => {
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+
+      it('allows a parent to delete a child\'s item', async () => {
+        const ctx = testEnv.authenticatedContext('parent-uid')
+        await assertSucceeds(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+
+      it('denies a sibling deleting another child\'s item', async () => {
+        const ctx = testEnv.authenticatedContext('sibling-uid')
+        await assertFails(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+
+      it('denies a non-member deleting an item', async () => {
+        const ctx = testEnv.authenticatedContext('outsider-uid')
+        await assertFails(
+          deleteDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-1'))
+        )
+      })
+    })
+
+    // ── old-shaped documents ──────────────────────────────────────────────────
+
+    describe('documents missing newer fields', () => {
+      it('lets the owner tick an item that has only ownerUid and name', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+          await setDoc(
+            doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-min'),
+            { ownerUid: 'child-uid', name: 'Minimal' }
+          )
+        })
+        const ctx = testEnv.authenticatedContext('child-uid')
+        await assertSucceeds(
+          updateDoc(doc(ctx.firestore(), 'families', 'fam-1', 'wishListItems', 'wish-min'), {
+            done: true, doneBy: 'child-uid', updatedAt: serverTimestamp(),
+          })
+        )
+      })
+    })
+  })
 })

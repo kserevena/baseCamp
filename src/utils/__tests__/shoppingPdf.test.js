@@ -33,25 +33,14 @@ describe('shoppingPdf', () => {
       expect(sections[0].items.map(i => i.name)).toEqual(['Milk', 'Yoghurt'])
     })
 
-    it('puts priority items in their own leading section, alphabetically, ahead of every aisle', () => {
+    it('keeps priority items in their standard aisle group rather than a leading section', () => {
       const items = [
         { id: '1', name: 'Bacon', aisle: 'Meat', done: false },
         { id: '2', name: 'Steak', aisle: 'Meat', done: false, priority: true },
         { id: '3', name: 'Apples', aisle: 'Dairy', done: false, priority: true },
       ]
       const sections = buildPrintableSections(items, aisles)
-      expect(sections[0]).toEqual({ heading: 'Priority', items: [
-        { id: '3', name: 'Apples', aisle: 'Dairy', done: false, priority: true },
-        { id: '2', name: 'Steak', aisle: 'Meat', done: false, priority: true },
-      ] })
-    })
-
-    it('also keeps priority items in their standard aisle group, alongside the leading Priority section', () => {
-      const items = [
-        { id: '1', name: 'Bacon', aisle: 'Meat', done: false },
-        { id: '2', name: 'Steak', aisle: 'Meat', done: false, priority: true },
-      ]
-      const sections = buildPrintableSections(items, aisles)
+      expect(sections.map(s => s.heading)).toEqual(['Dairy', 'Meat'])
       const meatSection = sections.find(s => s.heading === 'Meat')
       // Same alphabetical sort as any other aisle group — priority isn't
       // pulled out here, so it sorts on name like everything else.
@@ -126,7 +115,7 @@ describe('shoppingPdf', () => {
     // lines()/setFillColor() rather than text() — verified here by mocking the
     // 'jspdf' module and recording those calls, since jsPDF's real drawing
     // methods are per-instance closures that can't be spied on directly.
-    it('draws one star per priority occurrence, right-aligned near the page edge', async () => {
+    it('draws one star per priority item, right-aligned near the page edge', async () => {
       vi.resetModules()
       const linesCalls = []
       const fillColorCalls = []
@@ -149,10 +138,9 @@ describe('shoppingPdf', () => {
       ]
       try {
         build('Weekly shop', items, aisles)
-        // Steak prints twice (Priority section + Meat aisle group) and is
-        // starred both times; Milk never is.
-        expect(linesCalls.length).toBe(2)
-        expect(fillColorCalls.length).toBe(2)
+        // Steak is starred in its Meat aisle group; Milk never is.
+        expect(linesCalls.length).toBe(1)
+        expect(fillColorCalls.length).toBe(1)
         const pageWidth = 595
         const margin = 40
         for (const call of linesCalls) {

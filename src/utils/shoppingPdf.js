@@ -8,24 +8,16 @@ const SECTION_GAP = 12
 const STAR_OUTER_RADIUS = 6
 const STAR_COLOR = [230, 160, 0]
 
-// Priority items get their own leading section (alphabetical) as a
-// quick-glance summary, AND stay in their aisle group at their standard
-// position — matching ShoppingList.vue's buildGroups, which has always kept
-// priority items in both places (its priorityItems computed and buildGroups
-// draw from the same !done items independently; nothing pulls one out of
-// the other). A star marker (drawn in buildShoppingListPdf) is what
-// distinguishes a priority item wherever it appears, since it's not
-// exclusive to the Priority section. Any item whose aisle isn't in `aisles`
-// (e.g. stale data) falls into its own trailing group rather than being
-// dropped. Exported (rather than kept private) so the grouping/ordering
-// logic can be unit tested directly — jsPDF's drawing methods are
-// per-instance closures, not prototype methods, so they can't be spied on
-// the way DOM APIs can.
+// Priority items stay in their aisle group at their standard position —
+// matching ShoppingList.vue's buildGroups. A star marker (drawn in
+// buildShoppingListPdf) is what distinguishes a priority item within its
+// aisle. Any item whose aisle isn't in `aisles` (e.g. stale data) falls
+// into its own trailing group rather than being dropped. Exported (rather
+// than kept private) so the grouping/ordering logic can be unit tested
+// directly — jsPDF's drawing methods are per-instance closures, not
+// prototype methods, so they can't be spied on the way DOM APIs can.
 export function buildPrintableSections(items, aisles) {
   const unpurchased = items.filter(i => !i.done)
-  const priorityItems = unpurchased
-    .filter(i => i.priority ?? false)
-    .sort((a, b) => a.name.localeCompare(b.name))
 
   const groups = aisles.map(a => ({ heading: a.name, items: [] }))
   for (const item of unpurchased) {
@@ -38,12 +30,7 @@ export function buildPrintableSections(items, aisles) {
   }
   for (const group of groups) group.items.sort((a, b) => a.name.localeCompare(b.name))
 
-  const sections = []
-  if (priorityItems.length > 0) sections.push({ heading: 'Priority', items: priorityItems })
-  for (const group of groups) {
-    if (group.items.length > 0) sections.push(group)
-  }
-  return sections
+  return groups.filter(group => group.items.length > 0)
 }
 
 // jsPDF's standard fonts use WinAnsiEncoding, which has no glyph for a star

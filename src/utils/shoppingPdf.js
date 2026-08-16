@@ -118,12 +118,13 @@ export function buildShoppingListPdf(listName, items, aisles) {
   }
 
   for (const section of sections) {
-    ensureSpace(HEADING_GAP + LINE_HEIGHT)
     doc.setFontSize(13)
     doc.setFont(undefined, 'bold')
-    doc.text(section.heading, columnX, y)
+    const headingLines = doc.splitTextToSize(section.heading, columnWidth)
+    ensureSpace(HEADING_GAP + LINE_HEIGHT * headingLines.length)
+    headingLines.forEach((line, i) => doc.text(line, columnX, y + i * LINE_HEIGHT))
     doc.setFont(undefined, 'normal')
-    y += HEADING_GAP
+    y += HEADING_GAP + LINE_HEIGHT * (headingLines.length - 1)
 
     for (const item of section.items) {
       doc.setFontSize(12)

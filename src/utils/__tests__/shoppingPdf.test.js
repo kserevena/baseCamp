@@ -107,6 +107,47 @@ describe('shoppingPdf', () => {
       const doc = buildShoppingListPdf('Big shop', manyItems, aisles)
       expect(doc.internal.getNumberOfPages()).toBeGreaterThan(1)
     })
+
+    it('wraps a section heading that is wider than a column, drawing each wrapped line on its own row', async () => {
+      // AisleManager.vue puts no maxlength on aisle names, so a heading
+      // wider than the (now much narrower) column width is real input, not
+      // a hypothetical — without wrapping it would overlap the next column.
+      vi.resetModules()
+      const textCalls = []
+      vi.doMock('jspdf', () => ({
+        jsPDF: vi.fn().mockImplementation(function () {
+          return {
+            setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
+            text: (...args) => textCalls.push(args),
+            rect: vi.fn(), addPage: vi.fn(),
+            // Simulate wrapping: one word per line, so a 3-word heading
+            // produces 3 lines and a 1-word item name produces 1.
+            splitTextToSize: (str) => str.split(' '),
+            setFillColor: vi.fn(), lines: vi.fn(),
+            internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
+            save: vi.fn(),
+          }
+        }),
+      }))
+      const { buildShoppingListPdf: build } = await import('@/utils/shoppingPdf.js')
+      const wideAisles = [{ name: 'Health Beauty Care', order: 1 }]
+      const items = [{ id: '1', name: 'Soap', aisle: 'Health Beauty Care', done: false }]
+      try {
+        build('Weekly shop', items, wideAisles)
+        const headingCalls = textCalls.filter(([text]) => ['Health', 'Beauty', 'Care'].includes(text))
+        expect(headingCalls.map(([text]) => text)).toEqual(['Health', 'Beauty', 'Care'])
+        const columnX = headingCalls[0][1]
+        // Every wrapped heading line stays in the same column (same x)...
+        expect(headingCalls.every(([, x]) => x === columnX)).toBe(true)
+        // ...and each successive line is one LINE_HEIGHT (22pt) further down.
+        const ys = headingCalls.map(([, , y]) => y)
+        expect(ys[1] - ys[0]).toBe(22)
+        expect(ys[2] - ys[1]).toBe(22)
+      } finally {
+        vi.doUnmock('jspdf')
+        vi.resetModules()
+      }
+    })
   })
 
   describe('priority star marker', () => {

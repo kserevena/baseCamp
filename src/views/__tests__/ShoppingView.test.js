@@ -706,6 +706,26 @@ describe('ShoppingView', () => {
 
       expect(downloadShoppingListPdf).toHaveBeenCalledWith('Weekend Shop', shoppingStore.items, shoppingStore.activeAisles)
     })
+
+    // The pdf util is dynamically imported, which is a genuine async gap
+    // (real network/parse time, worse on slower devices). If the user
+    // switches supermarket while that import is in flight, the export must
+    // still reflect whichever store was selected at click time, not
+    // whichever is selected once the import resolves.
+    it('exports the supermarket that was selected when clicked, even if the selection changes before the import resolves', async () => {
+      shoppingStore.selectedSupermarketId = 'sm-1' // Tesco
+      shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
+      const downloadShoppingListPdf = vi.fn()
+      vi.doMock('@/utils/shoppingPdf.js', () => ({ downloadShoppingListPdf }))
+
+      const wrapper = mountView()
+      const exportPromise = wrapper.vm.exportPdf()
+      // Flip the selected supermarket before the dynamic import resolves.
+      shoppingStore.selectedSupermarketId = 'sm-2'
+      await exportPromise
+
+      expect(downloadShoppingListPdf).toHaveBeenCalledWith('Tesco', shoppingStore.items, shoppingStore.activeAisles)
+    })
   })
 
   describe('headers toggle', () => {

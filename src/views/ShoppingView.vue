@@ -35,12 +35,21 @@ function toggleHeaders() {
 // multi-list-per-store model (each old list became a supermarket, issue
 // #137), the underlying document can carry the name of a *different*,
 // no-longer-visible store, so the export read as "another list's name".
+//
+// The name, items, and aisles are all captured synchronously *before* the
+// await — the dynamic import is a real network/parse delay, and reading
+// reactive store state only after it resolves would export whatever
+// selection happens to be active by then rather than the one on screen when
+// Export was clicked (e.g. if the user switches supermarket, or list, while
+// the import is still in flight).
 async function exportPdf() {
-  const { downloadShoppingListPdf } = await import('@/utils/shoppingPdf.js')
   const listName = store.supermarkets.length > 0
     ? (store.selectedSupermarket?.name ?? 'All items')
     : store.lists.find(l => l.id === store.activeListId)?.name
-  downloadShoppingListPdf(listName, store.visibleItems, store.activeAisles)
+  const items = store.visibleItems
+  const aisles = store.activeAisles
+  const { downloadShoppingListPdf } = await import('@/utils/shoppingPdf.js')
+  downloadShoppingListPdf(listName, items, aisles)
 }
 
 // Auto-provision the family's default supermarket once a parent has loaded a

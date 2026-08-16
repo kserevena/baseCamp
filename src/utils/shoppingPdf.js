@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import { compareShoppingItems } from '@/utils/shoppingItemOrder.js'
 
 const PAGE_MARGIN = 40
 const CHECKBOX_SIZE = 12
@@ -13,15 +14,6 @@ const COLUMN_COUNT = 2
 // applied to every item's wrap width, not just starred ones, so a
 // multi-line item sits at the same width whether or not it's starred.
 const STAR_GUTTER = STAR_OUTER_RADIUS * 2 + 6
-
-// Same ordering as ShoppingList.vue's compareItems: items without a
-// sortOrder (null/undefined) sort after all explicitly ordered items,
-// then fall back to alphabetical within that group.
-function compareItems(a, b) {
-  return (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
-    ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
-    : a.name.localeCompare(b.name)
-}
 
 // Priority items stay in their aisle group at their standard position —
 // matching ShoppingList.vue's buildGroups. A star marker (drawn in
@@ -43,7 +35,7 @@ export function buildPrintableSections(items, aisles) {
     }
     group.items.push(item)
   }
-  for (const group of groups) group.items.sort(compareItems)
+  for (const group of groups) group.items.sort(compareShoppingItems)
 
   return groups.filter(group => group.items.length > 0)
 }
@@ -109,31 +101,43 @@ export function buildShoppingListPdf(listName, items, aisles) {
   let column = 0
   let columnX = PAGE_MARGIN
   let columnTop = y
+  // Set while drawing a section's items, cleared between sections — lets
+  // ensureSpace repeat the heading when a column/page break lands mid-section,
+  // so continuation items are never left under an implied heading two
+  // columns back.
+  let currentHeadingLines = null
+
+  function drawHeadingLines(lines) {
+    doc.setFontSize(13)
+    doc.setFont(undefined, 'bold')
+    lines.forEach((line, i) => doc.text(line, columnX, y + i * LINE_HEIGHT))
+    doc.setFont(undefined, 'normal')
+    y += HEADING_GAP + LINE_HEIGHT * (lines.length - 1)
+  }
 
   function ensureSpace(needed) {
     if (y + needed > pageHeight - PAGE_MARGIN) {
       if (column < COLUMN_COUNT - 1) {
         column += 1
         columnX = PAGE_MARGIN + column * (columnWidth + COLUMN_GAP)
-        y = columnTop
       } else {
         doc.addPage()
         column = 0
         columnX = PAGE_MARGIN
         columnTop = PAGE_MARGIN
-        y = columnTop
       }
+      y = columnTop
+      if (currentHeadingLines) drawHeadingLines(currentHeadingLines)
     }
   }
 
   for (const section of sections) {
+    currentHeadingLines = null
     doc.setFontSize(13)
-    doc.setFont(undefined, 'bold')
     const headingLines = doc.splitTextToSize(section.heading, columnWidth)
     ensureSpace(HEADING_GAP + LINE_HEIGHT * headingLines.length)
-    headingLines.forEach((line, i) => doc.text(line, columnX, y + i * LINE_HEIGHT))
-    doc.setFont(undefined, 'normal')
-    y += HEADING_GAP + LINE_HEIGHT * (headingLines.length - 1)
+    drawHeadingLines(headingLines)
+    currentHeadingLines = headingLines
 
     for (const item of section.items) {
       doc.setFontSize(12)

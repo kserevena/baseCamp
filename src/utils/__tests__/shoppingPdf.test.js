@@ -169,6 +169,56 @@ describe('shoppingPdf', () => {
     })
   })
 
+  describe('section heading continuation', () => {
+    // A section whose items don't all fit in one column now repeats its
+    // heading at the top of the next column/page, rather than leaving
+    // continuation items with no aisle label above them.
+    it('redraws the section heading when a column break lands mid-section', async () => {
+      vi.resetModules()
+      const textCalls = []
+      vi.doMock('jspdf', () => ({
+        jsPDF: vi.fn().mockImplementation(function () {
+          return {
+            setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
+            text: (...args) => textCalls.push(args),
+            rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (str) => [str],
+            setFillColor: vi.fn(), lines: vi.fn(),
+            // A short page (192pt) forces a column break after the 2nd item:
+            // heading (38) + item1 (22) + item2 (22) = 82 fits in 192 - 40*2
+            // = 112pt of usable height; item3 (+22 more, 104) still fits,
+            // but item4 doesn't, and by then a real 3-item Dairy list should
+            // already have moved on — kept to 3 items so the break happens
+            // right after item2, before item3.
+            internal: { pageSize: { getHeight: () => 192, getWidth: () => 595 } },
+            save: vi.fn(),
+          }
+        }),
+      }))
+      const { buildShoppingListPdf: build } = await import('@/utils/shoppingPdf.js')
+      const items = [
+        { id: '1', name: 'Milk', aisle: 'Dairy', done: false, sortOrder: 100 },
+        { id: '2', name: 'Cheese', aisle: 'Dairy', done: false, sortOrder: 200 },
+        { id: '3', name: 'Yoghurt', aisle: 'Dairy', done: false, sortOrder: 300 },
+      ]
+      try {
+        build('Weekly shop', items, [{ name: 'Dairy', order: 1 }])
+        const headingCalls = textCalls.filter(([text]) => text === 'Dairy')
+        expect(headingCalls.length).toBe(2)
+        // The two draws land in different columns (different x).
+        expect(headingCalls[0][1]).not.toBe(headingCalls[1][1])
+        // Every item name is still drawn exactly once — the break repeats
+        // the heading, not the items around it.
+        for (const name of ['Milk', 'Cheese', 'Yoghurt']) {
+          expect(textCalls.filter(([text]) => text === name).length).toBe(1)
+        }
+      } finally {
+        vi.doUnmock('jspdf')
+        vi.resetModules()
+      }
+    })
+  })
+
   describe('priority star marker', () => {
     // jsPDF's standard fonts can't render a Unicode star glyph (WinAnsiEncoding
     // has no U+2605), so the star is drawn as a filled vector polygon via

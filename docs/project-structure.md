@@ -42,7 +42,8 @@ baseCamp/
 │   │   ├── env.js                    # isDev — true when VITE_USE_EMULATOR=true or project ID contains "dev"
 │   │   ├── paymentSchedule.js        # pendingPaymentDates() — pure UTC date math for pocket money accrual
 │   │   ├── url.js                    # isHttpUrl() / normaliseHttpUrl() — validates user-entered links before use as an href
-│   │   ├── shoppingPdf.js            # buildShoppingListPdf()/downloadShoppingListPdf() — printable checkbox PDF of unpurchased items, grouped by aisle (jsPDF)
+│   │   ├── shoppingItemOrder.js      # compareShoppingItems() — sortOrder-then-alphabetical item ordering, shared by ShoppingList.vue and shoppingPdf.js
+│   │   ├── shoppingPdf.js            # buildShoppingListPdf()/downloadShoppingListPdf() — two-column printable checkbox PDF of unpurchased items, grouped by aisle (jsPDF)
 │   │   └── __tests__/
 │   ├── styles/
 │   │   └── utilities.css             # Shared CSS utilities (flex gap classes), imported in main.js

@@ -33,6 +33,25 @@ describe('shoppingPdf', () => {
       expect(sections[0].items.map(i => i.name)).toEqual(['Milk', 'Yoghurt'])
     })
 
+    it('sorts items within a group by sortOrder, matching ShoppingList.vue\'s drag order, rather than alphabetically', () => {
+      const items = [
+        { id: '1', name: 'Yoghurt', aisle: 'Dairy', done: false, sortOrder: 100 },
+        { id: '2', name: 'Milk', aisle: 'Dairy', done: false, sortOrder: 200 },
+      ]
+      const sections = buildPrintableSections(items, aisles)
+      expect(sections[0].items.map(i => i.name)).toEqual(['Yoghurt', 'Milk'])
+    })
+
+    it('sorts items without a sortOrder after items with one, then alphabetically among themselves', () => {
+      const items = [
+        { id: '1', name: 'Zucchini', aisle: 'Dairy', done: false },
+        { id: '2', name: 'Milk', aisle: 'Dairy', done: false, sortOrder: 200 },
+        { id: '3', name: 'Apples', aisle: 'Dairy', done: false },
+      ]
+      const sections = buildPrintableSections(items, aisles)
+      expect(sections[0].items.map(i => i.name)).toEqual(['Milk', 'Apples', 'Zucchini'])
+    })
+
     it('keeps priority items in their standard aisle group rather than a leading section', () => {
       const items = [
         { id: '1', name: 'Bacon', aisle: 'Meat', done: false },

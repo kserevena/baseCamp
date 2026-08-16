@@ -14,6 +14,15 @@ const COLUMN_COUNT = 2
 // multi-line item sits at the same width whether or not it's starred.
 const STAR_GUTTER = STAR_OUTER_RADIUS * 2 + 6
 
+// Same ordering as ShoppingList.vue's compareItems: items without a
+// sortOrder (null/undefined) sort after all explicitly ordered items,
+// then fall back to alphabetical within that group.
+function compareItems(a, b) {
+  return (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
+    ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+    : a.name.localeCompare(b.name)
+}
+
 // Priority items stay in their aisle group at their standard position —
 // matching ShoppingList.vue's buildGroups. A star marker (drawn in
 // buildShoppingListPdf) is what distinguishes a priority item within its
@@ -34,7 +43,7 @@ export function buildPrintableSections(items, aisles) {
     }
     group.items.push(item)
   }
-  for (const group of groups) group.items.sort((a, b) => a.name.localeCompare(b.name))
+  for (const group of groups) group.items.sort(compareItems)
 
   return groups.filter(group => group.items.length > 0)
 }

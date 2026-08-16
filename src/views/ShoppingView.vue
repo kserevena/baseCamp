@@ -73,33 +73,20 @@ function toggleSupermarket(id) {
     : [...itemSupermarketIds.value, id]
 }
 
-const doneSuggestions = computed(() => {
+// Every item already on the list (done or not) matching the typed name, in
+// one merged set — done items are offered as a re-add suggestion (clickable,
+// primary), not-done items are a duplicate warning only (not clickable,
+// warning colour). Both are "already on this list" from the user's point of
+// view; splitting them into separate sections read as two unrelated features
+// when they're really one lookup with two outcomes.
+const matchingSuggestions = computed(() => {
   if (itemMode.value !== 'add') return []
   const q = itemName.value.trim().toLowerCase()
   if (!q) return []
   const seen = new Set()
   return store.items
     .filter(i => {
-      if (!i.done || !i.name.toLowerCase().includes(q)) return false
-      const key = i.name.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    .slice(0, 5)
-})
-
-// Items already on the list (not done) matching the typed name — a warning,
-// not a suggestion to act on, so unlike doneSuggestions these chips are not
-// clickable: there is nothing useful to restore, only a duplicate to avoid.
-const activeSuggestions = computed(() => {
-  if (itemMode.value !== 'add') return []
-  const q = itemName.value.trim().toLowerCase()
-  if (!q) return []
-  const seen = new Set()
-  return store.items
-    .filter(i => {
-      if (i.done || !i.name.toLowerCase().includes(q)) return false
+      if (!i.name.toLowerCase().includes(q)) return false
       const key = i.name.toLowerCase()
       if (seen.has(key)) return false
       seen.add(key)
@@ -323,31 +310,18 @@ watch(sheet, (open) => {
           :counter="ITEM_NAME_MAX_LENGTH"
           @keyup.enter="submit"
         />
-        <div v-if="doneSuggestions.length" class="mb-2">
-          <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
+        <div v-if="matchingSuggestions.length" class="mb-2">
+          <div class="text-caption text-medium-emphasis mb-1">Already on this list</div>
           <div class="d-flex flex-wrap gap-1">
             <v-chip
-              v-for="item in doneSuggestions"
+              v-for="item in matchingSuggestions"
               :key="item.id"
               size="small"
               variant="tonal"
-              color="primary"
-              @click="selectSuggestion(item)"
-            >
-              {{ item.name }}
-            </v-chip>
-          </div>
-        </div>
-        <div v-if="activeSuggestions.length" class="mb-2">
-          <div class="text-caption text-medium-emphasis mb-1">Already on list</div>
-          <div class="d-flex flex-wrap gap-1">
-            <v-chip
-              v-for="item in activeSuggestions"
-              :key="item.id"
-              size="small"
-              variant="tonal"
-              color="warning"
-              prepend-icon="mdi-cart-check"
+              :color="item.done ? 'primary' : 'warning'"
+              :prepend-icon="item.done ? undefined : 'mdi-cart-check'"
+              :class="{ 'suggestion-chip--static': !item.done }"
+              @click="item.done ? selectSuggestion(item) : undefined"
             >
               {{ item.name }}
             </v-chip>
@@ -555,6 +529,11 @@ watch(sheet, (open) => {
 .aisle-chips,
 .supermarket-alloc-chips {
   gap: 6px 8px;
+}
+/* Not-done matches in the merged "Already on this list" row are a warning
+   only — there's nothing to restore, so they don't invite a tap. */
+.suggestion-chip--static {
+  cursor: default;
 }
 /* Fills the .add-item-overlay wrapper, which carries the dvh height (see the
    unscoped block above for why the height cannot live here). */

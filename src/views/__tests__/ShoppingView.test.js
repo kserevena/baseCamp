@@ -353,7 +353,7 @@ describe('ShoppingView', () => {
 
       wrapper.vm.itemName = 'but'
       await wrapper.vm.$nextTick()
-      expect(wrapper.vm.doneSuggestions.map(i => i.id)).toContain('d1')
+      expect(wrapper.vm.matchingSuggestions.map(i => i.id)).toContain('d1')
 
       wrapper.vm.selectSuggestion(shoppingStore.items[0])
       await wrapper.vm.$nextTick()
@@ -507,7 +507,7 @@ describe('ShoppingView', () => {
       expect(shoppingStore.addItem).toHaveBeenCalled()
     })
 
-    it('does not resize the chip picker when the Re-add row appears', async () => {
+    it('does not resize the chip picker when the suggestion row appears', async () => {
       const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
       await fab.trigger('click')
@@ -520,10 +520,111 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
       await wrapper.vm.$nextTick()
 
-      // The Re-add row is showing, and the picker is still driven purely by
-      // flex — no inline max-height budget recalculated from its height.
-      expect(wrapper.vm.doneSuggestions.length).toBeGreaterThan(0)
+      // The suggestion row is showing, and the picker is still driven purely
+      // by flex — no inline max-height budget recalculated from its height.
+      expect(wrapper.vm.matchingSuggestions.length).toBeGreaterThan(0)
       expect(section().getAttribute('style')).toBeNull()
+    })
+  })
+
+  describe('merged suggestions section', () => {
+    beforeEach(() => {
+      shoppingStore.items = [
+        { id: 'a1', name: 'Butter', qty: '250g', aisle: 'Meat', done: false },
+        { id: 'd1', name: 'Bread', qty: '', aisle: 'Bakery', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
+      ]
+    })
+
+    it('lists both a not-done match and a done match under one section', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'b'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.matchingSuggestions.map(i => i.id).sort()).toEqual(['a1', 'd1'])
+
+      expect(document.body.textContent).toContain('Suggestions')
+      expect(document.body.textContent).not.toContain('Re-add')
+      expect(document.body.textContent).not.toContain('Already on list')
+    })
+
+    it('renders the not-done chip in warning colour and the done chip in primary colour', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'b'
+      await wrapper.vm.$nextTick()
+
+      const chips = wrapper.findAllComponents({ name: 'VChip' })
+      const butterChip = chips.find(c => c.text() === 'Butter')
+      const breadChip = chips.find(c => c.text() === 'Bread')
+      expect(butterChip.props('color')).toBe('warning')
+      expect(breadChip.props('color')).toBe('primary')
+    })
+
+    it('selecting the done chip populates fields for a re-add', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'b'
+      await wrapper.vm.$nextTick()
+
+      const chips = wrapper.findAllComponents({ name: 'VChip' })
+      const breadChip = chips.find(c => c.text() === 'Bread')
+      await breadChip.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemMode).toBe('add')
+      expect(wrapper.vm.selectedDoneItem?.id).toBe('d1')
+      expect(wrapper.vm.itemAisle).toBe('Bakery')
+    })
+
+    it('selecting the not-done chip switches into editing that existing item', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'b'
+      await wrapper.vm.$nextTick()
+
+      const chips = wrapper.findAllComponents({ name: 'VChip' })
+      const butterChip = chips.find(c => c.text() === 'Butter')
+      await butterChip.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Butter (not-done) has nothing to restore — clicking it edits the
+      // existing item in place instead of offering it as a re-add.
+      expect(wrapper.vm.itemMode).toBe('edit')
+      expect(wrapper.vm.editItem?.id).toBe('a1')
+      expect(wrapper.vm.itemName).toBe('Butter')
+      expect(wrapper.vm.itemAisle).toBe('Meat')
+      expect(wrapper.vm.selectedDoneItem).toBeNull()
+      expect(document.body.textContent).toContain('Edit item')
+
+      const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+      expect(shoppingStore.updateItem).toHaveBeenCalledWith('a1', {
+        name: 'Butter', qty: '250g', aisle: 'Meat', supermarketIds: [], allSupermarkets: false,
+      })
+      // The point of routing into edit mode is to update the existing
+      // document in place — neither a fresh add nor a done-item restore
+      // should fire alongside it, or the list would end up with a duplicate.
+      expect(shoppingStore.addItem).not.toHaveBeenCalled()
+      expect(shoppingStore.restoreItem).not.toHaveBeenCalled()
+    })
+
+    it('is empty with no typed name', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.matchingSuggestions).toEqual([])
     })
   })
 

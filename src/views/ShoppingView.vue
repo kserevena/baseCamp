@@ -73,14 +73,22 @@ function toggleSupermarket(id) {
     : [...itemSupermarketIds.value, id]
 }
 
-const doneSuggestions = computed(() => {
+// Every item already on the list (done or not) matching the typed name, in
+// one merged set — done items are offered as a re-add suggestion (primary),
+// not-done items are a duplicate warning (warning colour). Both are
+// "already on this list" from the user's point of view; splitting them into
+// separate sections read as two unrelated features when they're really one
+// lookup with two outcomes. Both are clickable: a done chip re-adds it, a
+// not-done chip switches the sheet into editing that existing item instead
+// of creating a duplicate.
+const matchingSuggestions = computed(() => {
   if (itemMode.value !== 'add') return []
   const q = itemName.value.trim().toLowerCase()
   if (!q) return []
   const seen = new Set()
   return store.items
     .filter(i => {
-      if (!i.done || !i.name.toLowerCase().includes(q)) return false
+      if (!i.name.toLowerCase().includes(q)) return false
       const key = i.name.toLowerCase()
       if (seen.has(key)) return false
       seen.add(key)
@@ -105,6 +113,16 @@ watch(itemName, (val) => {
   }
 })
 
+// Shared by selectSuggestion and openEdit — both populate the same fields
+// from an existing item, just with different surrounding state changes.
+function populateFieldsFrom(item) {
+  itemName.value = item.name
+  itemQty.value = item.qty ?? ''
+  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+  itemAllSupermarkets.value = item.allSupermarkets ?? false
+  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+}
+
 function selectSuggestion(item) {
   // Only snapshot on the first suggestion pick — switching directly from one
   // suggestion to another must not overwrite it with already-applied values.
@@ -117,13 +135,7 @@ function selectSuggestion(item) {
     }
   }
   selectedDoneItem.value = item
-  itemName.value = item.name
-  itemQty.value = item.qty ?? ''
-  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
-  // Restore the item's own supermarket allocation into the picker so it
-  // reflects reality instead of showing openAdd's "unallocated" default.
-  itemAllSupermarkets.value = item.allSupermarkets ?? false
-  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+  populateFieldsFrom(item)
 }
 
 function openAdd() {
@@ -142,13 +154,20 @@ function openAdd() {
 function openEdit(item) {
   itemMode.value = 'edit'
   editItem.value = item
-  itemName.value = item.name
-  itemQty.value = item.qty ?? ''
-  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
-  itemAllSupermarkets.value = item.allSupermarkets ?? false
-  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+  populateFieldsFrom(item)
+  selectedDoneItem.value = null
   preSuggestionSnapshot.value = null
   sheet.value = true
+}
+
+// A not-done suggestion chip has nothing to restore — it's already active —
+// so selecting it switches straight into editing that item instead.
+function selectMatchingSuggestion(item) {
+  if (item.done) {
+    selectSuggestion(item)
+  } else {
+    openEdit(item)
+  }
 }
 
 function submit() {
@@ -304,16 +323,17 @@ watch(sheet, (open) => {
           :counter="ITEM_NAME_MAX_LENGTH"
           @keyup.enter="submit"
         />
-        <div v-if="doneSuggestions.length" class="mb-2">
-          <div class="text-caption text-medium-emphasis mb-1">Re-add</div>
+        <div v-if="matchingSuggestions.length" class="mb-2">
+          <div class="text-caption text-medium-emphasis mb-1">Suggestions</div>
           <div class="d-flex flex-wrap gap-1">
             <v-chip
-              v-for="item in doneSuggestions"
+              v-for="item in matchingSuggestions"
               :key="item.id"
               size="small"
               variant="tonal"
-              color="primary"
-              @click="selectSuggestion(item)"
+              :color="item.done ? 'primary' : 'warning'"
+              :prepend-icon="item.done ? undefined : 'mdi-cart-check'"
+              @click="selectMatchingSuggestion(item)"
             >
               {{ item.name }}
             </v-chip>

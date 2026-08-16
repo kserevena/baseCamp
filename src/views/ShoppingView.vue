@@ -24,10 +24,32 @@ function toggleHeaders() {
 
 // jspdf is dynamically imported so it stays out of the main bundle — most
 // visits never click this button.
+//
+// The name must mirror HomeView's shoppingSummary: once a family has
+// supermarkets (issue #137 Part B), the list actually visible on screen is
+// determined by the selected supermarket chip (store.selectedSupermarket),
+// not the underlying shoppingLists document — that document's name is never
+// shown anywhere in this view. Using it here instead of the selected
+// supermarket's name meant the exported PDF's title didn't match whichever
+// store the user had open; for a family that migrated from the old
+// multi-list-per-store model (each old list became a supermarket, issue
+// #137), the underlying document can carry the name of a *different*,
+// no-longer-visible store, so the export read as "another list's name".
+//
+// The name, items, and aisles are all captured synchronously *before* the
+// await — the dynamic import is a real network/parse delay, and reading
+// reactive store state only after it resolves would export whatever
+// selection happens to be active by then rather than the one on screen when
+// Export was clicked (e.g. if the user switches supermarket, or list, while
+// the import is still in flight).
 async function exportPdf() {
+  const listName = store.supermarkets.length > 0
+    ? (store.selectedSupermarket?.name ?? 'All items')
+    : store.lists.find(l => l.id === store.activeListId)?.name
+  const items = store.visibleItems
+  const aisles = store.activeAisles
   const { downloadShoppingListPdf } = await import('@/utils/shoppingPdf.js')
-  const activeList = store.lists.find(l => l.id === store.activeListId)
-  downloadShoppingListPdf(activeList?.name, store.visibleItems, store.activeAisles)
+  downloadShoppingListPdf(listName, items, aisles)
 }
 
 // Auto-provision the family's default supermarket once a parent has loaded a

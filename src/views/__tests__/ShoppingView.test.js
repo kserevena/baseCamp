@@ -55,6 +55,11 @@ function makeStore(overrides = {}) {
       { id: 'sm-2', name: 'Lidl', aisles: [] },
     ],
     selectedSupermarketId: null,
+    get selectedSupermarket() {
+      return this.selectedSupermarketId
+        ? this.supermarkets.find(s => s.id === this.selectedSupermarketId) ?? null
+        : null
+    },
     supermarketsLoaded: true,
     selectSupermarket: vi.fn((id) => { shoppingStore.selectedSupermarketId = id }),
     ensureDefaultSupermarket: vi.fn(),
@@ -658,8 +663,12 @@ describe('ShoppingView', () => {
       expect(btn).toBeDefined()
     })
 
-    it('dynamically imports the pdf util and calls it with the active list name, visible items, and aisles', async () => {
-      shoppingStore.lists = [{ id: 'list-1', name: 'Weekend Shop' }]
+    // Mirrors HomeView's shoppingSummary: once a family has supermarkets, the
+    // list actually visible on screen is the selected supermarket, not the
+    // underlying (never-shown) shoppingLists document name.
+    it('uses the selected supermarket name, not the underlying list name, when supermarkets exist', async () => {
+      shoppingStore.lists = [{ id: 'list-1', name: 'Old pre-migration name' }]
+      shoppingStore.selectedSupermarketId = 'sm-2'
       shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
       const downloadShoppingListPdf = vi.fn()
       vi.doMock('@/utils/shoppingPdf.js', () => ({ downloadShoppingListPdf }))
@@ -669,7 +678,53 @@ describe('ShoppingView', () => {
       // and await it so the mocked module has resolved before asserting.
       await wrapper.vm.exportPdf()
 
+      expect(downloadShoppingListPdf).toHaveBeenCalledWith('Lidl', shoppingStore.items, shoppingStore.activeAisles)
+    })
+
+    it('uses "All items" when supermarkets exist but none is selected', async () => {
+      shoppingStore.lists = [{ id: 'list-1', name: 'Old pre-migration name' }]
+      shoppingStore.selectedSupermarketId = null
+      shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
+      const downloadShoppingListPdf = vi.fn()
+      vi.doMock('@/utils/shoppingPdf.js', () => ({ downloadShoppingListPdf }))
+
+      const wrapper = mountView()
+      await wrapper.vm.exportPdf()
+
+      expect(downloadShoppingListPdf).toHaveBeenCalledWith('All items', shoppingStore.items, shoppingStore.activeAisles)
+    })
+
+    it('falls back to the underlying list name when the family has no supermarkets yet', async () => {
+      shoppingStore.lists = [{ id: 'list-1', name: 'Weekend Shop' }]
+      shoppingStore.supermarkets = []
+      shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
+      const downloadShoppingListPdf = vi.fn()
+      vi.doMock('@/utils/shoppingPdf.js', () => ({ downloadShoppingListPdf }))
+
+      const wrapper = mountView()
+      await wrapper.vm.exportPdf()
+
       expect(downloadShoppingListPdf).toHaveBeenCalledWith('Weekend Shop', shoppingStore.items, shoppingStore.activeAisles)
+    })
+
+    // The pdf util is dynamically imported, which is a genuine async gap
+    // (real network/parse time, worse on slower devices). If the user
+    // switches supermarket while that import is in flight, the export must
+    // still reflect whichever store was selected at click time, not
+    // whichever is selected once the import resolves.
+    it('exports the supermarket that was selected when clicked, even if the selection changes before the import resolves', async () => {
+      shoppingStore.selectedSupermarketId = 'sm-1' // Tesco
+      shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
+      const downloadShoppingListPdf = vi.fn()
+      vi.doMock('@/utils/shoppingPdf.js', () => ({ downloadShoppingListPdf }))
+
+      const wrapper = mountView()
+      const exportPromise = wrapper.vm.exportPdf()
+      // Flip the selected supermarket before the dynamic import resolves.
+      shoppingStore.selectedSupermarketId = 'sm-2'
+      await exportPromise
+
+      expect(downloadShoppingListPdf).toHaveBeenCalledWith('Tesco', shoppingStore.items, shoppingStore.activeAisles)
     })
   })
 

@@ -33,6 +33,25 @@ describe('shoppingPdf', () => {
       expect(sections[0].items.map(i => i.name)).toEqual(['Milk', 'Yoghurt'])
     })
 
+    it('sorts items within a group by sortOrder, matching ShoppingList.vue\'s drag order, rather than alphabetically', () => {
+      const items = [
+        { id: '1', name: 'Yoghurt', aisle: 'Dairy', done: false, sortOrder: 100 },
+        { id: '2', name: 'Milk', aisle: 'Dairy', done: false, sortOrder: 200 },
+      ]
+      const sections = buildPrintableSections(items, aisles)
+      expect(sections[0].items.map(i => i.name)).toEqual(['Yoghurt', 'Milk'])
+    })
+
+    it('sorts items without a sortOrder after items with one, then alphabetically among themselves', () => {
+      const items = [
+        { id: '1', name: 'Zucchini', aisle: 'Dairy', done: false },
+        { id: '2', name: 'Milk', aisle: 'Dairy', done: false, sortOrder: 200 },
+        { id: '3', name: 'Apples', aisle: 'Dairy', done: false },
+      ]
+      const sections = buildPrintableSections(items, aisles)
+      expect(sections[0].items.map(i => i.name)).toEqual(['Milk', 'Apples', 'Zucchini'])
+    })
+
     it('keeps priority items in their standard aisle group rather than a leading section', () => {
       const items = [
         { id: '1', name: 'Bacon', aisle: 'Meat', done: false },
@@ -107,6 +126,97 @@ describe('shoppingPdf', () => {
       const doc = buildShoppingListPdf('Big shop', manyItems, aisles)
       expect(doc.internal.getNumberOfPages()).toBeGreaterThan(1)
     })
+
+    it('wraps a section heading that is wider than a column, drawing each wrapped line on its own row', async () => {
+      // AisleManager.vue puts no maxlength on aisle names, so a heading
+      // wider than the (now much narrower) column width is real input, not
+      // a hypothetical — without wrapping it would overlap the next column.
+      vi.resetModules()
+      const textCalls = []
+      vi.doMock('jspdf', () => ({
+        jsPDF: vi.fn().mockImplementation(function () {
+          return {
+            setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
+            text: (...args) => textCalls.push(args),
+            rect: vi.fn(), addPage: vi.fn(),
+            // Simulate wrapping: one word per line, so a 3-word heading
+            // produces 3 lines and a 1-word item name produces 1.
+            splitTextToSize: (str) => str.split(' '),
+            setFillColor: vi.fn(), lines: vi.fn(),
+            internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
+            save: vi.fn(),
+          }
+        }),
+      }))
+      const { buildShoppingListPdf: build } = await import('@/utils/shoppingPdf.js')
+      const wideAisles = [{ name: 'Health Beauty Care', order: 1 }]
+      const items = [{ id: '1', name: 'Soap', aisle: 'Health Beauty Care', done: false }]
+      try {
+        build('Weekly shop', items, wideAisles)
+        const headingCalls = textCalls.filter(([text]) => ['Health', 'Beauty', 'Care'].includes(text))
+        expect(headingCalls.map(([text]) => text)).toEqual(['Health', 'Beauty', 'Care'])
+        const columnX = headingCalls[0][1]
+        // Every wrapped heading line stays in the same column (same x)...
+        expect(headingCalls.every(([, x]) => x === columnX)).toBe(true)
+        // ...and each successive line is one LINE_HEIGHT (22pt) further down.
+        const ys = headingCalls.map(([, , y]) => y)
+        expect(ys[1] - ys[0]).toBe(22)
+        expect(ys[2] - ys[1]).toBe(22)
+      } finally {
+        vi.doUnmock('jspdf')
+        vi.resetModules()
+      }
+    })
+  })
+
+  describe('section heading continuation', () => {
+    // A section whose items don't all fit in one column now repeats its
+    // heading at the top of the next column/page, rather than leaving
+    // continuation items with no aisle label above them.
+    it('redraws the section heading when a column break lands mid-section', async () => {
+      vi.resetModules()
+      const textCalls = []
+      vi.doMock('jspdf', () => ({
+        jsPDF: vi.fn().mockImplementation(function () {
+          return {
+            setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
+            text: (...args) => textCalls.push(args),
+            rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (str) => [str],
+            setFillColor: vi.fn(), lines: vi.fn(),
+            // A short page (192pt) forces a column break after the 2nd item:
+            // heading (38) + item1 (22) + item2 (22) = 82 fits in 192 - 40*2
+            // = 112pt of usable height; item3 (+22 more, 104) still fits,
+            // but item4 doesn't, and by then a real 3-item Dairy list should
+            // already have moved on — kept to 3 items so the break happens
+            // right after item2, before item3.
+            internal: { pageSize: { getHeight: () => 192, getWidth: () => 595 } },
+            save: vi.fn(),
+          }
+        }),
+      }))
+      const { buildShoppingListPdf: build } = await import('@/utils/shoppingPdf.js')
+      const items = [
+        { id: '1', name: 'Milk', aisle: 'Dairy', done: false, sortOrder: 100 },
+        { id: '2', name: 'Cheese', aisle: 'Dairy', done: false, sortOrder: 200 },
+        { id: '3', name: 'Yoghurt', aisle: 'Dairy', done: false, sortOrder: 300 },
+      ]
+      try {
+        build('Weekly shop', items, [{ name: 'Dairy', order: 1 }])
+        const headingCalls = textCalls.filter(([text]) => text === 'Dairy')
+        expect(headingCalls.length).toBe(2)
+        // The two draws land in different columns (different x).
+        expect(headingCalls[0][1]).not.toBe(headingCalls[1][1])
+        // Every item name is still drawn exactly once — the break repeats
+        // the heading, not the items around it.
+        for (const name of ['Milk', 'Cheese', 'Yoghurt']) {
+          expect(textCalls.filter(([text]) => text === name).length).toBe(1)
+        }
+      } finally {
+        vi.doUnmock('jspdf')
+        vi.resetModules()
+      }
+    })
   })
 
   describe('priority star marker', () => {
@@ -115,7 +225,7 @@ describe('shoppingPdf', () => {
     // lines()/setFillColor() rather than text() — verified here by mocking the
     // 'jspdf' module and recording those calls, since jsPDF's real drawing
     // methods are per-instance closures that can't be spied on directly.
-    it('draws one star per priority item, right-aligned near the page edge', async () => {
+    it('draws one star per priority item, right-aligned near its column edge', async () => {
       vi.resetModules()
       const linesCalls = []
       const fillColorCalls = []
@@ -124,6 +234,7 @@ describe('shoppingPdf', () => {
           return {
             setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
             text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (text) => [text],
             setFillColor: (...args) => fillColorCalls.push(args),
             lines: (...args) => linesCalls.push(args),
             internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
@@ -143,13 +254,18 @@ describe('shoppingPdf', () => {
         expect(fillColorCalls.length).toBe(1)
         const pageWidth = 595
         const margin = 40
+        const columnGap = 24
+        const columnWidth = (pageWidth - 2 * margin - columnGap) / 2
+        // Both items fit comfortably in the left column, so the star sits
+        // near the left column's right edge, not the page's right edge.
+        const columnRightEdge = margin + columnWidth
         for (const call of linesCalls) {
           const startX = call[1]
-          // The star's rightmost point sits at pageWidth - margin; the drawn
+          // The star's rightmost point sits at columnRightEdge; the drawn
           // start point (one of the star's own vertices) should be within one
           // star-width of that edge.
-          expect(startX).toBeGreaterThan(pageWidth - margin - 12)
-          expect(startX).toBeLessThanOrEqual(pageWidth - margin)
+          expect(startX).toBeGreaterThan(columnRightEdge - 12)
+          expect(startX).toBeLessThanOrEqual(columnRightEdge)
         }
       } finally {
         vi.doUnmock('jspdf')
@@ -165,6 +281,7 @@ describe('shoppingPdf', () => {
           return {
             setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
             text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (text) => [text],
             setFillColor: vi.fn(),
             lines: (...args) => linesCalls.push(args),
             internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
@@ -193,6 +310,7 @@ describe('shoppingPdf', () => {
           return {
             setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
             text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (text) => [text],
             internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
             save: saveSpy,
           }

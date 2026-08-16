@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useUserRole } from '@/composables/useUserRole.js'
+import { compareShoppingItems } from '@/utils/shoppingItemOrder.js'
 import ShoppingItem from './ShoppingItem.vue'
 
 const props = defineProps({
@@ -12,13 +13,6 @@ const props = defineProps({
 const store = useShoppingStore()
 const { isParent } = useUserRole()
 const emit = defineEmits(['edit'])
-
-// Items without a sortOrder (null/undefined) sort after all explicitly ordered items,
-// then fall back to alphabetical within that group.
-const compareItems = (a, b) =>
-  (a.sortOrder ?? Infinity) !== (b.sortOrder ?? Infinity)
-    ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
-    : a.name.localeCompare(b.name)
 
 function buildGroups(items, aisles) {
   const activeItems = items.filter(i => !i.done)
@@ -36,7 +30,7 @@ function buildGroups(items, aisles) {
   }
 
   for (const group of groups) {
-    group.items.sort(compareItems)
+    group.items.sort(compareShoppingItems)
   }
 
   return groups
@@ -47,7 +41,7 @@ function buildGroups(items, aisles) {
 const doneItems = computed(() => store.visibleItems.filter(i => i.done))
 
 const priorityItems = computed(() =>
-  store.visibleItems.filter(i => !i.done && (i.priority ?? false)).sort(compareItems)
+  store.visibleItems.filter(i => !i.done && (i.priority ?? false)).sort(compareShoppingItems)
 )
 
 const groups = ref(buildGroups(store.visibleItems, store.activeAisles))

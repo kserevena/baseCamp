@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import { compareShoppingItems } from '@/utils/shoppingItemOrder.js'
 
 const PAGE_MARGIN = 40
 const CHECKBOX_SIZE = 12
@@ -7,6 +8,12 @@ const HEADING_GAP = 16
 const SECTION_GAP = 12
 const STAR_OUTER_RADIUS = 6
 const STAR_COLOR = [230, 160, 0]
+const COLUMN_GAP = 24
+const COLUMN_COUNT = 2
+// Reserved so a priority item's star never collides with wrapped text —
+// applied to every item's wrap width, not just starred ones, so a
+// multi-line item sits at the same width whether or not it's starred.
+const STAR_GUTTER = STAR_OUTER_RADIUS * 2 + 6
 
 // Priority items stay in their aisle group at their standard position —
 // matching ShoppingList.vue's buildGroups. A star marker (drawn in
@@ -28,7 +35,7 @@ export function buildPrintableSections(items, aisles) {
     }
     group.items.push(item)
   }
-  for (const group of groups) group.items.sort((a, b) => a.name.localeCompare(b.name))
+  for (const group of groups) group.items.sort(compareShoppingItems)
 
   return groups.filter(group => group.items.length > 0)
 }
@@ -81,39 +88,71 @@ export function buildShoppingListPdf(listName, items, aisles) {
   doc.setTextColor(0)
   y += 40
 
-  function ensureSpace(needed) {
-    if (y + needed > pageHeight - PAGE_MARGIN) {
-      doc.addPage()
-      y = PAGE_MARGIN
-    }
-  }
-
   if (sections.length === 0) {
     doc.setFontSize(12)
     doc.text('Nothing left to buy — the list is all done!', PAGE_MARGIN, y)
     return doc
   }
 
-  for (const section of sections) {
-    ensureSpace(HEADING_GAP + LINE_HEIGHT)
+  // Items flow down the left column, then the right column, then a new
+  // page — a "snaking" newspaper-style layout — so the a4 page's width
+  // isn't wasted on a single narrow list.
+  const columnWidth = (pageWidth - 2 * PAGE_MARGIN - COLUMN_GAP * (COLUMN_COUNT - 1)) / COLUMN_COUNT
+  let column = 0
+  let columnX = PAGE_MARGIN
+  let columnTop = y
+  // Set while drawing a section's items, cleared between sections — lets
+  // ensureSpace repeat the heading when a column/page break lands mid-section,
+  // so continuation items are never left under an implied heading two
+  // columns back.
+  let currentHeadingLines = null
+
+  function drawHeadingLines(lines) {
     doc.setFontSize(13)
     doc.setFont(undefined, 'bold')
-    doc.text(section.heading, PAGE_MARGIN, y)
+    lines.forEach((line, i) => doc.text(line, columnX, y + i * LINE_HEIGHT))
     doc.setFont(undefined, 'normal')
-    y += HEADING_GAP
+    y += HEADING_GAP + LINE_HEIGHT * (lines.length - 1)
+  }
+
+  function ensureSpace(needed) {
+    if (y + needed > pageHeight - PAGE_MARGIN) {
+      if (column < COLUMN_COUNT - 1) {
+        column += 1
+        columnX = PAGE_MARGIN + column * (columnWidth + COLUMN_GAP)
+      } else {
+        doc.addPage()
+        column = 0
+        columnX = PAGE_MARGIN
+        columnTop = PAGE_MARGIN
+      }
+      y = columnTop
+      if (currentHeadingLines) drawHeadingLines(currentHeadingLines)
+    }
+  }
+
+  for (const section of sections) {
+    currentHeadingLines = null
+    doc.setFontSize(13)
+    const headingLines = doc.splitTextToSize(section.heading, columnWidth)
+    ensureSpace(HEADING_GAP + LINE_HEIGHT * headingLines.length)
+    drawHeadingLines(headingLines)
+    currentHeadingLines = headingLines
 
     for (const item of section.items) {
-      ensureSpace(LINE_HEIGHT)
-      const boxTop = y - CHECKBOX_SIZE + 2
-      doc.rect(PAGE_MARGIN, boxTop, CHECKBOX_SIZE, CHECKBOX_SIZE)
       doc.setFontSize(12)
       const label = item.qty ? `${item.name} (${item.qty})` : item.name
-      doc.text(label, PAGE_MARGIN + CHECKBOX_SIZE + 10, y)
+      const maxLabelWidth = columnWidth - CHECKBOX_SIZE - 10 - STAR_GUTTER
+      const lines = doc.splitTextToSize(label, maxLabelWidth)
+      ensureSpace(LINE_HEIGHT * lines.length)
+      const boxTop = y - CHECKBOX_SIZE + 2
+      doc.rect(columnX, boxTop, CHECKBOX_SIZE, CHECKBOX_SIZE)
+      lines.forEach((line, i) => doc.text(line, columnX + CHECKBOX_SIZE + 10, y + i * LINE_HEIGHT))
       if (item.priority ?? false) {
         const starCenterY = boxTop + CHECKBOX_SIZE / 2
-        drawPriorityStar(doc, pageWidth - PAGE_MARGIN - STAR_OUTER_RADIUS, starCenterY)
+        drawPriorityStar(doc, columnX + columnWidth - STAR_OUTER_RADIUS, starCenterY)
       }
-      y += LINE_HEIGHT
+      y += LINE_HEIGHT * lines.length
     }
     y += SECTION_GAP
   }

@@ -35,6 +35,17 @@ export const useShoppingStore = defineStore('shopping', () => {
   // Guards so a client only auto-provisions the default supermarket once while the
   // create write is in flight (before the snapshot echoes it back).
   let provisioningSupermarket = false
+  // Same guard for createList: without it, nothing stops a family ending up with
+  // more than one shoppingLists doc — e.g. a double-tap on "Create shopping list"
+  // before the snapshot flips hasLists to hide the button, or two family members
+  // onboarding on separate devices around the same time. The app is designed
+  // around exactly one list per family (see CLAUDE.md); once a second one exists,
+  // devices with no locally-remembered active list fall back to "most recently
+  // created", while devices that already have a saved preference keep whichever
+  // list they last had active — so different devices can silently end up showing
+  // (and exporting) different lists for the same family, each internally
+  // consistent, with nothing needing to change after the fact to produce it.
+  let creatingList = false
 
   // Firestore path helpers. Shopping lists and supermarkets live under the family
   // document so the family scope is carried by the path — there is no familyId
@@ -212,6 +223,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     supermarketsLoaded.value = false
     selectedSupermarketId.value = null
     provisioningSupermarket = false
+    creatingList = false
   }
 
   async function deleteList() {
@@ -226,15 +238,21 @@ export const useShoppingStore = defineStore('shopping', () => {
   }
 
   async function createList(name) {
-    if (!currentFamilyId) return
+    if (!currentFamilyId || creatingList || lists.value.length > 0) return
+    creatingList = true
     const familyStore = useFamilyStore()
-    const ref = await addDoc(listsCol(), {
-      name: name.trim(),
-      createdAt: serverTimestamp(),
-      createdBy: familyStore.currentUser?.uid ?? '',
-      aisles: DEFAULT_AISLES,
-    })
-    activateList(ref.id)
+    try {
+      const ref = await addDoc(listsCol(), {
+        name: name.trim(),
+        createdAt: serverTimestamp(),
+        createdBy: familyStore.currentUser?.uid ?? '',
+        aisles: DEFAULT_AISLES,
+      })
+      activateList(ref.id)
+    } catch {
+      // Allow a later retry if the write was rejected.
+      creatingList = false
+    }
   }
 
   async function deleteItem(itemId) {

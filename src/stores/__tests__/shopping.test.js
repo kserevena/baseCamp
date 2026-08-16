@@ -228,6 +228,54 @@ describe('shopping store', () => {
 
       expect(mockAddDoc).not.toHaveBeenCalled()
     })
+
+    // Without this guard, nothing stops a family ending up with more than one
+    // shoppingLists doc (e.g. a double-tap on "Create shopping list" before the
+    // snapshot flips hasLists to hide the button). Once that happens, devices
+    // with no locally-remembered active list can silently diverge on which list
+    // they show/export — see the "setup — localStorage preference" tests below.
+    it('does not create a second list when a list is already loaded', async () => {
+      let listsCallback
+      mockOnSnapshot.mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [mockList('list-existing', 'Weekly shop', 1000)] })
+
+      await store.createList('Duplicate list')
+
+      expect(mockAddDoc).not.toHaveBeenCalled()
+    })
+
+    it('ignores a concurrent call while the first create is still in flight (double-tap)', async () => {
+      let resolveAddDoc
+      mockAddDoc.mockReturnValueOnce(new Promise((resolve) => { resolveAddDoc = resolve }))
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+
+      const first = store.createList('Weekly shop')
+      const second = store.createList('Weekly shop') // fires before the first write resolves
+
+      resolveAddDoc({ id: 'list-1' })
+      await Promise.all([first, second])
+
+      expect(mockAddDoc).toHaveBeenCalledOnce()
+    })
+
+    it('allows a retry after a rejected create write', async () => {
+      mockAddDoc.mockRejectedValueOnce(new Error('permission-denied'))
+      mockAddDoc.mockResolvedValueOnce({ id: 'list-1' })
+
+      const store = useShoppingStore()
+      store.setup('fam-1')
+
+      await store.createList('Weekly shop').catch(() => {})
+      await store.createList('Weekly shop')
+
+      expect(mockAddDoc).toHaveBeenCalledTimes(2)
+      expect(store.activeListId).toBe('list-1')
+    })
   })
 
   describe('addItem', () => {

@@ -44,9 +44,18 @@ describe('shoppingPdf', () => {
         { id: '3', name: 'Apples', aisle: 'Dairy', done: false, priority: true },
         { id: '2', name: 'Steak', aisle: 'Meat', done: false, priority: true },
       ] })
-      // Priority items are pulled out of their aisle group, not duplicated into it.
+    })
+
+    it('also keeps priority items in their standard aisle group, alongside the leading Priority section', () => {
+      const items = [
+        { id: '1', name: 'Bacon', aisle: 'Meat', done: false },
+        { id: '2', name: 'Steak', aisle: 'Meat', done: false, priority: true },
+      ]
+      const sections = buildPrintableSections(items, aisles)
       const meatSection = sections.find(s => s.heading === 'Meat')
-      expect(meatSection.items.map(i => i.name)).toEqual(['Bacon'])
+      // Same alphabetical sort as any other aisle group — priority isn't
+      // pulled out here, so it sorts on name like everything else.
+      expect(meatSection.items.map(i => i.name)).toEqual(['Bacon', 'Steak'])
     })
 
     it('collects items under their own aisle name, appended after the known aisles, when absent from the supplied aisle list', () => {
@@ -111,6 +120,82 @@ describe('shoppingPdf', () => {
     })
   })
 
+  describe('priority star marker', () => {
+    // jsPDF's standard fonts can't render a Unicode star glyph (WinAnsiEncoding
+    // has no U+2605), so the star is drawn as a filled vector polygon via
+    // lines()/setFillColor() rather than text() — verified here by mocking the
+    // 'jspdf' module and recording those calls, since jsPDF's real drawing
+    // methods are per-instance closures that can't be spied on directly.
+    it('draws one star per priority occurrence, right-aligned near the page edge', async () => {
+      vi.resetModules()
+      const linesCalls = []
+      const fillColorCalls = []
+      vi.doMock('jspdf', () => ({
+        jsPDF: vi.fn().mockImplementation(function () {
+          return {
+            setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
+            text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            setFillColor: (...args) => fillColorCalls.push(args),
+            lines: (...args) => linesCalls.push(args),
+            internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
+            save: vi.fn(),
+          }
+        }),
+      }))
+      const { buildShoppingListPdf: build } = await import('@/utils/shoppingPdf.js')
+      const items = [
+        { id: '1', name: 'Milk', aisle: 'Dairy', done: false },
+        { id: '2', name: 'Steak', aisle: 'Meat', done: false, priority: true },
+      ]
+      try {
+        build('Weekly shop', items, aisles)
+        // Steak prints twice (Priority section + Meat aisle group) and is
+        // starred both times; Milk never is.
+        expect(linesCalls.length).toBe(2)
+        expect(fillColorCalls.length).toBe(2)
+        const pageWidth = 595
+        const margin = 40
+        for (const call of linesCalls) {
+          const startX = call[1]
+          // The star's rightmost point sits at pageWidth - margin; the drawn
+          // start point (one of the star's own vertices) should be within one
+          // star-width of that edge.
+          expect(startX).toBeGreaterThan(pageWidth - margin - 12)
+          expect(startX).toBeLessThanOrEqual(pageWidth - margin)
+        }
+      } finally {
+        vi.doUnmock('jspdf')
+        vi.resetModules()
+      }
+    })
+
+    it('draws no star when there are no priority items', async () => {
+      vi.resetModules()
+      const linesCalls = []
+      vi.doMock('jspdf', () => ({
+        jsPDF: vi.fn().mockImplementation(function () {
+          return {
+            setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
+            text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            setFillColor: vi.fn(),
+            lines: (...args) => linesCalls.push(args),
+            internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
+            save: vi.fn(),
+          }
+        }),
+      }))
+      const { buildShoppingListPdf: build } = await import('@/utils/shoppingPdf.js')
+      const items = [{ id: '1', name: 'Milk', aisle: 'Dairy', done: false }]
+      try {
+        build('Weekly shop', items, aisles)
+        expect(linesCalls.length).toBe(0)
+      } finally {
+        vi.doUnmock('jspdf')
+        vi.resetModules()
+      }
+    })
+  })
+
   describe('downloadShoppingListPdf', () => {
     it('saves under the filename derived from the list name', async () => {
       vi.resetModules()
@@ -120,7 +205,7 @@ describe('shoppingPdf', () => {
           return {
             setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
             text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
-            internal: { pageSize: { getHeight: () => 800 } },
+            internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
             save: saveSpy,
           }
         }),

@@ -7,6 +7,12 @@ const HEADING_GAP = 16
 const SECTION_GAP = 12
 const STAR_OUTER_RADIUS = 6
 const STAR_COLOR = [230, 160, 0]
+const COLUMN_GAP = 24
+const COLUMN_COUNT = 2
+// Reserved so a priority item's star never collides with wrapped text —
+// applied to every item's wrap width, not just starred ones, so a
+// multi-line item sits at the same width whether or not it's starred.
+const STAR_GUTTER = STAR_OUTER_RADIUS * 2 + 6
 
 // Priority items stay in their aisle group at their standard position —
 // matching ShoppingList.vue's buildGroups. A star marker (drawn in
@@ -81,39 +87,58 @@ export function buildShoppingListPdf(listName, items, aisles) {
   doc.setTextColor(0)
   y += 40
 
-  function ensureSpace(needed) {
-    if (y + needed > pageHeight - PAGE_MARGIN) {
-      doc.addPage()
-      y = PAGE_MARGIN
-    }
-  }
-
   if (sections.length === 0) {
     doc.setFontSize(12)
     doc.text('Nothing left to buy — the list is all done!', PAGE_MARGIN, y)
     return doc
   }
 
+  // Items flow down the left column, then the right column, then a new
+  // page — a "snaking" newspaper-style layout — so the a4 page's width
+  // isn't wasted on a single narrow list.
+  const columnWidth = (pageWidth - 2 * PAGE_MARGIN - COLUMN_GAP * (COLUMN_COUNT - 1)) / COLUMN_COUNT
+  let column = 0
+  let columnX = PAGE_MARGIN
+  let columnTop = y
+
+  function ensureSpace(needed) {
+    if (y + needed > pageHeight - PAGE_MARGIN) {
+      if (column < COLUMN_COUNT - 1) {
+        column += 1
+        columnX = PAGE_MARGIN + column * (columnWidth + COLUMN_GAP)
+        y = columnTop
+      } else {
+        doc.addPage()
+        column = 0
+        columnX = PAGE_MARGIN
+        columnTop = PAGE_MARGIN
+        y = columnTop
+      }
+    }
+  }
+
   for (const section of sections) {
     ensureSpace(HEADING_GAP + LINE_HEIGHT)
     doc.setFontSize(13)
     doc.setFont(undefined, 'bold')
-    doc.text(section.heading, PAGE_MARGIN, y)
+    doc.text(section.heading, columnX, y)
     doc.setFont(undefined, 'normal')
     y += HEADING_GAP
 
     for (const item of section.items) {
-      ensureSpace(LINE_HEIGHT)
-      const boxTop = y - CHECKBOX_SIZE + 2
-      doc.rect(PAGE_MARGIN, boxTop, CHECKBOX_SIZE, CHECKBOX_SIZE)
       doc.setFontSize(12)
       const label = item.qty ? `${item.name} (${item.qty})` : item.name
-      doc.text(label, PAGE_MARGIN + CHECKBOX_SIZE + 10, y)
+      const maxLabelWidth = columnWidth - CHECKBOX_SIZE - 10 - STAR_GUTTER
+      const lines = doc.splitTextToSize(label, maxLabelWidth)
+      ensureSpace(LINE_HEIGHT * lines.length)
+      const boxTop = y - CHECKBOX_SIZE + 2
+      doc.rect(columnX, boxTop, CHECKBOX_SIZE, CHECKBOX_SIZE)
+      lines.forEach((line, i) => doc.text(line, columnX + CHECKBOX_SIZE + 10, y + i * LINE_HEIGHT))
       if (item.priority ?? false) {
         const starCenterY = boxTop + CHECKBOX_SIZE / 2
-        drawPriorityStar(doc, pageWidth - PAGE_MARGIN - STAR_OUTER_RADIUS, starCenterY)
+        drawPriorityStar(doc, columnX + columnWidth - STAR_OUTER_RADIUS, starCenterY)
       }
-      y += LINE_HEIGHT
+      y += LINE_HEIGHT * lines.length
     }
     y += SECTION_GAP
   }

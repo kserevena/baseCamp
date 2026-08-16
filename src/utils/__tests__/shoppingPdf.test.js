@@ -115,7 +115,7 @@ describe('shoppingPdf', () => {
     // lines()/setFillColor() rather than text() — verified here by mocking the
     // 'jspdf' module and recording those calls, since jsPDF's real drawing
     // methods are per-instance closures that can't be spied on directly.
-    it('draws one star per priority item, right-aligned near the page edge', async () => {
+    it('draws one star per priority item, right-aligned near its column edge', async () => {
       vi.resetModules()
       const linesCalls = []
       const fillColorCalls = []
@@ -124,6 +124,7 @@ describe('shoppingPdf', () => {
           return {
             setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
             text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (text) => [text],
             setFillColor: (...args) => fillColorCalls.push(args),
             lines: (...args) => linesCalls.push(args),
             internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
@@ -143,13 +144,18 @@ describe('shoppingPdf', () => {
         expect(fillColorCalls.length).toBe(1)
         const pageWidth = 595
         const margin = 40
+        const columnGap = 24
+        const columnWidth = (pageWidth - 2 * margin - columnGap) / 2
+        // Both items fit comfortably in the left column, so the star sits
+        // near the left column's right edge, not the page's right edge.
+        const columnRightEdge = margin + columnWidth
         for (const call of linesCalls) {
           const startX = call[1]
-          // The star's rightmost point sits at pageWidth - margin; the drawn
+          // The star's rightmost point sits at columnRightEdge; the drawn
           // start point (one of the star's own vertices) should be within one
           // star-width of that edge.
-          expect(startX).toBeGreaterThan(pageWidth - margin - 12)
-          expect(startX).toBeLessThanOrEqual(pageWidth - margin)
+          expect(startX).toBeGreaterThan(columnRightEdge - 12)
+          expect(startX).toBeLessThanOrEqual(columnRightEdge)
         }
       } finally {
         vi.doUnmock('jspdf')
@@ -165,6 +171,7 @@ describe('shoppingPdf', () => {
           return {
             setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
             text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (text) => [text],
             setFillColor: vi.fn(),
             lines: (...args) => linesCalls.push(args),
             internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
@@ -193,6 +200,7 @@ describe('shoppingPdf', () => {
           return {
             setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
             text: vi.fn(), rect: vi.fn(), addPage: vi.fn(),
+            splitTextToSize: (text) => [text],
             internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
             save: saveSpy,
           }

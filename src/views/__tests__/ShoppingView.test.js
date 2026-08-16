@@ -527,7 +527,7 @@ describe('ShoppingView', () => {
     })
   })
 
-  describe('merged already-on-this-list suggestions', () => {
+  describe('merged suggestions section', () => {
     beforeEach(() => {
       shoppingStore.items = [
         { id: 'a1', name: 'Butter', qty: '250g', aisle: 'Meat', done: false },
@@ -545,7 +545,7 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.matchingSuggestions.map(i => i.id).sort()).toEqual(['a1', 'd1'])
 
-      expect(document.body.textContent).toContain('Already on this list')
+      expect(document.body.textContent).toContain('Suggestions')
       expect(document.body.textContent).not.toContain('Re-add')
       expect(document.body.textContent).not.toContain('Already on list')
     })

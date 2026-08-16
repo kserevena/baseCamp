@@ -311,7 +311,7 @@ watch(sheet, (open) => {
           @keyup.enter="submit"
         />
         <div v-if="matchingSuggestions.length" class="mb-2">
-          <div class="text-caption text-medium-emphasis mb-1">Already on this list</div>
+          <div class="text-caption text-medium-emphasis mb-1">Suggestions</div>
           <div class="d-flex flex-wrap gap-1">
             <v-chip
               v-for="item in matchingSuggestions"
@@ -530,8 +530,8 @@ watch(sheet, (open) => {
 .supermarket-alloc-chips {
   gap: 6px 8px;
 }
-/* Not-done matches in the merged "Already on this list" row are a warning
-   only — there's nothing to restore, so they don't invite a tap. */
+/* Not-done matches in the merged Suggestions row are a warning only —
+   there's nothing to restore, so they don't invite a tap. */
 .suggestion-chip--static {
   cursor: default;
 }

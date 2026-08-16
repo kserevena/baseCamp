@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { buildPrintableSections, pdfFilenameFor, buildShoppingListPdf, sanitizeForPdf } from '@/utils/shoppingPdf.js'
+import { buildPrintableSections, pdfFilenameFor, buildShoppingListPdf } from '@/utils/shoppingPdf.js'
 
 const aisles = [
   { name: 'Dairy', order: 1 },
@@ -82,34 +82,6 @@ describe('shoppingPdf', () => {
     })
   })
 
-  describe('sanitizeForPdf', () => {
-    it('passes through plain ASCII and Latin-1 text unchanged', () => {
-      expect(sanitizeForPdf('Weekend Shop')).toBe('Weekend Shop')
-      expect(sanitizeForPdf('Café été list')).toBe('Café été list')
-    })
-
-    it('passes through the extra typographic punctuation jsPDF maps onto WinAnsiEncoding', () => {
-      expect(sanitizeForPdf('Trader Joe’s list')).toBe('Trader Joe’s list')
-      expect(sanitizeForPdf('Big shop – weekly')).toBe('Big shop – weekly')
-    })
-
-    // A single character outside WinAnsiEncoding (e.g. an emoji) flips jsPDF's
-    // entire string into a 2-byte encoding the standard font can't render,
-    // corrupting every character — not just the unsupported one. Replacing it
-    // with '?' up front keeps the rest of an otherwise-representable name intact.
-    it('replaces characters outside WinAnsiEncoding with "?" instead of corrupting the whole string', () => {
-      expect(sanitizeForPdf('\u{1F6D2} Weekend shop')).toBe('? Weekend shop')
-    })
-
-    it('replaces a full astral surrogate pair with a single "?"', () => {
-      expect(sanitizeForPdf('\u{1F6D2}')).toBe('?')
-    })
-
-    it('coerces non-string input', () => {
-      expect(sanitizeForPdf(undefined)).toBe('undefined')
-    })
-  })
-
   describe('pdfFilenameFor', () => {
     it('slugifies the list name', () => {
       expect(pdfFilenameFor('Weekend Shop!!')).toBe('weekend-shop.pdf')
@@ -137,34 +109,6 @@ describe('shoppingPdf', () => {
       const items = [{ id: '1', name: 'Milk', aisle: 'Dairy', done: true }]
       const doc = buildShoppingListPdf('Weekly shop', items, aisles)
       expect(doc.internal.getNumberOfPages()).toBe(1)
-    })
-
-    it('sanitizes the list name, section headings, and item labels before drawing them', async () => {
-      vi.resetModules()
-      const textCalls = []
-      vi.doMock('jspdf', () => ({
-        jsPDF: vi.fn().mockImplementation(function () {
-          return {
-            setFontSize: vi.fn(), setFont: vi.fn(), setTextColor: vi.fn(),
-            text: (...args) => textCalls.push(args[0]),
-            rect: vi.fn(), addPage: vi.fn(), setFillColor: vi.fn(), lines: vi.fn(),
-            internal: { pageSize: { getHeight: () => 800, getWidth: () => 595 } },
-            save: vi.fn(),
-          }
-        }),
-      }))
-      const { buildShoppingListPdf: build } = await import('@/utils/shoppingPdf.js')
-      const items = [{ id: '1', name: '🥛 Milk', aisle: '🥶 Dairy', done: false }]
-      try {
-        build('🛒 Weekend shop', items, [{ name: '🥶 Dairy', order: 1 }])
-        expect(textCalls).toContain('? Weekend shop')
-        expect(textCalls).toContain('? Dairy')
-        expect(textCalls).toContain('? Milk')
-        expect(textCalls.some(t => t.includes('🛒') || t.includes('🥛') || t.includes('🥶'))).toBe(false)
-      } finally {
-        vi.doUnmock('jspdf')
-        vi.resetModules()
-      }
     })
 
     it('overflows onto additional pages once enough items are printed', () => {

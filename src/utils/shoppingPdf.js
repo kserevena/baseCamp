@@ -8,33 +8,6 @@ const SECTION_GAP = 12
 const STAR_OUTER_RADIUS = 6
 const STAR_COLOR = [230, 160, 0]
 
-// jsPDF's standard fonts (Helvetica etc.) only support WinAnsiEncoding —
-// Latin-1 (code points 0-255) plus ~27 extra typographic punctuation marks
-// jsPDF maps onto it (curly quotes, en/em dash, ellipsis, €, ™, ...). A
-// single character outside that set — an emoji, most non-Latin scripts —
-// doesn't just fail to render itself: jsPDF flips the *entire* string into
-// a 2-byte Unicode encoding meant for embedded TrueType fonts, which the
-// standard fonts can't read, silently corrupting every character in the
-// string rather than just the unsupported one (same underlying encoding
-// limit as the star glyph handled by drawPriorityStar below). List and item
-// names are free user text, so anything unrepresentable is swapped for '?'
-// before it reaches text() — that degrades gracefully instead of mangling
-// an otherwise-representable name.
-const WINANSI_EXTRAS = new Set([
-  0x0152, 0x0153, 0x0160, 0x0161, 0x0178, 0x017d, 0x017e, 0x0192, 0x02c6,
-  0x02dc, 0x2013, 0x2014, 0x2018, 0x2019, 0x201a, 0x201c, 0x201d, 0x201e,
-  0x2020, 0x2021, 0x2022, 0x2026, 0x2030, 0x2039, 0x203a, 0x20ac, 0x2122,
-])
-
-export function sanitizeForPdf(text) {
-  return Array.from(String(text))
-    .map((ch) => {
-      const code = ch.codePointAt(0)
-      return code <= 0xff || WINANSI_EXTRAS.has(code) ? ch : '?'
-    })
-    .join('')
-}
-
 // Priority items get their own leading section (alphabetical) as a
 // quick-glance summary, AND stay in their aisle group at their standard
 // position — matching ShoppingList.vue's buildGroups, which has always kept
@@ -111,7 +84,7 @@ export function buildShoppingListPdf(listName, items, aisles) {
 
   doc.setFontSize(18)
   doc.setFont(undefined, 'bold')
-  doc.text(sanitizeForPdf(listName || 'Shopping list'), PAGE_MARGIN, y)
+  doc.text(listName || 'Shopping list', PAGE_MARGIN, y)
   doc.setFont(undefined, 'normal')
 
   doc.setFontSize(10)
@@ -138,7 +111,7 @@ export function buildShoppingListPdf(listName, items, aisles) {
     ensureSpace(HEADING_GAP + LINE_HEIGHT)
     doc.setFontSize(13)
     doc.setFont(undefined, 'bold')
-    doc.text(sanitizeForPdf(section.heading), PAGE_MARGIN, y)
+    doc.text(section.heading, PAGE_MARGIN, y)
     doc.setFont(undefined, 'normal')
     y += HEADING_GAP
 
@@ -148,7 +121,7 @@ export function buildShoppingListPdf(listName, items, aisles) {
       doc.rect(PAGE_MARGIN, boxTop, CHECKBOX_SIZE, CHECKBOX_SIZE)
       doc.setFontSize(12)
       const label = item.qty ? `${item.name} (${item.qty})` : item.name
-      doc.text(sanitizeForPdf(label), PAGE_MARGIN + CHECKBOX_SIZE + 10, y)
+      doc.text(label, PAGE_MARGIN + CHECKBOX_SIZE + 10, y)
       if (item.priority ?? false) {
         const starCenterY = boxTop + CHECKBOX_SIZE / 2
         drawPriorityStar(doc, pageWidth - PAGE_MARGIN - STAR_OUTER_RADIUS, starCenterY)

@@ -23,11 +23,19 @@ function toggleHeaders() {
 }
 
 // jspdf is dynamically imported so it stays out of the main bundle — most
-// visits never click this button.
+// visits never click this button. The import is async (a real network/parse
+// delay, worse on slower devices), so the list name, items, and aisles are
+// captured synchronously *before* awaiting it — reading them afterwards would
+// read whatever list happens to be active once the import resolves, not the
+// one that was on screen when the button was clicked (e.g. if a family has
+// more than one list and the active one changes in the meantime).
 async function exportPdf() {
-  const { downloadShoppingListPdf } = await import('@/utils/shoppingPdf.js')
   const activeList = store.lists.find(l => l.id === store.activeListId)
-  downloadShoppingListPdf(activeList?.name, store.visibleItems, store.activeAisles)
+  const listName = activeList?.name
+  const items = store.visibleItems
+  const aisles = store.activeAisles
+  const { downloadShoppingListPdf } = await import('@/utils/shoppingPdf.js')
+  downloadShoppingListPdf(listName, items, aisles)
 }
 
 // Auto-provision the family's default supermarket once a parent has loaded a

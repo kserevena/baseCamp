@@ -22,6 +22,14 @@ function toggleHeaders() {
   localStorage.setItem(storageKey, String(showHeaders.value))
 }
 
+// jspdf is dynamically imported so it stays out of the main bundle — most
+// visits never click this button.
+async function exportPdf() {
+  const { downloadShoppingListPdf } = await import('@/utils/shoppingPdf.js')
+  const activeList = store.lists.find(l => l.id === store.activeListId)
+  downloadShoppingListPdf(activeList?.name, store.visibleItems, store.activeAisles)
+}
+
 // Auto-provision the family's default supermarket once a parent has loaded a
 // list and no supermarket exists yet — the automatic, additive migration for
 // existing families. The store guards against double-creation.
@@ -261,6 +269,16 @@ watch(sheet, (open) => {
           @click="toggleHeaders"
         >
           <v-icon>{{ showHeaders ? 'mdi-label-outline' : 'mdi-label-off-outline' }}</v-icon>
+        </v-btn>
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="flex-0-0 ml-1"
+          aria-label="Export as PDF"
+          @click="exportPdf"
+        >
+          <v-icon>mdi-file-pdf-box</v-icon>
         </v-btn>
         <v-btn
           v-if="isParent"

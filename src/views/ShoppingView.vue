@@ -89,6 +89,25 @@ const doneSuggestions = computed(() => {
     .slice(0, 5)
 })
 
+// Items already on the list (not done) matching the typed name — a warning,
+// not a suggestion to act on, so unlike doneSuggestions these chips are not
+// clickable: there is nothing useful to restore, only a duplicate to avoid.
+const activeSuggestions = computed(() => {
+  if (itemMode.value !== 'add') return []
+  const q = itemName.value.trim().toLowerCase()
+  if (!q) return []
+  const seen = new Set()
+  return store.items
+    .filter(i => {
+      if (i.done || !i.name.toLowerCase().includes(q)) return false
+      const key = i.name.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 5)
+})
+
 watch(itemName, (val) => {
   if (selectedDoneItem.value && val.trim() !== selectedDoneItem.value.name) {
     selectedDoneItem.value = null
@@ -314,6 +333,21 @@ watch(sheet, (open) => {
               variant="tonal"
               color="primary"
               @click="selectSuggestion(item)"
+            >
+              {{ item.name }}
+            </v-chip>
+          </div>
+        </div>
+        <div v-if="activeSuggestions.length" class="mb-2">
+          <div class="text-caption text-medium-emphasis mb-1">Already on list</div>
+          <div class="d-flex flex-wrap gap-1">
+            <v-chip
+              v-for="item in activeSuggestions"
+              :key="item.id"
+              size="small"
+              variant="tonal"
+              color="warning"
+              prepend-icon="mdi-cart-check"
             >
               {{ item.name }}
             </v-chip>

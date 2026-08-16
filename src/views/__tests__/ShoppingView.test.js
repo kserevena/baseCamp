@@ -527,6 +527,48 @@ describe('ShoppingView', () => {
     })
   })
 
+  describe('already-on-list suggestions', () => {
+    beforeEach(() => {
+      shoppingStore.items = [
+        { id: 'a1', name: 'Butter', qty: '250g', aisle: 'Meat', done: false },
+        { id: 'd1', name: 'Bread', qty: '', aisle: 'Bakery', done: true },
+      ]
+    })
+
+    it('warns about a matching not-done item but not a done one', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'but'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.activeSuggestions.map(i => i.id)).toEqual(['a1'])
+      expect(wrapper.vm.doneSuggestions.map(i => i.id)).not.toContain('a1')
+
+      expect(document.body.textContent).toContain('Already on list')
+    })
+
+    it('does not offer an already-on-list chip for a done item', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'bread'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.activeSuggestions).toEqual([])
+    })
+
+    it('is empty with no typed name', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.activeSuggestions).toEqual([])
+    })
+  })
+
   describe('allocation hint text', () => {
     it('reads "Unallocated" with nothing selected', async () => {
       const wrapper = mountView()

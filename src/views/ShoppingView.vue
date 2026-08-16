@@ -113,6 +113,16 @@ watch(itemName, (val) => {
   }
 })
 
+// Shared by selectSuggestion and openEdit — both populate the same fields
+// from an existing item, just with different surrounding state changes.
+function populateFieldsFrom(item) {
+  itemName.value = item.name
+  itemQty.value = item.qty ?? ''
+  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
+  itemAllSupermarkets.value = item.allSupermarkets ?? false
+  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+}
+
 function selectSuggestion(item) {
   // Only snapshot on the first suggestion pick — switching directly from one
   // suggestion to another must not overwrite it with already-applied values.
@@ -125,13 +135,7 @@ function selectSuggestion(item) {
     }
   }
   selectedDoneItem.value = item
-  itemName.value = item.name
-  itemQty.value = item.qty ?? ''
-  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
-  // Restore the item's own supermarket allocation into the picker so it
-  // reflects reality instead of showing openAdd's "unallocated" default.
-  itemAllSupermarkets.value = item.allSupermarkets ?? false
-  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+  populateFieldsFrom(item)
 }
 
 function openAdd() {
@@ -150,11 +154,7 @@ function openAdd() {
 function openEdit(item) {
   itemMode.value = 'edit'
   editItem.value = item
-  itemName.value = item.name
-  itemQty.value = item.qty ?? ''
-  itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
-  itemAllSupermarkets.value = item.allSupermarkets ?? false
-  itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+  populateFieldsFrom(item)
   selectedDoneItem.value = null
   preSuggestionSnapshot.value = null
   sheet.value = true

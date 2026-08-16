@@ -612,6 +612,11 @@ describe('ShoppingView', () => {
       expect(shoppingStore.updateItem).toHaveBeenCalledWith('a1', {
         name: 'Butter', qty: '250g', aisle: 'Meat', supermarketIds: [], allSupermarkets: false,
       })
+      // The point of routing into edit mode is to update the existing
+      // document in place — neither a fresh add nor a done-item restore
+      // should fire alongside it, or the list would end up with a duplicate.
+      expect(shoppingStore.addItem).not.toHaveBeenCalled()
+      expect(shoppingStore.restoreItem).not.toHaveBeenCalled()
     })
 
     it('is empty with no typed name', async () => {

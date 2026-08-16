@@ -650,6 +650,29 @@ describe('ShoppingView', () => {
     })
   })
 
+  describe('export as PDF button', () => {
+    it('renders the export button in the list selector', () => {
+      const wrapper = mountView()
+      const btn = wrapper.find('.list-selector').findAllComponents({ name: 'VBtn' })
+        .find(b => b.html().includes('mdi-file-pdf-box'))
+      expect(btn).toBeDefined()
+    })
+
+    it('dynamically imports the pdf util and calls it with the active list name, visible items, and aisles', async () => {
+      shoppingStore.lists = [{ id: 'list-1', name: 'Weekend Shop' }]
+      shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
+      const downloadShoppingListPdf = vi.fn()
+      vi.doMock('@/utils/shoppingPdf.js', () => ({ downloadShoppingListPdf }))
+
+      const wrapper = mountView()
+      // exportPdf is async (it awaits the dynamic import) — call it directly
+      // and await it so the mocked module has resolved before asserting.
+      await wrapper.vm.exportPdf()
+
+      expect(downloadShoppingListPdf).toHaveBeenCalledWith('Weekend Shop', shoppingStore.items, shoppingStore.activeAisles)
+    })
+  })
+
   describe('headers toggle', () => {
     it('toggles aisle headers on and off', async () => {
       const wrapper = mountView()

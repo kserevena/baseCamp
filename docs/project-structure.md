@@ -21,7 +21,7 @@ baseCamp/
 │   │   ├── HomeView.vue             # Dashboard — shopping summary, top jobs preview, family avatars
 │   │   ├── LoginView.vue            # Google Sign-In page
 │   │   ├── SetupView.vue            # Create or join a family (shown after first sign-in)
-│   │   ├── ShoppingView.vue         # Shopping list — supermarket selector, add-item FAB, allocation, manage supermarkets
+│   │   ├── ShoppingView.vue         # Shopping list — supermarket selector, add-item FAB, allocation, manage supermarkets, PDF export
 │   │   ├── PocketMoneyView.vue      # Pocket money — parent overview & config, child balance view
 │   │   ├── JobsView.vue             # Household jobs — status sections, category filter, FAB add dialog
 │   │   ├── WishListView.vue         # Wish lists — member selector, outstanding/ticked sections, FAB add dialog
@@ -42,6 +42,7 @@ baseCamp/
 │   │   ├── env.js                    # isDev — true when VITE_USE_EMULATOR=true or project ID contains "dev"
 │   │   ├── paymentSchedule.js        # pendingPaymentDates() — pure UTC date math for pocket money accrual
 │   │   ├── url.js                    # isHttpUrl() / normaliseHttpUrl() — validates user-entered links before use as an href
+│   │   ├── shoppingPdf.js            # buildShoppingListPdf()/downloadShoppingListPdf() — printable checkbox PDF of unpurchased items, grouped by aisle (jsPDF)
 │   │   └── __tests__/
 │   ├── styles/
 │   │   └── utilities.css             # Shared CSS utilities (flex gap classes), imported in main.js

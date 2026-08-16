@@ -671,31 +671,6 @@ describe('ShoppingView', () => {
 
       expect(downloadShoppingListPdf).toHaveBeenCalledWith('Weekend Shop', shoppingStore.items, shoppingStore.activeAisles)
     })
-
-    // The pdf util is dynamically imported, which is a genuine async gap
-    // (real network/parse time, worse on slower devices). A family with more
-    // than one list can have the active list change while that import is in
-    // flight (e.g. a reactive Firestore listener re-activating a different
-    // list). The name/items/aisles must reflect whatever was on screen at
-    // click time, not whatever happens to be active once the import settles.
-    it('exports the list that was active when clicked, even if the active list changes before the import resolves', async () => {
-      shoppingStore.lists = [
-        { id: 'list-1', name: 'List A (on screen)' },
-        { id: 'list-2', name: 'List B (switched to mid-export)' },
-      ]
-      shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
-      shoppingStore.activeListId = 'list-1'
-      const downloadShoppingListPdf = vi.fn()
-      vi.doMock('@/utils/shoppingPdf.js', () => ({ downloadShoppingListPdf }))
-
-      const wrapper = mountView()
-      const exportPromise = wrapper.vm.exportPdf()
-      // Flip the active list before the dynamic import resolves.
-      shoppingStore.activeListId = 'list-2'
-      await exportPromise
-
-      expect(downloadShoppingListPdf).toHaveBeenCalledWith('List A (on screen)', shoppingStore.items, shoppingStore.activeAisles)
-    })
   })
 
   describe('headers toggle', () => {

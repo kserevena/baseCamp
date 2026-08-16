@@ -10,13 +10,15 @@ const STAR_COLOR = [230, 160, 0]
 
 // Priority items get their own leading section (alphabetical) as a
 // quick-glance summary, AND stay in their aisle group at their standard
-// position — unlike ShoppingList.vue's buildGroups, which pulls them out of
-// the aisle group entirely. A star marker (drawn in buildShoppingListPdf)
-// is what distinguishes a priority item wherever it appears, since it's no
-// longer exclusive to the Priority section. Any item whose aisle isn't in
-// `aisles` (e.g. stale data) falls into its own trailing group rather than
-// being dropped. Exported (rather than kept private) so the grouping/
-// ordering logic can be unit tested directly — jsPDF's drawing methods are
+// position — matching ShoppingList.vue's buildGroups, which has always kept
+// priority items in both places (its priorityItems computed and buildGroups
+// draw from the same !done items independently; nothing pulls one out of
+// the other). A star marker (drawn in buildShoppingListPdf) is what
+// distinguishes a priority item wherever it appears, since it's not
+// exclusive to the Priority section. Any item whose aisle isn't in `aisles`
+// (e.g. stale data) falls into its own trailing group rather than being
+// dropped. Exported (rather than kept private) so the grouping/ordering
+// logic can be unit tested directly — jsPDF's drawing methods are
 // per-instance closures, not prototype methods, so they can't be spied on
 // the way DOM APIs can.
 export function buildPrintableSections(items, aisles) {
@@ -57,11 +59,16 @@ function drawPriorityStar(doc, cx, cy) {
     const r = i % 2 === 0 ? outer : inner
     points.push([cx + r * Math.cos(angle), cy + r * Math.sin(angle)])
   }
-  const deltas = points.map((p, i) => {
-    const prev = i === 0 ? points[points.length - 1] : points[i - 1]
+  // Start the path at the last vertex and draw deltas to every other vertex;
+  // closed:true below draws the final segment back to the start, so that
+  // last vertex itself is deliberately omitted from the deltas — including
+  // it would walk the pen back to the start explicitly, making the
+  // auto-close a redundant zero-length no-op.
+  const start = points[points.length - 1]
+  const deltas = points.slice(0, -1).map((p, i) => {
+    const prev = i === 0 ? start : points[i - 1]
     return [p[0] - prev[0], p[1] - prev[1]]
   })
-  const start = points[points.length - 1]
   doc.setFillColor(...STAR_COLOR)
   doc.lines(deltas, start[0], start[1], [1, 1], 'F', true)
 }

@@ -74,11 +74,13 @@ function toggleSupermarket(id) {
 }
 
 // Every item already on the list (done or not) matching the typed name, in
-// one merged set — done items are offered as a re-add suggestion (clickable,
-// primary), not-done items are a duplicate warning only (not clickable,
-// warning colour). Both are "already on this list" from the user's point of
-// view; splitting them into separate sections read as two unrelated features
-// when they're really one lookup with two outcomes.
+// one merged set — done items are offered as a re-add suggestion (primary),
+// not-done items are a duplicate warning (warning colour). Both are
+// "already on this list" from the user's point of view; splitting them into
+// separate sections read as two unrelated features when they're really one
+// lookup with two outcomes. Both are clickable: a done chip re-adds it, a
+// not-done chip switches the sheet into editing that existing item instead
+// of creating a duplicate.
 const matchingSuggestions = computed(() => {
   if (itemMode.value !== 'add') return []
   const q = itemName.value.trim().toLowerCase()
@@ -153,8 +155,19 @@ function openEdit(item) {
   itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
   itemAllSupermarkets.value = item.allSupermarkets ?? false
   itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+  selectedDoneItem.value = null
   preSuggestionSnapshot.value = null
   sheet.value = true
+}
+
+// A not-done suggestion chip has nothing to restore — it's already active —
+// so selecting it switches straight into editing that item instead.
+function selectMatchingSuggestion(item) {
+  if (item.done) {
+    selectSuggestion(item)
+  } else {
+    openEdit(item)
+  }
 }
 
 function submit() {
@@ -320,8 +333,7 @@ watch(sheet, (open) => {
               variant="tonal"
               :color="item.done ? 'primary' : 'warning'"
               :prepend-icon="item.done ? undefined : 'mdi-cart-check'"
-              :class="{ 'suggestion-chip--static': !item.done }"
-              @click="item.done ? selectSuggestion(item) : undefined"
+              @click="selectMatchingSuggestion(item)"
             >
               {{ item.name }}
             </v-chip>
@@ -529,11 +541,6 @@ watch(sheet, (open) => {
 .aisle-chips,
 .supermarket-alloc-chips {
   gap: 6px 8px;
-}
-/* Not-done matches in the merged Suggestions row are a warning only —
-   there's nothing to restore, so they don't invite a tap. */
-.suggestion-chip--static {
-  cursor: default;
 }
 /* Fills the .add-item-overlay wrapper, which carries the dvh height (see the
    unscoped block above for why the height cannot live here). */

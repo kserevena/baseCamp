@@ -566,7 +566,25 @@ describe('ShoppingView', () => {
       expect(breadChip.props('color')).toBe('primary')
     })
 
-    it('selecting the done chip populates fields; the not-done chip is not selectable', async () => {
+    it('selecting the done chip populates fields for a re-add', async () => {
+      const wrapper = mountView()
+      const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
+      await fab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.itemName = 'b'
+      await wrapper.vm.$nextTick()
+
+      const chips = wrapper.findAllComponents({ name: 'VChip' })
+      const breadChip = chips.find(c => c.text() === 'Bread')
+      await breadChip.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemMode).toBe('add')
+      expect(wrapper.vm.selectedDoneItem?.id).toBe('d1')
+      expect(wrapper.vm.itemAisle).toBe('Bakery')
+    })
+
+    it('selecting the not-done chip switches into editing that existing item', async () => {
       const wrapper = mountView()
       const fab = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.classes('fab'))
       await fab.trigger('click')
@@ -579,15 +597,21 @@ describe('ShoppingView', () => {
       const butterChip = chips.find(c => c.text() === 'Butter')
       await butterChip.trigger('click')
       await wrapper.vm.$nextTick()
-      // Butter (not-done) has nothing to restore — clicking it must not
-      // select it as a suggestion.
-      expect(wrapper.vm.selectedDoneItem).toBeNull()
 
-      const breadChip = chips.find(c => c.text() === 'Bread')
-      await breadChip.trigger('click')
-      await wrapper.vm.$nextTick()
-      expect(wrapper.vm.selectedDoneItem?.id).toBe('d1')
-      expect(wrapper.vm.itemAisle).toBe('Bakery')
+      // Butter (not-done) has nothing to restore — clicking it edits the
+      // existing item in place instead of offering it as a re-add.
+      expect(wrapper.vm.itemMode).toBe('edit')
+      expect(wrapper.vm.editItem?.id).toBe('a1')
+      expect(wrapper.vm.itemName).toBe('Butter')
+      expect(wrapper.vm.itemAisle).toBe('Meat')
+      expect(wrapper.vm.selectedDoneItem).toBeNull()
+      expect(document.body.textContent).toContain('Edit item')
+
+      const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+      expect(shoppingStore.updateItem).toHaveBeenCalledWith('a1', {
+        name: 'Butter', qty: '250g', aisle: 'Meat', supermarketIds: [], allSupermarkets: false,
+      })
     })
 
     it('is empty with no typed name', async () => {

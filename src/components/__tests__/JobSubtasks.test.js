@@ -305,6 +305,21 @@ describe('JobSubtasks', () => {
       expect(jobsStore.updateSubtask).toHaveBeenCalledWith('st-1', { title: 'Task', notes: 'New note' })
     })
 
+    it('still saves notes when the title is cleared, without overwriting the title', async () => {
+      isParentValue = true
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1, notes: '' },
+      ]
+      const wrapper = mountComponent()
+      await wrapper.find('.subtask-title-group').trigger('click')
+      const titleField = wrapper.findComponent({ name: 'VTextField' })
+      await titleField.setValue('')
+      const textarea = wrapper.findComponent({ name: 'VTextarea' })
+      await textarea.setValue('New note')
+      await textarea.trigger('focusout')
+      expect(jobsStore.updateSubtask).toHaveBeenCalledWith('st-1', { notes: 'New note' })
+    })
+
     it('caps the notes textarea at MAX_SUBTASK_NOTES_LENGTH characters', async () => {
       isParentValue = true
       jobsStore.subtasks = [

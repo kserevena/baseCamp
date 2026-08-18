@@ -61,9 +61,12 @@ function startEditSubtask(subtask) {
 
 function saveEditSubtask(subtaskId) {
   const title = editingTitle.value.trim()
-  if (title) {
-    jobsStore.updateSubtask(subtaskId, { title, notes: editingNotes.value.trim() })
-  }
+  // An emptied title is invalid and left unsaved (the stored title is unchanged),
+  // but notes are always saved — clearing the title must not also discard a note.
+  jobsStore.updateSubtask(subtaskId, {
+    ...(title ? { title } : {}),
+    notes: editingNotes.value.trim(),
+  })
   editingSubtaskId.value = null
   editingTitle.value = ''
   editingNotes.value = ''

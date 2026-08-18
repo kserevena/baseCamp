@@ -83,16 +83,16 @@ describe('HomeView', () => {
     })
   })
 
-  describe('shopping card', () => {
-    it('renders the shopping list card', () => {
+  describe('priority items card', () => {
+    it('renders the priority items card', () => {
       const wrapper = mountView()
-      expect(wrapper.text()).toContain('Shopping list')
+      expect(wrapper.text()).toContain('Priority items')
     })
 
     it('links the shopping card to /shopping', () => {
       const wrapper = mountView()
       const cards = wrapper.findAllComponents({ name: 'VCard' })
-      const shoppingCard = cards.find(c => c.text().includes('Shopping list'))
+      const shoppingCard = cards.find(c => c.text().includes('Priority items'))
       expect(shoppingCard.props('to')).toBe('/shopping')
     })
 

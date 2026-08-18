@@ -23,12 +23,12 @@ const priorityItems = computed(() =>
       Hello, {{ family.currentUser?.name }}
     </div>
 
-    <!-- Shopping summary -->
+    <!-- Priority shopping items -->
     <v-card rounded="lg" elevation="1" :to="'/shopping'">
       <v-card-text>
         <div class="d-flex align-center">
           <v-icon color="primary" class="mr-2">mdi-cart</v-icon>
-          <span class="text-subtitle-1 font-weight-medium">Shopping list</span>
+          <span class="text-subtitle-1 font-weight-medium">Priority items</span>
         </div>
 
         <!-- Priority items -->

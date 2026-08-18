@@ -102,6 +102,7 @@ families/{familyId}/householdJobs/{jobId}/subtasks/{subtaskId}
   familyId: string                      ← stamped for the collection-group listener and security rule
   jobId: string                         ← stamped for the collection-group listener and security rule
   title: string
+  notes: string                         ← optional free-text; absent/empty on older docs, capped at 500 chars client-side
   done: boolean
   assignedTo: uid | null
   order: number                         ← sort order within the job; parents can reorder

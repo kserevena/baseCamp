@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
-import { useJobsStore } from '@/stores/jobs.js'
+import { useJobsStore, MAX_SUBTASK_NOTES_LENGTH } from '@/stores/jobs.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
@@ -51,19 +51,30 @@ function onDeleteSubtask(subtaskId) {
 
 const editingSubtaskId = ref(null)
 const editingTitle = ref('')
+const editingNotes = ref('')
 
 function startEditSubtask(subtask) {
   editingSubtaskId.value = subtask.id
   editingTitle.value = subtask.title
+  editingNotes.value = subtask.notes ?? ''
 }
 
 function saveEditSubtask(subtaskId) {
   const title = editingTitle.value.trim()
   if (title) {
-    jobsStore.updateSubtask(subtaskId, { title })
+    jobsStore.updateSubtask(subtaskId, { title, notes: editingNotes.value.trim() })
   }
   editingSubtaskId.value = null
   editingTitle.value = ''
+  editingNotes.value = ''
+}
+
+// Title and notes are edited together in one group; only save once focus leaves
+// the whole group (not when tabbing from the title field into the notes field).
+function onEditGroupFocusOut(event, subtaskId) {
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    saveEditSubtask(subtaskId)
+  }
 }
 </script>
 
@@ -100,25 +111,50 @@ function saveEditSubtask(subtaskId) {
           @update:model-value="onToggle(subtask.id)"
         />
 
-        <!-- Title or edit field -->
+        <!-- Title/notes or edit fields -->
         <template v-if="editingSubtaskId === subtask.id">
-          <v-text-field
-            v-model="editingTitle"
-            density="compact"
-            variant="outlined"
-            hide-details
+          <div
             class="flex-grow-1 mr-1"
-            @keyup.enter="saveEditSubtask(subtask.id)"
-            @blur="saveEditSubtask(subtask.id)"
-          />
+            @focusout="onEditGroupFocusOut($event, subtask.id)"
+          >
+            <v-text-field
+              v-model="editingTitle"
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="mb-1"
+              @keyup.enter="saveEditSubtask(subtask.id)"
+            />
+            <v-textarea
+              v-model="editingNotes"
+              label="Notes (optional)"
+              density="compact"
+              variant="outlined"
+              rows="2"
+              auto-grow
+              hide-details="auto"
+              :maxlength="MAX_SUBTASK_NOTES_LENGTH"
+              :counter="MAX_SUBTASK_NOTES_LENGTH"
+            />
+          </div>
         </template>
         <template v-else>
-          <span
-            :class="['flex-grow-1 text-body-2', subtask.done ? 'text-decoration-line-through text-medium-emphasis' : '']"
+          <div
+            class="subtask-title-group flex-grow-1 d-flex flex-column"
             @click="isParent && startEditSubtask(subtask)"
           >
-            {{ subtask.title }}
-          </span>
+            <span
+              :class="['text-body-2', subtask.done ? 'text-decoration-line-through text-medium-emphasis' : '']"
+            >
+              {{ subtask.title }}
+            </span>
+            <span
+              v-if="subtask.notes"
+              class="text-caption text-medium-emphasis"
+            >
+              {{ subtask.notes }}
+            </span>
+          </div>
         </template>
 
         <!-- Assignee (parent only) -->
@@ -193,11 +229,19 @@ function saveEditSubtask(subtaskId) {
           style="min-width: 36px"
           @update:model-value="onToggle(subtask.id)"
         />
-        <span
-          :class="['flex-grow-1 text-body-2', subtask.done ? 'text-decoration-line-through text-medium-emphasis' : '']"
-        >
-          {{ subtask.title }}
-        </span>
+        <div class="flex-grow-1 d-flex flex-column">
+          <span
+            :class="['text-body-2', subtask.done ? 'text-decoration-line-through text-medium-emphasis' : '']"
+          >
+            {{ subtask.title }}
+          </span>
+          <span
+            v-if="subtask.notes"
+            class="text-caption text-medium-emphasis"
+          >
+            {{ subtask.notes }}
+          </span>
+        </div>
         <FamilyAvatar
           v-if="subtask.assignedTo"
           :uid="subtask.assignedTo"

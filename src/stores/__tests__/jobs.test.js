@@ -60,7 +60,7 @@ vi.mock('@/stores/family.js', () => ({
   useFamilyStore: () => mockFamilyStore,
 }))
 
-import { useJobsStore } from '@/stores/jobs.js'
+import { useJobsStore, MAX_SUBTASK_NOTES_LENGTH } from '@/stores/jobs.js'
 
 // Helpers to fire snapshot callbacks
 function fireJobsSnapshot(docs) {
@@ -156,6 +156,16 @@ describe('jobs store', () => {
       expect(store.subtasks[0].done).toBe(false)
       expect(store.subtasks[0].assignedTo).toBeNull()
       expect(store.subtasks[0].order).toBe(0)
+      expect(store.subtasks[0].notes).toBe('')
+    })
+
+    it('reads notes from the subtask snapshot when present', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(1, [
+        { id: 'st-1', data: { jobId: 'job-1', familyId: 'fam-1', title: 'Task', notes: 'Use the blue cloth' } },
+      ])
+      expect(store.subtasks[0].notes).toBe('Use the blue cloth')
     })
 
     it('unsubscribes the existing listeners before creating new ones on re-setup', () => {
@@ -428,6 +438,74 @@ describe('jobs store', () => {
       store.setup('fam-1')
       store.addSubtask('job-1', 'First task')
       expect(mockAddDoc.mock.calls[0][1].order).toBe(1)
+    })
+  })
+
+  // ── updateSubtask() ──────────────────────────────────────────────────────
+
+  describe('updateSubtask()', () => {
+    it('calls updateDoc with the provided title', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(1, [
+        { id: 'st-1', data: { jobId: 'job-1', familyId: 'fam-1', title: 'A', done: false, order: 1 } },
+      ])
+      store.updateSubtask('st-1', { title: 'Renamed' })
+      const data = mockUpdateDoc.mock.calls[0][1]
+      expect(data.title).toBe('Renamed')
+      expect(data.updatedAt).toBeDefined()
+    })
+
+    it('sets notes when provided', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(1, [
+        { id: 'st-1', data: { jobId: 'job-1', familyId: 'fam-1', title: 'A', done: false, order: 1 } },
+      ])
+      store.updateSubtask('st-1', { notes: 'Use the blue cloth' })
+      const data = mockUpdateDoc.mock.calls[0][1]
+      expect(data.notes).toBe('Use the blue cloth')
+    })
+
+    it('clears notes when set to an empty string', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(1, [
+        { id: 'st-1', data: { jobId: 'job-1', familyId: 'fam-1', title: 'A', done: false, order: 1, notes: 'Old note' } },
+      ])
+      store.updateSubtask('st-1', { notes: '' })
+      const data = mockUpdateDoc.mock.calls[0][1]
+      expect(data.notes).toBe('')
+    })
+
+    it('does not touch notes when omitted', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(1, [
+        { id: 'st-1', data: { jobId: 'job-1', familyId: 'fam-1', title: 'A', done: false, order: 1 } },
+      ])
+      store.updateSubtask('st-1', { title: 'Renamed' })
+      const data = mockUpdateDoc.mock.calls[0][1]
+      expect(Object.keys(data)).not.toContain('notes')
+    })
+
+    it('truncates notes to MAX_SUBTASK_NOTES_LENGTH characters', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      fireSnapshot(1, [
+        { id: 'st-1', data: { jobId: 'job-1', familyId: 'fam-1', title: 'A', done: false, order: 1 } },
+      ])
+      const longNotes = 'x'.repeat(MAX_SUBTASK_NOTES_LENGTH + 50)
+      store.updateSubtask('st-1', { notes: longNotes })
+      const data = mockUpdateDoc.mock.calls[0][1]
+      expect(data.notes).toHaveLength(MAX_SUBTASK_NOTES_LENGTH)
+    })
+
+    it('does not throw when subtaskId is absent', () => {
+      const store = useJobsStore()
+      store.setup('fam-1')
+      expect(() => store.updateSubtask('nonexistent', { title: 'X' })).not.toThrow()
+      expect(mockUpdateDoc).not.toHaveBeenCalled()
     })
   })
 

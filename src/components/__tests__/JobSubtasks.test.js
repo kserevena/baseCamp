@@ -12,6 +12,7 @@ let familyStore
 
 vi.mock('@/stores/jobs.js', () => ({
   useJobsStore: () => jobsStore,
+  MAX_SUBTASK_NOTES_LENGTH: 500,
 }))
 
 vi.mock('@/stores/family.js', () => ({
@@ -123,6 +124,33 @@ describe('JobSubtasks', () => {
       ]
       const wrapper = mountComponent()
       expect(wrapper.findAll('.avatar-stub')).toHaveLength(0)
+    })
+
+    it('shows notes under the title when present, for parents', () => {
+      isParentValue = true
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1, notes: 'Use the blue cloth' },
+      ]
+      const wrapper = mountComponent()
+      expect(wrapper.text()).toContain('Use the blue cloth')
+    })
+
+    it('shows notes under the title when present, for children', () => {
+      isParentValue = false
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1, notes: 'Use the blue cloth' },
+      ]
+      const wrapper = mountComponent()
+      expect(wrapper.text()).toContain('Use the blue cloth')
+    })
+
+    it('renders without error when notes is absent', () => {
+      isParentValue = false
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1 },
+      ]
+      const wrapper = mountComponent()
+      expect(wrapper.text()).toContain('Task')
     })
   })
 
@@ -246,6 +274,72 @@ describe('JobSubtasks', () => {
       const addBtn = wrapper.findAllComponents({ name: 'VBtn' }).find(b => b.text() === 'Add')
       await addBtn.trigger('click')
       expect(jobsStore.addSubtask).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── editing notes (parent only) ──────────────────────────────────────────
+
+  describe('editing notes', () => {
+    it('opens a notes field when a parent clicks the title', async () => {
+      isParentValue = true
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1, notes: 'Existing note' },
+      ]
+      const wrapper = mountComponent()
+      await wrapper.find('.subtask-title-group').trigger('click')
+      const textarea = wrapper.findComponent({ name: 'VTextarea' })
+      expect(textarea.exists()).toBe(true)
+      expect(textarea.props('modelValue')).toBe('Existing note')
+    })
+
+    it('saves title and notes together when focus leaves the edit group', async () => {
+      isParentValue = true
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1, notes: '' },
+      ]
+      const wrapper = mountComponent()
+      await wrapper.find('.subtask-title-group').trigger('click')
+      const textarea = wrapper.findComponent({ name: 'VTextarea' })
+      await textarea.setValue('New note')
+      await textarea.trigger('focusout')
+      expect(jobsStore.updateSubtask).toHaveBeenCalledWith('st-1', { title: 'Task', notes: 'New note' })
+    })
+
+    it('still saves notes when the title is cleared, without overwriting the title', async () => {
+      isParentValue = true
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1, notes: '' },
+      ]
+      const wrapper = mountComponent()
+      await wrapper.find('.subtask-title-group').trigger('click')
+      const titleField = wrapper.findComponent({ name: 'VTextField' })
+      await titleField.setValue('')
+      const textarea = wrapper.findComponent({ name: 'VTextarea' })
+      await textarea.setValue('New note')
+      await textarea.trigger('focusout')
+      expect(jobsStore.updateSubtask).toHaveBeenCalledWith('st-1', { notes: 'New note' })
+    })
+
+    it('caps the notes textarea at MAX_SUBTASK_NOTES_LENGTH characters', async () => {
+      isParentValue = true
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1 },
+      ]
+      const wrapper = mountComponent()
+      await wrapper.find('.subtask-title-group').trigger('click')
+      const textarea = wrapper.findComponent({ name: 'VTextarea' })
+      expect(textarea.props('counter')).toBe(500)
+      expect(textarea.find('textarea').attributes('maxlength')).toBe('500')
+    })
+
+    it('does not open the edit fields for a child', async () => {
+      isParentValue = false
+      jobsStore.subtasks = [
+        { id: 'st-1', jobId: 'job-1', title: 'Task', done: false, order: 1 },
+      ]
+      const wrapper = mountComponent()
+      await wrapper.find('.subtask-row').trigger('click')
+      expect(wrapper.findComponent({ name: 'VTextarea' }).exists()).toBe(false)
     })
   })
 })

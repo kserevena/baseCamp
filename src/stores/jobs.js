@@ -21,6 +21,9 @@ import { useFamilyStore } from '@/stores/family.js'
 // toggleSubtask is the ONLY action any family member (child included) can call.
 // All other write actions are parent-only — the UI gates them; the rules enforce them.
 
+// Notes is a free-text field; capped to keep subtask rows readable and bound Firestore write size.
+export const MAX_SUBTASK_NOTES_LENGTH = 500
+
 export const useJobsStore = defineStore('jobs', () => {
   const familyStore = useFamilyStore()
 
@@ -100,6 +103,7 @@ export const useJobsStore = defineStore('jobs', () => {
             jobId:      data.jobId ?? null,
             familyId:   data.familyId ?? familyId,
             title:      data.title ?? '',
+            notes:      data.notes ?? '',
             done:       data.done ?? false,
             assignedTo: data.assignedTo ?? null,
             order:      data.order ?? 0,
@@ -197,13 +201,14 @@ export const useJobsStore = defineStore('jobs', () => {
     )
   }
 
-  function updateSubtask(subtaskId, { title, assignedTo }) {
+  function updateSubtask(subtaskId, { title, notes, assignedTo }) {
     const subtask = subtasks.value.find(s => s.id === subtaskId)
     if (!subtask || !currentFamilyId) return
     const jobId = subtask.jobId
     if (!jobId) return
     const update = {}
     if (title !== undefined) update.title = title
+    if (notes !== undefined) update.notes = notes.slice(0, MAX_SUBTASK_NOTES_LENGTH)
     if (assignedTo !== undefined) update.assignedTo = assignedTo
     update.updatedAt = serverTimestamp()
     updateDoc(

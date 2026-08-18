@@ -310,7 +310,7 @@ describe('shopping store', () => {
       expect(mockUpdateDoc).not.toHaveBeenCalled()
     })
 
-    it('returns true and calls updateDoc with done:false, qty, aisle, aisleOrder', () => {
+    it('returns true and calls updateDoc with done:false, qty, aisle, aisleOrder, addedBy', () => {
       const store = useShoppingStore()
       store.setup('fam-1')
       let itemsCallback
@@ -324,8 +324,23 @@ describe('shopping store', () => {
       expect(mockUpdateDoc).toHaveBeenCalledOnce()
       expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'families', 'fam-1', 'shoppingLists', 'list-1', 'items', 'item-1')
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
-        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1,
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, addedBy: 'parent-uid',
       })
+    })
+
+    it('reassigns addedBy to the current user, overwriting the original adder', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, aisle: 'Dairy', aisleOrder: 1, addedBy: 'other-uid' })] })
+
+      store.restoreItem('item-1', '1 pint', 'Dairy')
+
+      const item = store.items.find(i => i.id === 'item-1')
+      expect(item.addedBy).toBe('parent-uid')
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ addedBy: 'parent-uid' }))
     })
 
     it('updates item optimistically in local state', () => {
@@ -367,7 +382,7 @@ describe('shopping store', () => {
       store.restoreItem('item-1', '1 pint', 'Dairy')
 
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
-        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1,
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, addedBy: 'parent-uid',
       })
       const item = store.items.find(i => i.id === 'item-1')
       expect(item.supermarketIds).toEqual(['sm-1'])
@@ -385,7 +400,7 @@ describe('shopping store', () => {
       store.restoreItem('item-1', '1 pint', 'Dairy', { supermarketIds: ['sm-2'], allSupermarkets: false })
 
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
-        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, supermarketIds: ['sm-2'], allSupermarkets: false,
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, addedBy: 'parent-uid', supermarketIds: ['sm-2'], allSupermarkets: false,
       })
       const item = store.items.find(i => i.id === 'item-1')
       expect(item.supermarketIds).toEqual(['sm-2'])
@@ -402,7 +417,7 @@ describe('shopping store', () => {
       store.restoreItem('item-1', '1 pint', 'Dairy', { supermarketIds: [], allSupermarkets: true })
 
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
-        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, supermarketIds: [], allSupermarkets: true,
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, addedBy: 'parent-uid', supermarketIds: [], allSupermarkets: true,
       })
     })
   })
@@ -634,6 +649,22 @@ describe('shopping store', () => {
         expect.anything(),
         { name: 'Skimmed milk', qty: '1 pint' }
       )
+    })
+
+    it('leaves addedBy untouched — editing an item is not a re-add', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { addedBy: 'other-uid' })] })
+
+      store.updateItem('item-1', { name: 'Skimmed milk', qty: '1 pint', aisle: 'Bakery' })
+
+      const item = store.items.find(i => i.id === 'item-1')
+      expect(item.addedBy).toBe('other-uid')
+      const payload = mockUpdateDoc.mock.calls[0][1]
+      expect(payload).not.toHaveProperty('addedBy')
     })
 
     it('performs an optimistic local update before Firestore resolves', () => {

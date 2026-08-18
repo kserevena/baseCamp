@@ -57,6 +57,7 @@ describe('HomeView', () => {
     })
     shoppingStore = reactive({
       lists: [],
+      items: [],
       activeListId: null,
       supermarkets: [],
       selectedSupermarket: null,
@@ -95,45 +96,37 @@ describe('HomeView', () => {
       expect(shoppingCard.props('to')).toBe('/shopping')
     })
 
-    // ── Issue #159: the card must track what ShoppingView actually shows ──
-    describe('once supermarkets exist (issue #137 Part B)', () => {
-      beforeEach(() => {
-        shoppingStore.lists = [{ id: 'list-1', name: 'Weekend shop' }]
-        shoppingStore.activeListId = 'list-1'
-        shoppingStore.supermarkets = [
-          { id: 'sm-1', name: 'Tesco' },
-          { id: 'sm-2', name: 'Lidl' },
+    // ── Issue #197: show priority items needing purchasing, not the list/supermarket name ──
+    describe('priority items', () => {
+      it('shows "No priority items" when there are none', () => {
+        shoppingStore.items = [
+          { id: 'i1', name: 'Milk', priority: false, done: false },
+          { id: 'i2', name: 'Bread', priority: true, done: true },
         ]
-      })
-
-      it('shows the selected supermarket\'s name, not the list name', () => {
-        shoppingStore.selectedSupermarket = { id: 'sm-2', name: 'Lidl' }
         const wrapper = mountView()
-        expect(wrapper.text()).toContain('Lidl')
-        expect(wrapper.text()).not.toContain('Weekend shop')
+        expect(wrapper.text()).toContain('No priority items')
       })
 
-      it('shows "All items" when no supermarket is selected', () => {
-        shoppingStore.selectedSupermarket = null
+      it('lists unchecked priority items', () => {
+        shoppingStore.items = [
+          { id: 'i1', name: 'Milk', priority: true, done: false },
+          { id: 'i2', name: 'Bread', priority: false, done: false },
+          { id: 'i3', name: 'Eggs', priority: true, done: false },
+          { id: 'i4', name: 'Butter', priority: true, done: true },
+        ]
         const wrapper = mountView()
-        expect(wrapper.text()).toContain('All items')
+        expect(wrapper.text()).toContain('Milk')
+        expect(wrapper.text()).toContain('Eggs')
+        expect(wrapper.text()).not.toContain('Bread')
+        expect(wrapper.text()).not.toContain('Butter')
+        expect(wrapper.text()).not.toContain('No priority items')
       })
-    })
 
-    describe('before any supermarket has been provisioned (pre-migration)', () => {
-      it('falls back to the active list\'s name', () => {
-        shoppingStore.lists = [{ id: 'list-1', name: 'Weekend shop' }]
-        shoppingStore.activeListId = 'list-1'
+      it('treats a missing priority field as not priority', () => {
+        shoppingStore.items = [{ id: 'i1', name: 'Milk', done: false }]
         const wrapper = mountView()
-        expect(wrapper.text()).toContain('Weekend shop')
+        expect(wrapper.text()).toContain('No priority items')
       })
-    })
-
-    it('shows nothing extra when no list is active yet', () => {
-      shoppingStore.lists = [{ id: 'list-1', name: 'Weekend shop' }]
-      shoppingStore.activeListId = null
-      const wrapper = mountView()
-      expect(wrapper.text()).not.toContain('Weekend shop')
     })
   })
 

@@ -8,19 +8,13 @@ import JobsPreview from '@/components/JobsPreview.vue'
 const family = useFamilyStore()
 const shopping = useShoppingStore()
 
-// Mirrors what ShoppingView actually shows: once a family has supermarkets
-// (issue #137 Part B), the meaningful "which view was I last in" state is the
-// selected supermarket (store.selectedSupermarketId, restored from
-// localStorage in shopping.js's setup()), not the underlying list — most
-// families only ever have one list. Pre-migration families with no
-// supermarkets yet fall back to the active list's name, as before.
-const shoppingSummary = computed(() => {
-  if (!shopping.activeListId) return null
-  if (shopping.supermarkets.length > 0) {
-    return shopping.selectedSupermarket?.name ?? 'All items'
-  }
-  return shopping.lists.find(l => l.id === shopping.activeListId)?.name ?? null
-})
+// Issue #197: the last-viewed list/supermarket name isn't actionable — show
+// the priority items that still need buying instead. Priority is list-wide
+// (not per-supermarket), so this reads shopping.items directly rather than
+// the supermarket-filtered visibleItems.
+const priorityItems = computed(() =>
+  shopping.items.filter(i => (i.priority ?? false) && !i.done)
+)
 </script>
 
 <template>
@@ -36,8 +30,20 @@ const shoppingSummary = computed(() => {
           <v-icon color="primary" class="mr-2">mdi-cart</v-icon>
           <span class="text-subtitle-1 font-weight-medium">Shopping list</span>
         </div>
-        <div v-if="shoppingSummary" class="text-body-2 text-medium-emphasis mt-1">
-          {{ shoppingSummary }}
+
+        <!-- Priority items -->
+        <div v-if="priorityItems.length > 0" class="priority-items-container mt-2">
+          <div
+            v-for="item in priorityItems"
+            :key="item.id"
+            class="d-flex align-center gap-2 py-1"
+          >
+            <v-icon color="error" size="16">mdi-alert-circle</v-icon>
+            <span class="text-body-2 text-truncate flex-grow-1" style="min-width: 0">{{ item.name }}</span>
+          </div>
+        </div>
+        <div v-else class="text-body-2 text-medium-emphasis mt-1">
+          No priority items
         </div>
       </v-card-text>
     </v-card>
@@ -63,3 +69,10 @@ const shoppingSummary = computed(() => {
     </v-card>
   </div>
 </template>
+
+<style scoped>
+.priority-items-container {
+  max-height: 180px;
+  overflow-y: auto;
+}
+</style>

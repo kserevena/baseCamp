@@ -343,13 +343,16 @@ export const useShoppingStore = defineStore('shopping', () => {
     if (!activeListId.value) return false
     const item = items.value.find(i => i.id === id)
     if (!item) return false
+    const familyStore = useFamilyStore()
+    const uid = familyStore.currentUser?.uid ?? ''
     const aisleObj = activeAisles.value.find(a => a.name === aisle)
     item.done = false
     item.qty = qty
     item.aisle = aisle
     item.aisleOrder = aisleObj?.order ?? 99
+    item.addedBy = uid
     const update = {
-      done: false, qty, aisle, aisleOrder: aisleObj?.order ?? 99,
+      done: false, qty, aisle, aisleOrder: aisleObj?.order ?? 99, addedBy: uid,
     }
     // Optional: the re-add sheet passes the item's own allocation back
     // (round-tripped through its UI state, possibly edited by the user).

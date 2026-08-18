@@ -25,7 +25,7 @@ function toggleHeaders() {
 // jspdf is dynamically imported so it stays out of the main bundle — most
 // visits never click this button.
 //
-// The name must mirror HomeView's shoppingSummary: once a family has
+// The name must reflect what's actually on screen: once a family has
 // supermarkets (issue #137 Part B), the list actually visible on screen is
 // determined by the selected supermarket chip (store.selectedSupermarket),
 // not the underlying shoppingLists document — that document's name is never

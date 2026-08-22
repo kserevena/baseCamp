@@ -1427,6 +1427,59 @@ describe('shopping store', () => {
       expect(ids).toEqual(expect.arrayContaining(['i1', 'i3', 'i4', 'i5']))
       expect(ids).not.toContain('i2')
     })
+
+    it('storeOnlyFilter hides all-supermarkets and unallocated items, keeping items allocated to this store', () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [
+          mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0),
+          mockSupermarket('sm-2', 'Lidl', DEFAULT_AISLES, 1),
+        ],
+        itemDocs: [
+          mockItem('i1', { supermarketIds: ['sm-1'] }),          // shown
+          mockItem('i2', { supermarketIds: ['sm-2'] }),          // hidden
+          mockItem('i3', { allSupermarkets: true }),             // hidden
+          mockItem('i4', {}),                                     // unallocated → hidden
+          mockItem('i5', { supermarketIds: ['sm-1', 'sm-2'] }),  // shown
+        ],
+      })
+      store.selectSupermarket('sm-1')
+      store.setStoreOnlyFilter(true)
+      const ids = store.visibleItems.map(i => i.id)
+      expect(ids).toEqual(expect.arrayContaining(['i1', 'i5']))
+      expect(ids).not.toContain('i2')
+      expect(ids).not.toContain('i3')
+      expect(ids).not.toContain('i4')
+    })
+
+    it('storeOnlyFilter has no effect in the All items view', () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0)],
+        itemDocs: [
+          mockItem('i1', { supermarketIds: ['sm-1'] }),
+          mockItem('i2', { allSupermarkets: true }),
+        ],
+      })
+      store.setStoreOnlyFilter(true)
+      expect(store.visibleItems).toHaveLength(2)
+    })
+
+    it('selectSupermarket resets storeOnlyFilter', () => {
+      const store = useShoppingStore()
+      setupWithData(store, {
+        supermarketDocs: [
+          mockSupermarket('sm-1', 'Tesco', DEFAULT_AISLES, 0),
+          mockSupermarket('sm-2', 'Lidl', DEFAULT_AISLES, 1),
+        ],
+      })
+      store.selectSupermarket('sm-1')
+      store.setStoreOnlyFilter(true)
+      expect(store.storeOnlyFilter).toBe(true)
+
+      store.selectSupermarket('sm-2')
+      expect(store.storeOnlyFilter).toBe(false)
+    })
   })
 
   describe('activeAisles with supermarkets', () => {

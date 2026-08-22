@@ -282,10 +282,24 @@ watch(sheet, (open) => {
           </v-chip>
         </div>
         <v-btn
+          v-if="store.selectedSupermarketId !== null"
           icon
           variant="text"
           size="small"
           class="flex-0-0"
+          :color="store.storeOnlyFilter ? 'primary' : undefined"
+          :aria-label="store.storeOnlyFilter
+            ? 'Show items available at all supermarkets too'
+            : 'Hide items available at all supermarkets'"
+          @click="store.setStoreOnlyFilter(!store.storeOnlyFilter)"
+        >
+          <v-icon>{{ store.storeOnlyFilter ? 'mdi-filter' : 'mdi-filter-outline' }}</v-icon>
+        </v-btn>
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          :class="['flex-0-0', { 'ml-1': store.selectedSupermarketId !== null }]"
           :color="showHeaders ? undefined : 'primary'"
           :aria-label="showHeaders ? 'Hide aisle headers' : 'Show aisle headers'"
           @click="toggleHeaders"

@@ -259,7 +259,42 @@ watch(sheet, (open) => {
     <template v-if="hasLists">
       <!-- Supermarket selector: "All items" (raw list) plus one chip per store -->
       <div class="list-selector px-2 pt-2">
-        <div class="list-chips">
+        <!-- More than one supermarket: only the active selection is shown,
+             with a dropdown menu to switch — avoids a chip row that needs
+             scrolling once a family has several stores. -->
+        <div v-if="store.supermarkets.length > 1" class="list-chips list-chips-menu">
+          <v-menu>
+            <template #activator="{ props: menuProps }">
+              <v-chip
+                v-bind="menuProps"
+                color="primary"
+                variant="flat"
+                prepend-icon="mdi-check"
+                append-icon="mdi-menu-down"
+                size="small"
+              >
+                {{ store.selectedSupermarket?.name ?? 'All items' }}
+              </v-chip>
+            </template>
+            <v-list density="compact">
+              <v-list-item
+                :active="store.selectedSupermarketId === null"
+                @click="store.selectSupermarket(null)"
+              >
+                <v-list-item-title>All items</v-list-item-title>
+              </v-list-item>
+              <v-list-item
+                v-for="sm in store.supermarkets"
+                :key="sm.id"
+                :active="store.selectedSupermarketId === sm.id"
+                @click="store.selectSupermarket(sm.id)"
+              >
+                <v-list-item-title>{{ sm.name }}</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </div>
+        <div v-else class="list-chips">
           <v-chip
             :color="store.selectedSupermarketId === null ? 'primary' : undefined"
             :variant="store.selectedSupermarketId === null ? 'flat' : 'tonal'"

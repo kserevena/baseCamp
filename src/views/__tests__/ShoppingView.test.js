@@ -87,42 +87,109 @@ describe('ShoppingView', () => {
   })
 
   describe('supermarket selector', () => {
-    it('renders an "All items" chip plus one chip per supermarket', () => {
+    // Issue: the chip row needed scrolling once a family had several stores.
+    // With more than one supermarket, only the active selection is shown,
+    // with a dropdown menu to switch.
+    function findMenuActivator(wrapper) {
+      return wrapper.find('.list-chips-menu').findComponent({ name: 'VChip' })
+    }
+
+    async function openMenu(wrapper) {
+      await findMenuActivator(wrapper).trigger('click')
+      await wrapper.vm.$nextTick()
+    }
+
+    it('shows a dropdown with only the active selection when more than one supermarket exists', () => {
       const wrapper = mountView()
-      const text = wrapper.find('.list-selector').text()
+      expect(wrapper.find('.list-chips-menu').exists()).toBe(true)
+      const text = findMenuActivator(wrapper).text()
       expect(text).toContain('All items')
-      expect(text).toContain('Tesco')
-      expect(text).toContain('Lidl')
+      expect(text).not.toContain('Tesco')
+      expect(text).not.toContain('Lidl')
     })
 
-    it('the "All items" chip is active (primary) by default', () => {
+    it('the dropdown activator shows the selected supermarket name', () => {
+      shoppingStore.selectedSupermarketId = 'sm-1'
+      const wrapper = mountView()
+      expect(findMenuActivator(wrapper).text()).toContain('Tesco')
+    })
+
+    it('opening the dropdown and choosing a store calls selectSupermarket with its id', async () => {
+      const wrapper = mountView()
+      await openMenu(wrapper)
+      const item = wrapper.findAllComponents({ name: 'VListItem' }).find(i => i.text().includes('Lidl'))
+      await item.trigger('click')
+      expect(shoppingStore.selectSupermarket).toHaveBeenCalledWith('sm-2')
+    })
+
+    it('opening the dropdown and choosing "All items" calls selectSupermarket with null', async () => {
+      shoppingStore.selectedSupermarketId = 'sm-1'
+      const wrapper = mountView()
+      await openMenu(wrapper)
+      const item = wrapper.findAllComponents({ name: 'VListItem' }).find(i => i.text().includes('All items'))
+      await item.trigger('click')
+      expect(shoppingStore.selectSupermarket).toHaveBeenCalledWith(null)
+    })
+
+    it('the dropdown menu marks the currently selected entry active', async () => {
+      shoppingStore.selectedSupermarketId = 'sm-1'
+      const wrapper = mountView()
+      await openMenu(wrapper)
+      const item = wrapper.findAllComponents({ name: 'VListItem' }).find(i => i.text().includes('Tesco'))
+      expect(item.props('active')).toBe(true)
+    })
+
+    it('falls back to a plain chip row when only one supermarket exists', () => {
+      shoppingStore = makeStore({ supermarkets: [{ id: 'sm-1', name: 'Tesco', aisles: [] }] })
+      const wrapper = mountView()
+      expect(wrapper.find('.list-chips-menu').exists()).toBe(false)
+      const text = wrapper.find('.list-chips').text()
+      expect(text).toContain('All items')
+      expect(text).toContain('Tesco')
+    })
+
+    it('falls back to a plain chip row when no supermarkets exist', () => {
+      shoppingStore = makeStore({ supermarkets: [] })
+      const wrapper = mountView()
+      expect(wrapper.find('.list-chips-menu').exists()).toBe(false)
+      expect(wrapper.find('.list-chips').text()).toContain('All items')
+    })
+
+    it('the "All items" chip is active (primary) by default in the single-supermarket chip row', () => {
+      shoppingStore = makeStore({ supermarkets: [{ id: 'sm-1', name: 'Tesco', aisles: [] }] })
       const wrapper = mountView()
       const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('All items'))
       expect(chip.props('color')).toBe('primary')
     })
 
-    it('a store chip is inactive when not selected', () => {
+    it('a store chip is inactive when not selected in the single-supermarket chip row', () => {
+      shoppingStore = makeStore({ supermarkets: [{ id: 'sm-1', name: 'Tesco', aisles: [] }] })
       const wrapper = mountView()
       const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Tesco'))
       expect(chip.props('color')).toBeUndefined()
     })
 
-    it('clicking "All items" calls selectSupermarket with null', async () => {
+    it('clicking "All items" calls selectSupermarket with null in the single-supermarket chip row', async () => {
+      shoppingStore = makeStore({ supermarkets: [{ id: 'sm-1', name: 'Tesco', aisles: [] }] })
       const wrapper = mountView()
       const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('All items'))
       await chip.trigger('click')
       expect(shoppingStore.selectSupermarket).toHaveBeenCalledWith(null)
     })
 
-    it('clicking a store chip calls selectSupermarket with its id', async () => {
+    it('clicking the store chip calls selectSupermarket with its id in the single-supermarket chip row', async () => {
+      shoppingStore = makeStore({ supermarkets: [{ id: 'sm-1', name: 'Tesco', aisles: [] }] })
       const wrapper = mountView()
-      const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Lidl'))
+      const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Tesco'))
       await chip.trigger('click')
-      expect(shoppingStore.selectSupermarket).toHaveBeenCalledWith('sm-2')
+      expect(shoppingStore.selectSupermarket).toHaveBeenCalledWith('sm-1')
     })
 
-    it('the selected store chip becomes active (primary + checkmark)', () => {
-      shoppingStore.selectedSupermarketId = 'sm-1'
+    it('the selected store chip becomes active (primary + checkmark) in the single-supermarket chip row', () => {
+      shoppingStore = makeStore({
+        supermarkets: [{ id: 'sm-1', name: 'Tesco', aisles: [] }],
+        selectedSupermarketId: 'sm-1',
+      })
       const wrapper = mountView()
       const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Tesco'))
       expect(chip.props('color')).toBe('primary')
@@ -167,9 +234,10 @@ describe('ShoppingView', () => {
       expect(btn.props('color')).toBe('primary')
     })
 
-    // Issue #158: chips must wrap onto multiple lines instead of truncating
-    // in a single nowrap row.
-    it('renders every supermarket chip in full, unabbreviated, even with many stores', () => {
+    // Issue #158 (superseded by the dropdown selector): every supermarket
+    // must still be reachable, in full and unabbreviated, even with many
+    // stores — now via the dropdown menu instead of a wrapping chip row.
+    it('lists every supermarket in full, unabbreviated, even with many stores', async () => {
       shoppingStore = makeStore({
         supermarkets: [
           { id: 'sm-1', name: 'Sainsburys', aisles: [] },
@@ -180,12 +248,13 @@ describe('ShoppingView', () => {
         ],
       })
       const wrapper = mountView()
-      const chipTexts = wrapper.findAllComponents({ name: 'VChip' }).map(c => c.text())
-      expect(chipTexts).toContain('Sainsburys')
-      expect(chipTexts).toContain('Marks & Spencer')
-      expect(chipTexts).toContain('Morrisons')
-      expect(chipTexts).toContain('Co-op')
-      expect(chipTexts).toContain('Waitrose')
+      await openMenu(wrapper)
+      const itemTexts = wrapper.findAllComponents({ name: 'VListItem' }).map(i => i.text())
+      expect(itemTexts).toContain('Sainsburys')
+      expect(itemTexts).toContain('Marks & Spencer')
+      expect(itemTexts).toContain('Morrisons')
+      expect(itemTexts).toContain('Co-op')
+      expect(itemTexts).toContain('Waitrose')
     })
 
     // jsdom doesn't apply scoped SFC styles, so wrapping can't be asserted via

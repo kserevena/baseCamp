@@ -27,6 +27,10 @@ export const useShoppingStore = defineStore('shopping', () => {
   const supermarkets = ref([])
   const selectedSupermarketId = ref(null)
   const supermarketsLoaded = ref(false)
+  // When true and a specific supermarket is selected, hides items allocated to
+  // "all supermarkets" / unallocated, leaving only items allocated to this store.
+  // Local view state only, not persisted — resets whenever the selection changes.
+  const storeOnlyFilter = ref(false)
 
   let currentFamilyId = null
   let unsubscribeLists = null
@@ -112,9 +116,10 @@ export const useShoppingStore = defineStore('shopping', () => {
     const s = selectedSupermarketId.value
     if (!s) return items.value
     return items.value.filter((i) => {
-      if (i.allSupermarkets ?? false) return true
       const ids = i.supermarketIds ?? []
-      return ids.length === 0 || ids.includes(s)
+      if (ids.includes(s)) return true
+      if (storeOnlyFilter.value) return false
+      return (i.allSupermarkets ?? false) || ids.length === 0
     })
   })
 
@@ -142,10 +147,15 @@ export const useShoppingStore = defineStore('shopping', () => {
 
   function selectSupermarket(id) {
     selectedSupermarketId.value = id || null
+    storeOnlyFilter.value = false
     if (currentFamilyId) {
       if (id) localStorage.setItem(supermarketStorageKey(currentFamilyId), id)
       else localStorage.removeItem(supermarketStorageKey(currentFamilyId))
     }
+  }
+
+  function setStoreOnlyFilter(value) {
+    storeOnlyFilter.value = value
   }
 
   function setup(familyId) {
@@ -211,6 +221,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     supermarkets.value = []
     supermarketsLoaded.value = false
     selectedSupermarketId.value = null
+    storeOnlyFilter.value = false
     provisioningSupermarket = false
   }
 
@@ -506,6 +517,7 @@ export const useShoppingStore = defineStore('shopping', () => {
   return {
     lists, items, activeListId, activeAisles, visibleItems,
     supermarkets, selectedSupermarketId, selectedSupermarket, defaultSupermarket, supermarketsLoaded,
+    storeOnlyFilter, setStoreOnlyFilter,
     setup, teardown, activateList, createList, deleteList, deleteItem,
     toggleDone, togglePriority, restoreToggleState, updateItem, addItem, restoreItem,
     reorderItems, saveAisles, deleteAisle, moveOrCopyItem,

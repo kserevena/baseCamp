@@ -61,7 +61,9 @@ function makeStore(overrides = {}) {
         : null
     },
     supermarketsLoaded: true,
-    selectSupermarket: vi.fn((id) => { shoppingStore.selectedSupermarketId = id }),
+    storeOnlyFilter: false,
+    setStoreOnlyFilter: vi.fn((value) => { shoppingStore.storeOnlyFilter = value }),
+    selectSupermarket: vi.fn((id) => { shoppingStore.selectedSupermarketId = id; shoppingStore.storeOnlyFilter = false }),
     ensureDefaultSupermarket: vi.fn(),
     addItem: vi.fn(),
     restoreItem: vi.fn().mockReturnValue(true),
@@ -125,6 +127,44 @@ describe('ShoppingView', () => {
       const chip = wrapper.findAllComponents({ name: 'VChip' }).find(c => c.text().includes('Tesco'))
       expect(chip.props('color')).toBe('primary')
       expect(chip.props('prependIcon')).toBe('mdi-check')
+    })
+
+    // Issue #137 Part C: hide "all supermarkets"/unallocated items while shopping one store
+    function findFilterBtn(wrapper) {
+      return wrapper.findAllComponents({ name: 'VBtn' })
+        .find(b => /mdi-filter(-outline)?/.test(b.html()))
+    }
+    function hasSolidFilterIcon(btn) {
+      return /mdi-filter(?!-outline)/.test(btn.html())
+    }
+
+    it('the store-only filter button is hidden on "All items"', () => {
+      const wrapper = mountView()
+      expect(findFilterBtn(wrapper)).toBeUndefined()
+    })
+
+    it('the store-only filter button appears once a specific supermarket is selected', () => {
+      shoppingStore.selectedSupermarketId = 'sm-1'
+      const wrapper = mountView()
+      const btn = findFilterBtn(wrapper)
+      expect(btn).toBeTruthy()
+      expect(btn.html()).toContain('mdi-filter-outline')
+    })
+
+    it('clicking the filter button toggles storeOnlyFilter', async () => {
+      shoppingStore.selectedSupermarketId = 'sm-1'
+      const wrapper = mountView()
+      await findFilterBtn(wrapper).trigger('click')
+      expect(shoppingStore.setStoreOnlyFilter).toHaveBeenCalledWith(true)
+    })
+
+    it('the filter button is highlighted (primary + solid icon) when active', () => {
+      shoppingStore.selectedSupermarketId = 'sm-1'
+      shoppingStore.storeOnlyFilter = true
+      const wrapper = mountView()
+      const btn = findFilterBtn(wrapper)
+      expect(hasSolidFilterIcon(btn)).toBe(true)
+      expect(btn.props('color')).toBe('primary')
     })
 
     // Issue #158: chips must wrap onto multiple lines instead of truncating

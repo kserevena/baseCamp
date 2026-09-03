@@ -492,7 +492,7 @@ describe('ShoppingView', () => {
   describe('re-add suggestions', () => {
     beforeEach(() => {
       shoppingStore.items = [
-        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Meat', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
+        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Meat', done: true, supermarketIds: ['sm-1'], allSupermarkets: false, priority: true },
       ]
     })
 
@@ -548,18 +548,22 @@ describe('ShoppingView', () => {
       wrapper.vm.selectSuggestion(shoppingStore.items[0])
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+      // The suggestion (d1) is priority-starred, so selecting it should have
+      // carried that onto the form.
+      expect(wrapper.vm.itemPriority).toBe(true)
 
       wrapper.vm.itemName = 'Bread'
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.selectedDoneItem).toBeNull()
       expect(wrapper.vm.itemAllSupermarkets).toBe(false)
       expect(wrapper.vm.itemSupermarketIds).toEqual([])
-      // The abandoned suggestion's quantity and aisle must not carry over either —
-      // here they restore to openAdd's defaults, since that's what was in place
-      // before the suggestion was selected (see the next test for the case where
-      // the user had already typed something of their own).
+      // The abandoned suggestion's quantity, aisle, and priority must not carry
+      // over either — here they restore to openAdd's defaults, since that's what
+      // was in place before the suggestion was selected (see the next test for
+      // the case where the user had already typed something of their own).
       expect(wrapper.vm.itemQty).toBe('')
       expect(wrapper.vm.itemAisle).toBe('Dairy')
+      expect(wrapper.vm.itemPriority).toBe(false)
 
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
@@ -580,6 +584,7 @@ describe('ShoppingView', () => {
       wrapper.vm.itemQty = '2 loaves'
       wrapper.vm.itemAisle = 'Dry goods'
       wrapper.vm.toggleSupermarket('sm-2')
+      wrapper.vm.itemPriority = true
       await wrapper.vm.$nextTick()
 
       wrapper.vm.selectSuggestion(shoppingStore.items[0])
@@ -587,6 +592,9 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.itemQty).toBe('250g')
       expect(wrapper.vm.itemAisle).toBe('Meat')
       expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+      // The suggestion (d1) is priority-starred, so selecting it overwrites the
+      // user's own priority choice — same as every other field it populates.
+      expect(wrapper.vm.itemPriority).toBe(true)
 
       wrapper.vm.itemName = 'Bread'
       await wrapper.vm.$nextTick()
@@ -595,6 +603,7 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.itemAisle).toBe('Dry goods')
       expect(wrapper.vm.itemAllSupermarkets).toBe(false)
       expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-2'])
+      expect(wrapper.vm.itemPriority).toBe(true)
     })
 
     it('does not overwrite the original snapshot when switching directly between suggestions', async () => {
@@ -639,7 +648,7 @@ describe('ShoppingView', () => {
       expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Meat', {
         supermarketIds: ['sm-1'],
         allSupermarkets: false,
-        priority: false,
+        priority: true,
       })
       expect(shoppingStore.addItem).not.toHaveBeenCalled()
     })

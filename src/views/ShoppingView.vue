@@ -141,6 +141,7 @@ watch(itemName, (val) => {
     itemAisle.value = snapshot?.aisle ?? store.activeAisles[0]?.name ?? ''
     itemAllSupermarkets.value = snapshot?.allSupermarkets ?? false
     itemSupermarketIds.value = snapshot ? [...snapshot.supermarketIds] : []
+    itemPriority.value = snapshot?.priority ?? false
   }
 })
 
@@ -164,6 +165,7 @@ function selectSuggestion(item) {
       aisle: itemAisle.value,
       allSupermarkets: itemAllSupermarkets.value,
       supermarketIds: [...itemSupermarketIds.value],
+      priority: itemPriority.value,
     }
   }
   selectedDoneItem.value = item

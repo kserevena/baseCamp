@@ -369,7 +369,7 @@ describe('ShoppingView', () => {
       wrapper.vm.itemName = 'Eggs'
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: false })
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: false, priority: false })
     })
 
     it('allocates to a specific store when its chip is selected', async () => {
@@ -383,7 +383,7 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: ['sm-1'], allSupermarkets: false })
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: ['sm-1'], allSupermarkets: false, priority: false })
       expect(tescoChip).toBeDefined()
     })
 
@@ -395,7 +395,7 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: true })
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: true, priority: false })
     })
 
     it('selecting a specific store clears the all-supermarkets flag', async () => {
@@ -420,7 +420,44 @@ describe('ShoppingView', () => {
       const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
       await saveBtn.click()
       expect(shoppingStore.updateItem).toHaveBeenCalledWith('i1', {
-        name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: ['sm-2'], allSupermarkets: false,
+        name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: ['sm-2'], allSupermarkets: false, priority: false,
+      })
+    })
+  })
+
+  describe('priority toggle in the add/edit sheet', () => {
+    it('defaults to false when adding a new item and can be turned on before saving', async () => {
+      const wrapper = mountView()
+      wrapper.vm.openAdd()
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemPriority).toBe(false)
+
+      const priorityChip = [...document.body.querySelectorAll('.v-chip')].find(c => c.textContent.trim() === 'Priority')
+      await priorityChip.click()
+      expect(wrapper.vm.itemPriority).toBe(true)
+
+      wrapper.vm.itemName = 'Milk'
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Milk', '', 'Dairy', {
+        supermarketIds: [], allSupermarkets: false, priority: true,
+      })
+    })
+
+    it('prefills from the edited item and can be turned off before saving', async () => {
+      const wrapper = mountView()
+      wrapper.vm.openEdit({ id: 'i1', name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: [], allSupermarkets: false, priority: true })
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemPriority).toBe(true)
+
+      const priorityChip = [...document.body.querySelectorAll('.v-chip')].find(c => c.textContent.trim() === 'Priority')
+      await priorityChip.click()
+      expect(wrapper.vm.itemPriority).toBe(false)
+
+      const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+      expect(shoppingStore.updateItem).toHaveBeenCalledWith('i1', {
+        name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: [], allSupermarkets: false, priority: false,
       })
     })
   })
@@ -529,6 +566,7 @@ describe('ShoppingView', () => {
       expect(shoppingStore.addItem).toHaveBeenCalledWith('Bread', '', 'Dairy', {
         supermarketIds: [],
         allSupermarkets: false,
+        priority: false,
       })
     })
 
@@ -601,6 +639,7 @@ describe('ShoppingView', () => {
       expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Meat', {
         supermarketIds: ['sm-1'],
         allSupermarkets: false,
+        priority: false,
       })
       expect(shoppingStore.addItem).not.toHaveBeenCalled()
     })
@@ -724,7 +763,7 @@ describe('ShoppingView', () => {
       const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
       await saveBtn.click()
       expect(shoppingStore.updateItem).toHaveBeenCalledWith('a1', {
-        name: 'Butter', qty: '250g', aisle: 'Meat', supermarketIds: [], allSupermarkets: false,
+        name: 'Butter', qty: '250g', aisle: 'Meat', supermarketIds: [], allSupermarkets: false, priority: false,
       })
       // The point of routing into edit mode is to update the existing
       // document in place — neither a fresh add nor a done-item restore

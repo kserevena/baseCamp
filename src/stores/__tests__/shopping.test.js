@@ -292,6 +292,26 @@ describe('shopping store', () => {
       const payload = mockAddDoc.mock.calls[0][1]
       expect(payload.aisleOrder).toBe(2)
     })
+
+    it('defaults priority to false when not supplied', () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+
+      store.addItem('Butter', '250g', 'Dairy')
+
+      const payload = mockAddDoc.mock.calls[0][1]
+      expect(payload.priority).toBe(false)
+    })
+
+    it('writes priority true when supplied via the allocation param', () => {
+      const store = useShoppingStore()
+      store.activateList('list-1')
+
+      store.addItem('Butter', '250g', 'Dairy', { priority: true })
+
+      const payload = mockAddDoc.mock.calls[0][1]
+      expect(payload.priority).toBe(true)
+    })
   })
 
   describe('restoreItem', () => {
@@ -404,6 +424,27 @@ describe('shopping store', () => {
       })
       const item = store.items.find(i => i.id === 'item-1')
       expect(item.supermarketIds).toEqual(['sm-2'])
+    })
+
+    it('leaves priority untouched when not supplied, and writes it when supplied', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { done: true, aisle: 'Dairy', aisleOrder: 1, priority: true })] })
+
+      store.restoreItem('item-1', '1 pint', 'Dairy')
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), {
+        done: false, qty: '1 pint', aisle: 'Dairy', aisleOrder: 1, addedBy: 'parent-uid',
+      })
+      expect(store.items.find(i => i.id === 'item-1').priority).toBe(true)
+
+      store.restoreItem('item-1', '1 pint', 'Dairy', { priority: false })
+
+      expect(mockUpdateDoc).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ priority: false }))
+      expect(store.items.find(i => i.id === 'item-1').priority).toBe(false)
     })
 
     it('writes allSupermarkets:true and clears supermarketIds when the whole family selects "All supermarkets"', () => {
@@ -649,6 +690,28 @@ describe('shopping store', () => {
         expect.anything(),
         { name: 'Skimmed milk', qty: '1 pint' }
       )
+    })
+
+    it('leaves priority untouched when not supplied, and writes it when supplied', () => {
+      let itemsCallback
+      mockOnSnapshot.mockImplementationOnce((_ref, cb) => { itemsCallback = cb; return vi.fn() })
+
+      const store = useShoppingStore()
+      store.activateList('list-1')
+      itemsCallback({ docs: [mockItem('item-1', { priority: true })] })
+
+      store.updateItem('item-1', { name: 'Skimmed milk', qty: '1 pint' })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { name: 'Skimmed milk', qty: '1 pint' })
+      expect(store.items.find(i => i.id === 'item-1').priority).toBe(true)
+
+      store.updateItem('item-1', { name: 'Skimmed milk', qty: '1 pint', priority: false })
+
+      expect(mockUpdateDoc).toHaveBeenLastCalledWith(
+        expect.anything(),
+        { name: 'Skimmed milk', qty: '1 pint', priority: false }
+      )
+      expect(store.items.find(i => i.id === 'item-1').priority).toBe(false)
     })
 
     it('leaves addedBy untouched — editing an item is not a re-add', () => {

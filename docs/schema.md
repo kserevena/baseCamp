@@ -43,6 +43,11 @@ families/{familyId}/shoppingLists/{listId}   ← auto-generated ID; family scope
     allSupermarkets: boolean  ← Part B allocation: explicit "all stores" (distinct from
                                 unallocated). Absent = false. Read defensively.
     sortOrder: number | null  ← custom drag-drop position within aisle (global); absent = sort by name
+    priority: boolean         ← starred/priority marking, set from the star toggle in the item list
+                                or the Priority chip in the Add/Edit item sheet. Absent = false, read
+                                defensively. Cleared automatically when an item is ticked done
+                                (toggleDone); a plain edit (updateItem) never changes it unless
+                                explicitly supplied.
     createdAt: timestamp
 
 families/{familyId}/supermarkets/{supermarketId}   ← per-family stores (#137 Part B)

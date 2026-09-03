@@ -297,7 +297,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     updateDoc(itemDoc(activeListId.value, id), { done, addedBy, priority: priority ?? false })
   }
 
-  function updateItem(id, { name, qty, aisle, supermarketIds, allSupermarkets }) {
+  function updateItem(id, { name, qty, aisle, supermarketIds, allSupermarkets, priority }) {
     if (!activeListId.value) return
     const item = items.value.find(i => i.id === id)
     if (!item) return
@@ -318,6 +318,10 @@ export const useShoppingStore = defineStore('shopping', () => {
     if (allSupermarkets !== undefined) {
       item.allSupermarkets = allSupermarkets
       update.allSupermarkets = allSupermarkets
+    }
+    if (priority !== undefined) {
+      item.priority = priority
+      update.priority = priority
     }
     updateDoc(itemDoc(activeListId.value, id), update)
   }
@@ -346,6 +350,7 @@ export const useShoppingStore = defineStore('shopping', () => {
       // Allocation: default unallocated (empty list, not "all") — shows in every view.
       supermarketIds: allocation.supermarketIds ?? [],
       allSupermarkets: allocation.allSupermarkets ?? false,
+      priority: allocation.priority ?? false,
       createdAt: serverTimestamp(),
     })
   }
@@ -376,6 +381,10 @@ export const useShoppingStore = defineStore('shopping', () => {
     if (allocation.allSupermarkets !== undefined) {
       item.allSupermarkets = allocation.allSupermarkets
       update.allSupermarkets = allocation.allSupermarkets
+    }
+    if (allocation.priority !== undefined) {
+      item.priority = allocation.priority
+      update.priority = allocation.priority
     }
     updateDoc(itemDoc(activeListId.value, id), update)
     return true

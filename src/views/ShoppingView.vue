@@ -81,6 +81,7 @@ const preSuggestionSnapshot = ref(null)
 // Item → supermarket allocation. Empty ids + allSupermarkets false = unallocated.
 const itemAllSupermarkets = ref(false)
 const itemSupermarketIds = ref([])
+const itemPriority = ref(false)
 
 const allocationHint = computed(() => {
   if (itemAllSupermarkets.value) return 'Shown in every store'
@@ -140,6 +141,7 @@ watch(itemName, (val) => {
     itemAisle.value = snapshot?.aisle ?? store.activeAisles[0]?.name ?? ''
     itemAllSupermarkets.value = snapshot?.allSupermarkets ?? false
     itemSupermarketIds.value = snapshot ? [...snapshot.supermarketIds] : []
+    itemPriority.value = snapshot?.priority ?? false
   }
 })
 
@@ -151,6 +153,7 @@ function populateFieldsFrom(item) {
   itemAisle.value = item.aisle ?? store.activeAisles[0]?.name ?? ''
   itemAllSupermarkets.value = item.allSupermarkets ?? false
   itemSupermarketIds.value = [...(item.supermarketIds ?? [])]
+  itemPriority.value = item.priority ?? false
 }
 
 function selectSuggestion(item) {
@@ -162,6 +165,7 @@ function selectSuggestion(item) {
       aisle: itemAisle.value,
       allSupermarkets: itemAllSupermarkets.value,
       supermarketIds: [...itemSupermarketIds.value],
+      priority: itemPriority.value,
     }
   }
   selectedDoneItem.value = item
@@ -178,6 +182,7 @@ function openAdd() {
   // New items default to unallocated (visible everywhere).
   itemAllSupermarkets.value = false
   itemSupermarketIds.value = []
+  itemPriority.value = false
   sheet.value = true
 }
 
@@ -206,6 +211,7 @@ function submit() {
   const allocation = {
     supermarketIds: itemAllSupermarkets.value ? [] : itemSupermarketIds.value,
     allSupermarkets: itemAllSupermarkets.value,
+    priority: itemPriority.value,
   }
   if (itemMode.value === 'edit') {
     store.updateItem(editItem.value.id, {
@@ -435,6 +441,16 @@ watch(sheet, (open) => {
           class="mb-2"
           @keyup.enter="submit"
         />
+        <v-chip
+          :color="itemPriority ? 'warning' : undefined"
+          :variant="itemPriority ? 'flat' : 'tonal'"
+          :prepend-icon="itemPriority ? 'mdi-star' : 'mdi-star-outline'"
+          size="small"
+          class="mb-3"
+          @click="itemPriority = !itemPriority"
+        >
+          Priority
+        </v-chip>
         <!-- Aisle + supermarket allocation share ONE scrollable region. It is
              the sheet's flex-grow child, so it absorbs whatever vertical space
              is left once the fields, the Re-add row and the buttons have taken

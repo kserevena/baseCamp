@@ -369,7 +369,7 @@ describe('ShoppingView', () => {
       wrapper.vm.itemName = 'Eggs'
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: false })
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: false, priority: false })
     })
 
     it('allocates to a specific store when its chip is selected', async () => {
@@ -383,7 +383,7 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: ['sm-1'], allSupermarkets: false })
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: ['sm-1'], allSupermarkets: false, priority: false })
       expect(tescoChip).toBeDefined()
     })
 
@@ -395,7 +395,7 @@ describe('ShoppingView', () => {
       await wrapper.vm.$nextTick()
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
-      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: true })
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Eggs', '', 'Dairy', { supermarketIds: [], allSupermarkets: true, priority: false })
     })
 
     it('selecting a specific store clears the all-supermarkets flag', async () => {
@@ -420,7 +420,44 @@ describe('ShoppingView', () => {
       const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
       await saveBtn.click()
       expect(shoppingStore.updateItem).toHaveBeenCalledWith('i1', {
-        name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: ['sm-2'], allSupermarkets: false,
+        name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: ['sm-2'], allSupermarkets: false, priority: false,
+      })
+    })
+  })
+
+  describe('priority toggle in the add/edit sheet', () => {
+    it('defaults to false when adding a new item and can be turned on before saving', async () => {
+      const wrapper = mountView()
+      wrapper.vm.openAdd()
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemPriority).toBe(false)
+
+      const priorityChip = [...document.body.querySelectorAll('.v-chip')].find(c => c.textContent.trim() === 'Priority')
+      await priorityChip.click()
+      expect(wrapper.vm.itemPriority).toBe(true)
+
+      wrapper.vm.itemName = 'Milk'
+      const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
+      await addBtn.click()
+      expect(shoppingStore.addItem).toHaveBeenCalledWith('Milk', '', 'Dairy', {
+        supermarketIds: [], allSupermarkets: false, priority: true,
+      })
+    })
+
+    it('prefills from the edited item and can be turned off before saving', async () => {
+      const wrapper = mountView()
+      wrapper.vm.openEdit({ id: 'i1', name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: [], allSupermarkets: false, priority: true })
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.itemPriority).toBe(true)
+
+      const priorityChip = [...document.body.querySelectorAll('.v-chip')].find(c => c.textContent.trim() === 'Priority')
+      await priorityChip.click()
+      expect(wrapper.vm.itemPriority).toBe(false)
+
+      const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
+      await saveBtn.click()
+      expect(shoppingStore.updateItem).toHaveBeenCalledWith('i1', {
+        name: 'Milk', qty: '2', aisle: 'Dairy', supermarketIds: [], allSupermarkets: false, priority: false,
       })
     })
   })
@@ -455,7 +492,7 @@ describe('ShoppingView', () => {
   describe('re-add suggestions', () => {
     beforeEach(() => {
       shoppingStore.items = [
-        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Meat', done: true, supermarketIds: ['sm-1'], allSupermarkets: false },
+        { id: 'd1', name: 'Butter', qty: '250g', aisle: 'Meat', done: true, supermarketIds: ['sm-1'], allSupermarkets: false, priority: true },
       ]
     })
 
@@ -511,24 +548,29 @@ describe('ShoppingView', () => {
       wrapper.vm.selectSuggestion(shoppingStore.items[0])
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+      // The suggestion (d1) is priority-starred, so selecting it should have
+      // carried that onto the form.
+      expect(wrapper.vm.itemPriority).toBe(true)
 
       wrapper.vm.itemName = 'Bread'
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.selectedDoneItem).toBeNull()
       expect(wrapper.vm.itemAllSupermarkets).toBe(false)
       expect(wrapper.vm.itemSupermarketIds).toEqual([])
-      // The abandoned suggestion's quantity and aisle must not carry over either —
-      // here they restore to openAdd's defaults, since that's what was in place
-      // before the suggestion was selected (see the next test for the case where
-      // the user had already typed something of their own).
+      // The abandoned suggestion's quantity, aisle, and priority must not carry
+      // over either — here they restore to openAdd's defaults, since that's what
+      // was in place before the suggestion was selected (see the next test for
+      // the case where the user had already typed something of their own).
       expect(wrapper.vm.itemQty).toBe('')
       expect(wrapper.vm.itemAisle).toBe('Dairy')
+      expect(wrapper.vm.itemPriority).toBe(false)
 
       const addBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add')
       await addBtn.click()
       expect(shoppingStore.addItem).toHaveBeenCalledWith('Bread', '', 'Dairy', {
         supermarketIds: [],
         allSupermarkets: false,
+        priority: false,
       })
     })
 
@@ -542,6 +584,7 @@ describe('ShoppingView', () => {
       wrapper.vm.itemQty = '2 loaves'
       wrapper.vm.itemAisle = 'Dry goods'
       wrapper.vm.toggleSupermarket('sm-2')
+      wrapper.vm.itemPriority = true
       await wrapper.vm.$nextTick()
 
       wrapper.vm.selectSuggestion(shoppingStore.items[0])
@@ -549,6 +592,9 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.itemQty).toBe('250g')
       expect(wrapper.vm.itemAisle).toBe('Meat')
       expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-1'])
+      // The suggestion (d1) is priority-starred, so selecting it overwrites the
+      // user's own priority choice — same as every other field it populates.
+      expect(wrapper.vm.itemPriority).toBe(true)
 
       wrapper.vm.itemName = 'Bread'
       await wrapper.vm.$nextTick()
@@ -557,6 +603,7 @@ describe('ShoppingView', () => {
       expect(wrapper.vm.itemAisle).toBe('Dry goods')
       expect(wrapper.vm.itemAllSupermarkets).toBe(false)
       expect(wrapper.vm.itemSupermarketIds).toEqual(['sm-2'])
+      expect(wrapper.vm.itemPriority).toBe(true)
     })
 
     it('does not overwrite the original snapshot when switching directly between suggestions', async () => {
@@ -601,6 +648,7 @@ describe('ShoppingView', () => {
       expect(shoppingStore.restoreItem).toHaveBeenCalledWith('d1', '250g', 'Meat', {
         supermarketIds: ['sm-1'],
         allSupermarkets: false,
+        priority: true,
       })
       expect(shoppingStore.addItem).not.toHaveBeenCalled()
     })
@@ -724,7 +772,7 @@ describe('ShoppingView', () => {
       const saveBtn = [...document.body.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save')
       await saveBtn.click()
       expect(shoppingStore.updateItem).toHaveBeenCalledWith('a1', {
-        name: 'Butter', qty: '250g', aisle: 'Meat', supermarketIds: [], allSupermarkets: false,
+        name: 'Butter', qty: '250g', aisle: 'Meat', supermarketIds: [], allSupermarkets: false, priority: false,
       })
       // The point of routing into edit mode is to update the existing
       // document in place — neither a fresh add nor a done-item restore

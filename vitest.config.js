@@ -20,7 +20,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**', 'scripts/**'],
-      exclude: ['src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js'],
+      exclude: ['src/test-setup.js', 'src/devtools/seed.js', 'src/firebase/config.js', '**/*.md'],
       thresholds: {
         statements: 88,
         branches: 84,

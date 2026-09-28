@@ -67,6 +67,8 @@ npm install
 3. Go to **Build → Firestore Database** and create a database in **test mode**
 4. Go to **Project Settings → Your apps**, add a Web app, and copy the config
 
+> **Hosting site on new projects:** from 15 October 2026, Firebase no longer creates a default Hosting site when a project is created — it is provisioned on demand (adding the Web app in step 4 normally triggers it). If your first deploy fails with `404 Site Not Found`, create the site once with `firebase hosting:sites:create <project-id> --project=<project-id>` (use a different site ID if that subdomain is taken). Existing projects are unaffected.
+
 ### 3. Configure environment variables
 
 ```bash

@@ -42,7 +42,7 @@ Fill in the values from the `basecamp-app-prod` Firebase project. The keys are i
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 24.12+ (required by `firebase` 13; CI and deploys use 24.18.0)
 - npm
 - A Firebase project (see below)
 - Firebase CLI — needed to run the emulator and deploy rules:

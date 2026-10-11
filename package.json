@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
-    "firebase": "^12.19.0",
+    "firebase": "^13.0.0",
     "jspdf": "^4.2.1",
     "pinia": "^4.0.3",
     "vue": "^3.5.43",
@@ -31,7 +31,7 @@
     "workbox-window": "^7.4.1"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.2",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vitest/coverage-v8": "^5.0.3",
     "@vue/test-utils": "^2.5.1",

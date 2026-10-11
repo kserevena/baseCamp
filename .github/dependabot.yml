@@ -6,3 +6,10 @@ updates:
       interval: "weekly"
     assignees:
       - "kserevena"
+    groups:
+      # firebase and @firebase/rules-unit-testing peer-depend on each other's
+      # major version, so a lone bump of either can never pass `npm ci`.
+      firebase:
+        patterns:
+          - "firebase"
+          - "@firebase/*"

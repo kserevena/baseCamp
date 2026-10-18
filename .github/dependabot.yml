@@ -13,3 +13,13 @@ updates:
         patterns:
           - "firebase"
           - "@firebase/*"
+      # Everything else: one PR per week for all minor/patch bumps. Major
+      # bumps are left out so a breaking upgrade gets its own PR and can't
+      # hold the routine ones hostage. A dependency joins the first group it
+      # matches, so firebase packages stay in the group above.
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

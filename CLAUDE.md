@@ -147,7 +147,7 @@ Update documentation in the same commit as the change that makes it stale.
 
 **Branch naming.** Name branches after the work being done, not after the session. Use kebab-case prefixed with a short type: `feature/`, `fix/`, or `chore/`. Examples: `feature/parent-only-shopping-items`, `fix/pocket-money-utc-rounding`, `chore/update-firestore-indexes`. Never use auto-generated session names like `claude/dreamy-davinci-*`. **Before pushing to GitHub or opening a PR**, always confirm the working branch has an appropriate name — if it doesn't, create a correctly-named branch from the current HEAD and push that instead.
 
-**CI.** GitHub Actions runs `npm test` then `npm run test:integration` automatically on every pull request. CI must pass before merging.
+**CI.** GitHub Actions runs on every pull request: unit tests with coverage, then `npm run build` and `npm run build:check` (`scripts/check-build.mjs` — fails if `dist/` is missing the manifest, icons, service worker, `SKIP_WAITING` handler, or the precached app shell), then `npm run test:integration`. The build step exists because nothing else builds a PR before merge — without it, a dependency bump that breaks `vite build` or the PWA output would first surface in the prod deploy that runs on merge. CI must pass before merging.
 
 **Issue linking.** If a PR fully resolves a GitHub issue, include `Closes #NNN` in the PR body — this auto-closes the issue on merge. Only use `Closes` when the PR completely addresses the issue; if unsure, confirm with the user before adding it. For PRs that relate to but don't fully fix an issue, reference it with `Related to #NNN` instead.
 

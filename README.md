@@ -162,6 +162,14 @@ Then in a second terminal, set `VITE_USE_EMULATOR=true` in your `.env` file and 
 
 Integration tests load the real `firestore.rules` file into the emulator, so they verify that the rules you deploy are actually enforced correctly.
 
+**Build check** (CI runs this too; no `.env` needed):
+
+```bash
+npm run build && npm run build:check
+```
+
+This builds the app and checks that `dist/` still contains a sound PWA — manifest and icons, a registered service worker with the `SKIP_WAITING` update handler, and an app shell in the precache.
+
 ### Deploying the app
 
 `deploy:dev` and `deploy:prod` are guarded: each one runs `npm install`, the unit tests, and the integration tests before building, and deploys the app **and** the Firestore rules + indexes together. This makes it impossible to ship with stale `node_modules`, with failing tests, or with the app and rules out of sync.
@@ -214,7 +222,7 @@ All changes must go through a pull request — direct pushes to `main` are block
 
 1. Create a feature branch from `main`.
 2. Make your changes and run `npm test && npm run test:integration` locally.
-3. Open a PR — CI runs both test suites automatically.
+3. Open a PR — CI runs both test suites, then builds the app and checks the build output.
 4. Merge only once CI passes. Merging is always a manual step.
 
 ---

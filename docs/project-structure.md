@@ -70,9 +70,11 @@ baseCamp/
 │   ├── schema.md                    # Firestore data model + schema evolution (expand-migrate-cut)
 │   └── security-rules.md            # Firestore security rules access summary
 ├── scripts/
+│   ├── check-build.mjs              # Post-build guard run by CI (validates dist/ manifest, SW, precache)
 │   ├── check-dev-env.mjs            # Preflight guard run by deploy:dev (validates .env)
 │   ├── check-prod-env.mjs           # Preflight guard run by deploy:prod (validates .env.prod)
 │   └── __tests__/
+│       ├── check-build.test.mjs     # Unit tests for check-build validation logic
 │       └── check-dev-env.test.mjs   # Unit tests for check-dev-env validation logic
 ├── public/
 │   └── icon-192.png, icon-512.png

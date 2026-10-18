@@ -32,6 +32,14 @@ jobs:
       - name: Post coverage comment
         uses: davelosert/vitest-coverage-report-action@v2
 
+      # Nothing else builds a PR before merge — the prod deploy on merge would be
+      # the first build. No .env is needed: Firebase config is read at runtime.
+      - name: Production build
+        run: npm run build
+
+      - name: Check build output (manifest, service worker, precache)
+        run: npm run build:check
+
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'

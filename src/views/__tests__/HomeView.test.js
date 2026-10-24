@@ -31,6 +31,11 @@ vi.mock('@/components/FamilyAvatar.vue', () => ({
 
 vi.mock('@/firebase/config.js', () => ({ db: {} }))
 
+const routerPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: routerPush }),
+}))
+
 import HomeView from '@/views/HomeView.vue'
 
 const vuetify = createVuetify({ components, directives })
@@ -127,6 +132,39 @@ describe('HomeView', () => {
         const wrapper = mountView()
         expect(wrapper.text()).toContain('No priority items')
       })
+    })
+  })
+
+  describe('quick add shopping item button', () => {
+    const findBtn = (wrapper) => wrapper.find('[aria-label="Add shopping item"]')
+
+    beforeEach(() => {
+      routerPush.mockClear()
+      shoppingStore.lists = [{ id: 'list-1', name: 'Shopping' }]
+    })
+
+    it('shows the button for a parent when a list exists', () => {
+      const wrapper = mountView()
+      expect(findBtn(wrapper).exists()).toBe(true)
+      expect(findBtn(wrapper).find('.mdi-cart-plus').exists()).toBe(true)
+    })
+
+    it('navigates to the shopping page with the add query on click', async () => {
+      const wrapper = mountView()
+      await findBtn(wrapper).trigger('click')
+      expect(routerPush).toHaveBeenCalledWith({ path: '/shopping', query: { add: '1' } })
+    })
+
+    it('is hidden for children, who cannot add shopping items', () => {
+      familyStore.currentUser = { uid: 'child-uid', name: 'Bob', role: 'child' }
+      const wrapper = mountView()
+      expect(findBtn(wrapper).exists()).toBe(false)
+    })
+
+    it('is hidden when there is no shopping list yet', () => {
+      shoppingStore.lists = []
+      const wrapper = mountView()
+      expect(findBtn(wrapper).exists()).toBe(false)
     })
   })
 

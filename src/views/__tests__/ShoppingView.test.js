@@ -28,6 +28,15 @@ vi.mock('@/components/SupermarketManager.vue', () => ({
 
 vi.mock('@/firebase/config.js', () => ({ db: {} }))
 
+// Reassigned per test (not mutated) so watchers in components mounted by
+// earlier tests — which are never unmounted — don't react to a later test's query.
+let mockRoute = reactive({ query: {} })
+const routerReplace = vi.fn()
+vi.mock('vue-router', () => ({
+  useRoute: () => mockRoute,
+  useRouter: () => ({ replace: routerReplace }),
+}))
+
 import ShoppingView from '@/views/ShoppingView.vue'
 
 const vuetify = createVuetify({ components, directives })
@@ -76,6 +85,7 @@ function makeStore(overrides = {}) {
 describe('ShoppingView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRoute = reactive({ query: {} })
     shoppingStore = makeStore()
     familyStore = reactive({
       currentUser: { uid: 'parent-uid', role: 'parent' },
@@ -265,6 +275,44 @@ describe('ShoppingView', () => {
       const rule = source.match(/\.list-chips\s*\{([^}]*)\}/)[1]
       expect(rule).toMatch(/flex-wrap:\s*wrap/)
       expect(rule).not.toMatch(/overflow-x:\s*auto/)
+    })
+  })
+
+  describe('?add=1 quick-add from the home page', () => {
+    it('opens the add-item sheet and clears the query', async () => {
+      mockRoute.query = { add: '1' }
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).toContain('Available in')
+      expect(routerReplace).toHaveBeenCalledWith({ query: {} })
+    })
+
+    it('does not open the sheet without the query', async () => {
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Available in')
+      expect(routerReplace).not.toHaveBeenCalled()
+    })
+
+    it('does not open the sheet for a child', async () => {
+      mockRoute.query = { add: '1' }
+      familyStore.currentUser = { uid: 'child-uid', role: 'child' }
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Available in')
+    })
+
+    it('waits for the list to load before opening', async () => {
+      mockRoute.query = { add: '1' }
+      shoppingStore.lists = []
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(routerReplace).not.toHaveBeenCalled()
+      shoppingStore.lists = [{ id: 'list-1', name: 'Shopping' }]
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).toContain('Available in')
+      expect(routerReplace).toHaveBeenCalledWith({ query: {} })
     })
   })
 

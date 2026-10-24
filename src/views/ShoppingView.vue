@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useShoppingStore } from '@/stores/shopping.js'
 import { useFamilyStore } from '@/stores/family.js'
 import { useUserRole } from '@/composables/useUserRole.js'
@@ -185,6 +186,23 @@ function openAdd() {
   itemPriority.value = false
   sheet.value = true
 }
+
+// Home page "Add shopping item" shortcut navigates here with ?add=1. Wait
+// until the role and lists are known (a cold start may land before the
+// snapshots), then open the sheet and drop the query so back/refresh doesn't
+// reopen it.
+const route = useRoute()
+const router = useRouter()
+watch(
+  () => [route.query.add, isParent.value, hasLists.value],
+  ([add, parent, lists]) => {
+    if (add === undefined || !parent || !lists) return
+    openAdd()
+    const { add: _add, ...query } = route.query
+    router.replace({ query })
+  },
+  { immediate: true },
+)
 
 function openEdit(item) {
   itemMode.value = 'edit'

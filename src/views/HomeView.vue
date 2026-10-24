@@ -1,12 +1,26 @@
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useFamilyStore } from '@/stores/family.js'
 import { useShoppingStore } from '@/stores/shopping.js'
 import FamilyAvatar from '@/components/FamilyAvatar.vue'
 import JobsPreview from '@/components/JobsPreview.vue'
+import { useUserRole } from '@/composables/useUserRole.js'
 
 const family = useFamilyStore()
 const shopping = useShoppingStore()
+const router = useRouter()
+const { isParent } = useUserRole()
+
+// Shortcut straight to the Add item sheet. Mirrors ShoppingView's FAB, which
+// is parent-only and only shown once a list exists.
+const canQuickAdd = computed(() => isParent.value && shopping.lists.length > 0)
+
+// The card itself is a link to /shopping, so this button navigates in a
+// click handler (stopping propagation) rather than nesting a second <a>.
+function quickAdd() {
+  router.push({ path: '/shopping', query: { add: '1' } })
+}
 
 // Issue #197: the last-viewed list/supermarket name isn't actionable — show
 // the priority items that still need buying instead. Priority is list-wide
@@ -28,7 +42,19 @@ const priorityItems = computed(() =>
       <v-card-text>
         <div class="d-flex align-center">
           <v-icon color="primary" class="mr-2">mdi-cart</v-icon>
-          <span class="text-subtitle-1 font-weight-medium">Priority items</span>
+          <span class="text-subtitle-1 font-weight-medium flex-grow-1">Priority items</span>
+          <v-btn
+            v-if="canQuickAdd"
+            icon
+            variant="tonal"
+            color="primary"
+            size="44"
+            aria-label="Add shopping item"
+            class="quick-add-btn"
+            @click.stop.prevent="quickAdd"
+          >
+            <v-icon>mdi-cart-plus</v-icon>
+          </v-btn>
         </div>
 
         <!-- Priority items -->

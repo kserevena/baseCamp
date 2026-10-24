@@ -1821,4 +1821,30 @@ describe('shopping store', () => {
       expect(store.supermarketsLoaded).toBe(false)
     })
   })
+
+  describe('listsLoaded', () => {
+    it('is false until the lists snapshot fires, even when it is empty', () => {
+      let listsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() }) // lists
+        .mockImplementationOnce(() => vi.fn()) // supermarkets
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      expect(store.listsLoaded).toBe(false)
+      listsCallback({ docs: [] })
+      expect(store.listsLoaded).toBe(true)
+    })
+
+    it('is reset by teardown', () => {
+      let listsCallback
+      mockOnSnapshot
+        .mockImplementationOnce((_r, cb) => { listsCallback = cb; return vi.fn() })
+        .mockImplementationOnce(() => vi.fn())
+      const store = useShoppingStore()
+      store.setup('fam-1')
+      listsCallback({ docs: [] })
+      store.teardown()
+      expect(store.listsLoaded).toBe(false)
+    })
+  })
 })

@@ -16,6 +16,9 @@ const DEFAULT_AISLES = [
 
 export const useShoppingStore = defineStore('shopping', () => {
   const lists = ref([])
+  // True once the lists snapshot has fired, so callers can tell "no lists"
+  // apart from "not loaded yet".
+  const listsLoaded = ref(false)
   const items = ref([])
   const activeListId = ref(null)
 
@@ -171,6 +174,7 @@ export const useShoppingStore = defineStore('shopping', () => {
         lists.value = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
+        listsLoaded.value = true
         const idStillValid = activeListId.value !== null &&
           lists.value.some(l => l.id === activeListId.value)
         if (!idStillValid) {
@@ -216,6 +220,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     unsubscribeSupermarkets = null
     currentFamilyId = null
     lists.value = []
+    listsLoaded.value = false
     items.value = []
     activeListId.value = null
     supermarkets.value = []
@@ -525,7 +530,7 @@ export const useShoppingStore = defineStore('shopping', () => {
 
   return {
     lists, items, activeListId, activeAisles, visibleItems,
-    supermarkets, selectedSupermarketId, selectedSupermarket, defaultSupermarket, supermarketsLoaded,
+    supermarkets, selectedSupermarketId, selectedSupermarket, defaultSupermarket, supermarketsLoaded, listsLoaded,
     storeOnlyFilter, setStoreOnlyFilter,
     setup, teardown, activateList, createList, deleteList, deleteItem,
     toggleDone, togglePriority, restoreToggleState, updateItem, addItem, restoreItem,

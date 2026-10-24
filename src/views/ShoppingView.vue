@@ -188,16 +188,18 @@ function openAdd() {
 }
 
 // Home page "Add shopping item" shortcut navigates here with ?add=1. Wait
-// until the role and lists are known (a cold start may land before the
-// snapshots), then open the sheet and drop the query so back/refresh doesn't
-// reopen it.
+// until the role, lists and supermarkets have all loaded (a cold start may
+// land before the snapshots, and openAdd() picks the default aisle from the
+// selected supermarket), then open the sheet if allowed. The query is dropped
+// either way, so back/refresh doesn't reopen it and a shortcut that couldn't
+// be honoured doesn't fire later (e.g. after creating the first list).
 const route = useRoute()
 const router = useRouter()
 watch(
-  () => [route.query.add, isParent.value, hasLists.value],
-  ([add, parent, lists]) => {
-    if (add === undefined || !parent || !lists) return
-    openAdd()
+  () => [route.query.add, family.currentUser, store.listsLoaded, store.supermarketsLoaded],
+  ([add, user, listsLoaded, supermarketsLoaded]) => {
+    if (add === undefined || !user || !listsLoaded || !supermarketsLoaded) return
+    if (add === '1' && isParent.value && hasLists.value) openAdd()
     const { add: _add, ...query } = route.query
     router.replace({ query })
   },

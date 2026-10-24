@@ -70,6 +70,7 @@ function makeStore(overrides = {}) {
         : null
     },
     supermarketsLoaded: true,
+    listsLoaded: true,
     storeOnlyFilter: false,
     setStoreOnlyFilter: vi.fn((value) => { shoppingStore.storeOnlyFilter = value }),
     selectSupermarket: vi.fn((id) => { shoppingStore.selectedSupermarketId = id; shoppingStore.storeOnlyFilter = false }),
@@ -294,25 +295,86 @@ describe('ShoppingView', () => {
       expect(routerReplace).not.toHaveBeenCalled()
     })
 
-    it('does not open the sheet for a child', async () => {
+    it('does not open the sheet for a child, but still clears the query', async () => {
       mockRoute.query = { add: '1' }
       familyStore.currentUser = { uid: 'child-uid', role: 'child' }
       const wrapper = mountView()
       await wrapper.vm.$nextTick()
       expect(document.body.textContent).not.toContain('Available in')
+      expect(routerReplace).toHaveBeenCalledWith({ query: {} })
     })
 
-    it('waits for the list to load before opening', async () => {
+    it('only opens for add=1 — any other value is cleared without opening', async () => {
+      mockRoute.query = { add: '0' }
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Available in')
+      expect(routerReplace).toHaveBeenCalledWith({ query: {} })
+    })
+
+    it('keeps other query params when clearing add', async () => {
+      mockRoute.query = { add: '1', foo: 'bar' }
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(routerReplace).toHaveBeenCalledWith({ query: { foo: 'bar' } })
+    })
+
+    it('waits for the lists snapshot before acting', async () => {
       mockRoute.query = { add: '1' }
       shoppingStore.lists = []
+      shoppingStore.listsLoaded = false
       const wrapper = mountView()
       await wrapper.vm.$nextTick()
       expect(routerReplace).not.toHaveBeenCalled()
       shoppingStore.lists = [{ id: 'list-1', name: 'Shopping' }]
+      shoppingStore.listsLoaded = true
       await wrapper.vm.$nextTick()
       await wrapper.vm.$nextTick()
       expect(document.body.textContent).toContain('Available in')
       expect(routerReplace).toHaveBeenCalledWith({ query: {} })
+    })
+
+    // Review finding: openAdd() picks the default aisle from the selected
+    // supermarket, so opening before supermarkets load would pre-select a
+    // stale aisle that never refreshes.
+    it('waits for supermarkets to load before opening', async () => {
+      mockRoute.query = { add: '1' }
+      shoppingStore.supermarketsLoaded = false
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Available in')
+      expect(routerReplace).not.toHaveBeenCalled()
+      shoppingStore.supermarketsLoaded = true
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).toContain('Available in')
+    })
+
+    it('waits for the current user before acting', async () => {
+      mockRoute.query = { add: '1' }
+      familyStore.currentUser = null
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(routerReplace).not.toHaveBeenCalled()
+      familyStore.currentUser = { uid: 'parent-uid', role: 'parent' }
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).toContain('Available in')
+    })
+
+    // Review finding: a shortcut that couldn't be honoured (no list yet) must
+    // not linger and pop the sheet open after the parent creates a list.
+    it('clears the query when there is no list, so creating one later does not open the sheet', async () => {
+      mockRoute.query = { add: '1' }
+      shoppingStore.lists = []
+      const wrapper = mountView()
+      await wrapper.vm.$nextTick()
+      expect(routerReplace).toHaveBeenCalledWith({ query: {} })
+      mockRoute.query = {}
+      shoppingStore.lists = [{ id: 'list-1', name: 'Shopping' }]
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      expect(document.body.textContent).not.toContain('Available in')
     })
   })
 

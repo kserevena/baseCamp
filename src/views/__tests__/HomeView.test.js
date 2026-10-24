@@ -155,6 +155,18 @@ describe('HomeView', () => {
       expect(routerPush).toHaveBeenCalledWith({ path: '/shopping', query: { add: '1' } })
     })
 
+    // The card itself links to /shopping; the button's click must not reach
+    // it, or the card would also navigate (without the query).
+    it('does not let the click reach the card link', async () => {
+      const wrapper = mountView()
+      const cardClick = vi.fn()
+      wrapper.find('.v-card').element.addEventListener('click', cardClick)
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+      findBtn(wrapper).element.dispatchEvent(event)
+      expect(cardClick).not.toHaveBeenCalled()
+      expect(event.defaultPrevented).toBe(true)
+    })
+
     it('is hidden for children, who cannot add shopping items', () => {
       familyStore.currentUser = { uid: 'child-uid', name: 'Bob', role: 'child' }
       const wrapper = mountView()

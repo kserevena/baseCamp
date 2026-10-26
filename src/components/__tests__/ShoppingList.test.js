@@ -58,6 +58,11 @@ function mountList(props = {}) {
   })
 }
 
+// The Done section starts collapsed; tests that inspect done rows expand it.
+async function expandDone(wrapper) {
+  await wrapper.find('.done-toggle').trigger('click')
+}
+
 describe('ShoppingList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -148,13 +153,14 @@ describe('ShoppingList', () => {
   })
 
   describe('done section — positive', () => {
-    it('renders a done: true item in the Done section', () => {
+    it('renders a done: true item in the Done section once expanded', async () => {
       shoppingStore.items = [
         { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
       ]
       const wrapper = mountList()
       expect(wrapper.text()).toContain('Done (1)')
-      expect(wrapper.text()).toContain('Eggs')
+      await expandDone(wrapper)
+      expect(wrapper.find('.done-section').text()).toContain('Eggs')
     })
 
     it('shows the correct count in the Done section header', () => {
@@ -199,12 +205,41 @@ describe('ShoppingList', () => {
     })
   })
 
-  describe('done section — negative', () => {
-    it('does not render a done: true item in any aisle section', () => {
+  describe('done section — collapsed by default', () => {
+    it('starts collapsed: shows the header with its count but renders no done rows', () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+        { id: 'i2', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: false },
+      ]
+      const wrapper = mountList()
+      expect(wrapper.text()).toContain('Done (1)')
+      expect(wrapper.find('.done-section').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Eggs')
+      expect(wrapper.find('.done-toggle').attributes('aria-expanded')).toBe('false')
+    })
+
+    it('expands and collapses when the header is clicked', async () => {
       shoppingStore.items = [
         { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
       ]
       const wrapper = mountList()
+      await expandDone(wrapper)
+      expect(wrapper.find('.done-section').text()).toContain('Eggs')
+      expect(wrapper.find('.done-toggle').attributes('aria-expanded')).toBe('true')
+
+      await wrapper.find('.done-toggle').trigger('click')
+      expect(wrapper.find('.done-section').exists()).toBe(false)
+      expect(wrapper.find('.done-toggle').attributes('aria-expanded')).toBe('false')
+    })
+  })
+
+  describe('done section — negative', () => {
+    it('does not render a done: true item in any aisle section', async () => {
+      shoppingStore.items = [
+        { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
+      ]
+      const wrapper = mountList()
+      await expandDone(wrapper)
       const aisleHeaders = wrapper.findAll('.v-list-subheader')
       const aisleHeaderTexts = aisleHeaders.map(h => h.text())
       // Only the Done header should contain the item name area; Dairy header should be present but empty of the item
@@ -240,11 +275,12 @@ describe('ShoppingList', () => {
       expect(wrapper.text()).not.toContain('Done (')
     })
 
-    it('does not render a drag handle for items in the Done section', () => {
+    it('does not render a drag handle for items in the Done section', async () => {
       shoppingStore.items = [
         { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
       ]
       const wrapper = mountList()
+      await expandDone(wrapper)
       const doneSection = wrapper.find('.done-section')
       expect(doneSection.exists()).toBe(true)
       // ShoppingItem stub does not receive showDragHandle=true in the done section
@@ -294,19 +330,21 @@ describe('ShoppingList', () => {
       expect(wrapper.text()).toContain('Steak')
     })
 
-    it('hides the Done section header when showHeaders is false', () => {
+    it('keeps the Done toggle header when showHeaders is false (it is the only way to expand the section)', () => {
       shoppingStore.items = [
         { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
       ]
       const wrapper = mountList({ showHeaders: false })
-      expect(wrapper.text()).not.toContain('Done (1)')
+      expect(wrapper.find('.done-toggle').text()).toContain('Done (1)')
+      expect(wrapper.text()).not.toContain('Dairy')
     })
 
-    it('still renders done items when showHeaders is false', () => {
+    it('still renders done items when showHeaders is false and the section is expanded', async () => {
       shoppingStore.items = [
         { id: 'i1', name: 'Eggs', aisle: 'Dairy', aisleOrder: 1, done: true },
       ]
       const wrapper = mountList({ showHeaders: false })
+      await expandDone(wrapper)
       expect(wrapper.find('.done-section').exists()).toBe(true)
       expect(wrapper.text()).toContain('Eggs')
     })
@@ -429,6 +467,7 @@ describe('ShoppingList', () => {
         { id: 'i1', name: 'Milk', aisle: 'Dairy', aisleOrder: 1, done: true, addedBy: 'uid-original' },
       ]
       const wrapper = mountList()
+      await expandDone(wrapper)
       await wrapper.find('.shopping-item-stub').trigger('click')
 
       const undoBtn = wrapper.findAllComponents({ name: 'VBtn' })

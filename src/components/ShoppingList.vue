@@ -58,6 +58,13 @@ function onDragStart() {
   pendingReorder = true
 }
 
+// Done items are never deleted (they back the Add item sheet's re-add
+// suggestions), so this section grows without bound. Rendering every done row
+// on mount made opening the Shopping page take seconds on a family with a few
+// hundred done items, so the section starts collapsed and only builds its rows
+// when expanded. Resets on each visit, by design.
+const showDone = ref(false)
+
 const undoSnackbar = ref(false)
 const lastToggle = ref(null)
 
@@ -154,10 +161,20 @@ function onDragEnd() {
     </template>
 
     <template v-if="doneItems.length > 0">
-      <v-list-subheader v-if="showHeaders" class="aisle-header text-uppercase font-weight-bold done-header">
-        Done ({{ doneItems.length }})
+      <!-- Always shown, even with aisle headers hidden: it is the only way to
+           expand the collapsed section. -->
+      <v-list-subheader class="aisle-header text-uppercase font-weight-bold done-header">
+        <button
+          type="button"
+          class="done-toggle"
+          :aria-expanded="String(showDone)"
+          @click="showDone = !showDone"
+        >
+          <v-icon size="small" class="mr-1">{{ showDone ? 'mdi-chevron-down' : 'mdi-chevron-right' }}</v-icon>
+          Done ({{ doneItems.length }})
+        </button>
       </v-list-subheader>
-      <div class="done-section">
+      <div v-if="showDone" class="done-section">
         <ShoppingItem
           v-for="item in doneItems"
           :key="item.id"
@@ -189,6 +206,19 @@ function onDragEnd() {
   z-index: 1;
   letter-spacing: 0.06em;
   font-size: 0.7rem;
+}
+.done-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 .done-section {
   opacity: 0.5;
